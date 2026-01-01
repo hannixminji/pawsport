@@ -3,7 +3,10 @@ from enum import Enum
 from typing import Any, Literal
 
 import bcrypt
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+from firebase_admin import auth
+from firebase_admin.auth import CertificateFetchError, ExpiredIdTokenError, InvalidIdTokenError, RevokedIdTokenError
+from firebase_admin.exceptions import FirebaseError
 from jose import JWTError, jwt
 from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +22,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
+security = HTTPBearer()
 
 
 class TokenType(str, Enum):
@@ -134,3 +138,19 @@ async def blacklist_token(token: str, db: AsyncSession) -> None:
     if exp_timestamp is not None:
         expires_at = datetime.fromtimestamp(exp_timestamp)
         await crud_token_blacklist.create(db, object=TokenBlacklistCreate(token=token, expires_at=expires_at))
+
+
+def verify_firebase_token(id_token: str) -> dict[str, Any]:
+    try:
+        return auth.verify_id_token(id_token)
+
+    except ExpiredIdTokenError:
+        raise ValueError("Firebase ID token has expired.")
+    except RevokedIdTokenError:
+        raise ValueError("Firebase ID token has been revoked.")
+    except InvalidIdTokenError:
+        raise ValueError("Invalid Firebase ID token.")
+    except CertificateFetchError:
+        raise ValueError("Error fetching Firebase public keys.")
+    except FirebaseError as firebase_error:
+        raise ValueError(f"Firebase error: {firebase_error}")

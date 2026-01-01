@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 class RateLimiter:
     _instance: Optional["RateLimiter"] = None
-    pool: Optional[ConnectionPool] = None
-    client: Optional[Redis] = None
+    pool: ConnectionPool | None = None
+    client: Redis | None = None
 
     def __new__(cls) -> "RateLimiter":
         if cls._instance is None:

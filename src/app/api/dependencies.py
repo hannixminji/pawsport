@@ -1,19 +1,24 @@
 from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from ..core.config import settings
 from ..core.db.database import async_get_db
 from ..core.exceptions.http_exceptions import ForbiddenException, RateLimitException, UnauthorizedException
 from ..core.logger import logging
-from ..core.security import TokenType, oauth2_scheme, verify_token
+from ..core.security import TokenType, oauth2_scheme, security, verify_firebase_token, verify_token
 from ..core.utils.rate_limit import rate_limiter
 from ..crud.crud_rate_limit import crud_rate_limits
 from ..crud.crud_tier import crud_tiers
 from ..crud.crud_users import crud_users
+from ..models.user_linked_account import UserLinkedAccount
 from ..schemas.rate_limit import RateLimitRead, sanitize_path
 from ..schemas.tier import TierRead
+from ..schemas.user import UserRead
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +40,41 @@ async def get_current_user(
 
     if user:
         return user
+
+    raise UnauthorizedException("User not authenticated.")
+
+
+async def get_authenticated_user(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    db: Annotated[AsyncSession, Depends(async_get_db)]
+) -> UserRead:
+    token = credentials.credentials
+
+    try:
+        token_data = verify_firebase_token(token)
+    except ValueError as error:
+        raise UnauthorizedException(str(error))
+
+    sign_in_provider = token_data.get("firebase", {}).get("sign_in_provider")
+
+    identities = token_data.get("firebase", {}).get("identities", {})
+    provider_ids = identities.get(sign_in_provider)
+    provider_user_id = provider_ids[0]
+
+    linked_account = (
+        await db.execute(
+            select(UserLinkedAccount)
+            .options(selectinload(UserLinkedAccount.user))
+            .where(
+                UserLinkedAccount.provider == sign_in_provider,
+                UserLinkedAccount.provider_user_id == provider_user_id,
+                ~UserLinkedAccount.is_deleted
+            )
+        )
+    ).scalar_one_or_none()
+
+    if linked_account and linked_account.user and not linked_account.user.is_deleted:
+        return UserRead.model_validate(linked_account.user)
 
     raise UnauthorizedException("User not authenticated.")
 
@@ -67,6 +107,13 @@ async def get_optional_user(request: Request, db: AsyncSession = Depends(async_g
 
 async def get_current_superuser(current_user: Annotated[dict, Depends(get_current_user)]) -> dict:
     if not current_user["is_superuser"]:
+        raise ForbiddenException("You do not have enough privileges.")
+
+    return current_user
+
+
+async def get_authenticated_superuser(current_user: Annotated[UserRead, Depends(get_authenticated_user)]) -> UserRead:
+    if not current_user.is_superuser:
         raise ForbiddenException("You do not have enough privileges.")
 
     return current_user

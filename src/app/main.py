@@ -1,18 +1,25 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import firebase_admin
 from fastapi import FastAPI
 
 from .admin.initialize import create_admin_interface
 from .api import router
 from .core.config import settings
 from .core.setup import create_application, lifespan_factory
+from .core.utils.qdrant_cloud import init_collections
 
 admin = create_admin_interface()
 
 
 @asynccontextmanager
 async def lifespan_with_admin(app: FastAPI) -> AsyncGenerator[None, None]:
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app()
+
+    init_collections()
+
     """Custom lifespan that includes admin initialization."""
     # Get the default lifespan
     default_lifespan = lifespan_factory(settings)

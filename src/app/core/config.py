@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AppSettings(BaseSettings):
-    APP_NAME: str = "FastAPI app"
+    APP_NAME: str = "PawsPort"
     APP_DESCRIPTION: str | None = None
     APP_VERSION: str | None = None
     LICENSE_NAME: str | None = None
@@ -149,6 +149,20 @@ class CORSSettings(BaseSettings):
     CORS_HEADERS: list[str] = ["*"]
 
 
+class GCSSettings(BaseSettings):
+    GCS_BUCKET_NAME: str = "pawsport"
+    GCS_SIGNED_URL_VERSION: str = "v4"
+    GCS_VIEW_SIGNED_URL_EXPIRATION_MINUTES: int = 60
+    GCS_DOWNLOAD_SIGNED_URL_EXPIRATION_MINUTES: int = 60
+    GCS_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES: int = 60
+    GCS_RESUMABLE_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES: int = 60
+
+
+class QdrantCloudSettings(BaseSettings):
+    QDRANT_CLOUD_URL: str = "http://localhost:6333"
+    QDRANT_CLOUD_API_KEY: SecretStr = SecretStr("")
+
+
 class Settings(
     AppSettings,
     SQLiteSettings,
@@ -164,6 +178,9 @@ class Settings(
     CRUDAdminSettings,
     EnvironmentSettings,
     CORSSettings,
+
+    GCSSettings,
+    QdrantCloudSettings,
 ):
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", ".env"),
