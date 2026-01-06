@@ -5,6 +5,7 @@ from typing import Annotated, Any
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import HTMLResponse
 from fastcrud import PaginatedListResponse, compute_offset, paginated_response
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 from sqlalchemy import func, select, update
@@ -350,10 +351,10 @@ async def read_pet(
     return PetRead.model_validate(db_pet)
 
 
-@router.get("/pet/qr/{uuid}", response_model=PetRead)
+@router.get("/pet/qr/{uuid}")
 async def read_pet_by_qr(
     request: Request, uuid: str, db: Annotated[AsyncSession, Depends(async_get_db)]
-) -> PetRead:
+):
     db_pet = (
         await db.execute(
             select(Pet)
@@ -367,7 +368,31 @@ async def read_pet_by_qr(
     if db_pet is None:
         raise NotFoundException("Pet not found")
 
-    return PetRead.model_validate(db_pet)
+    client_header = request.headers.get("X-App-Client")
+    if client_header == "MyPetApp":
+        return PetRead.model_validate(db_pet)
+
+    images_html = "".join(
+        f'<img src="{img.image_url}" style="max-width:150px;margin:5px;">'
+        for img in db_pet.profile_images
+    )
+    html_content = f"""
+    <html>
+      <head><title>{db_pet.name}</title></head>
+      <body>
+        <h1>{db_pet.name} ({db_pet.type})</h1>
+        <p><strong>Breed:</strong> {db_pet.breed}</p>
+        <p><strong>Sex:</strong> {db_pet.sex}</p>
+        <p><strong>Weight:</strong> {db_pet.weight_kg or 'Unknown'} kg</p>
+        <p><strong>Color:</strong> {db_pet.color or 'Unknown'}</p>
+        <p><strong>Markings:</strong> {db_pet.markings or 'None'}</p>
+        <p><strong>Neutered:</strong> {"Yes" if db_pet.is_neutered else "No"}</p>
+        <p><strong>Missing Status:</strong> {db_pet.missing_status.name if db_pet.missing_status else 'None'}</p>
+        {images_html}
+      </body>
+    </html>
+    """
+    return HTMLResponse(html_content)
 
 
 @router.patch("/{username}/pet/{id}")
