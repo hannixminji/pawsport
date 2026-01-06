@@ -105,18 +105,18 @@ async def login_or_signup(
         email=email
     )
 
+    db.add(user)
+    await db.flush()
+
+    linked_account_model = UserLinkedAccount(
+        user_id=user.id,
+        provider=sign_in_provider,
+        provider_user_id=provider_user_id
+    )
+
+    db.add(linked_account_model)
+
     try:
-        db.add(user)
-        await db.flush()
-
-        linked_account_model = UserLinkedAccount(
-            user_id=user.id,
-            provider=sign_in_provider,
-            provider_user_id=provider_user_id
-        )
-
-        db.add(linked_account_model)
-
         await db.commit()
     except IntegrityError as error:
         await db.rollback()

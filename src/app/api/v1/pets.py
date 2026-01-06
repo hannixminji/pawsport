@@ -24,6 +24,7 @@ from ...core.utils import queue
 from ...core.utils.cache import cache
 from ...core.utils.google_cloud_storage import is_objects_exist
 from ...core.utils.qdrant_cloud import delete_embedding, search_pet
+from ...core.utils.qr_code import generate_qr_and_upload_gcs
 from ...models.pet import Pet
 from ...models.pet_profile_image import PetProfileImage
 from ...models.user import User
@@ -67,6 +68,15 @@ async def write_pet(
     pet_model = Pet(**pet.model_dump(exclude={"profile_images"}), owner_id=db_user_id)
     db.add(pet_model)
     await db.flush()
+
+    qr_object_key = generate_qr_and_upload_gcs(
+        data=f"http://localhost/pet/qr/{pet_model.uuid}",
+        object_key=f"qr_codes/{pet_model.uuid}.png",
+        scale=10,
+        error="H",
+        kind="png"
+    )
+    pet_model.qr_code_image_object_key = qr_object_key
 
     profile_image_models = []
     for profile_image in pet.profile_images:
@@ -330,6 +340,26 @@ async def read_pet(
             .where(
                 Pet.id == id,
                 Pet.owner_id == db_user_id,
+                ~Pet.is_deleted
+            )
+        )
+    ).scalar_one_or_none()
+    if db_pet is None:
+        raise NotFoundException("Pet not found")
+
+    return PetRead.model_validate(db_pet)
+
+
+@router.get("/pet/qr/{uuid}", response_model=PetRead)
+async def read_pet_by_qr(
+    request: Request, uuid: str, db: Annotated[AsyncSession, Depends(async_get_db)]
+) -> PetRead:
+    db_pet = (
+        await db.execute(
+            select(Pet)
+            .options(selectinload(Pet.profile_images))
+            .where(
+                Pet.qr_uuid == uuid,
                 ~Pet.is_deleted
             )
         )

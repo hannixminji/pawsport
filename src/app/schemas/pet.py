@@ -14,6 +14,9 @@ class PetBase(BaseModel):
     sex: Annotated[str, Field(pattern=r"^(?i)(male|female)$", examples=["Male", "Female"])]
     is_neutered: Annotated[bool, Field(examples=[True, False])]
     date_of_birth: Annotated[date, Field(examples=["2020-06-15"])]
+    weight_kg: Annotated[float | None, Field(gt=0, le=120, examples=[4.25], default=None)]
+    color: Annotated[str | None, Field(min_length=1, max_length=30, examples=["black-white"], default=None)]
+    markings: Annotated[str | None, Field(max_length=300, examples=["White patch on chest"], default=None)]
 
     @field_validator("type", "sex")
     @classmethod
@@ -39,6 +42,10 @@ class PetRead(BaseModel):
     is_neutered: bool
     date_of_birth: date
     profile_images: list[PetProfileImageRead]
+    weight_kg: float | None
+    color: str | None
+    markings: str | None
+    qr_code_url: str | None
 
 
 class PetReadWithPrimaryProfilePicture(BaseModel):
@@ -53,6 +60,10 @@ class PetReadWithPrimaryProfilePicture(BaseModel):
     is_neutered: bool
     date_of_birth: date
     primary_profile_image_url: str
+    weight_kg: float | None
+    color: str | None
+    markings: str | None
+    qr_code_url: str | None
 
 
 class PetSearch(PetRead):
@@ -98,6 +109,9 @@ class PetUpdate(BaseModel):
     sex: Annotated[str | None, Field(pattern=r"^(?i)(male|female)$", examples=["Male", "Female"], default=None)]
     is_neutered: Annotated[bool | None, Field(examples=[True, False], default=None)]
     date_of_birth: Annotated[date | None, Field(examples=["2020-06-15"], default=None)]
+    weight_kg: Annotated[float | None, Field(gt=0, le=120, examples=[4.25], default=None)]
+    color: Annotated[str | None, Field(min_length=1, max_length=30, examples=["black-white"], default=None)]
+    markings: Annotated[str | None, Field(max_length=300, examples=["White patch on chest"], default=None)]
 
     @field_validator("type", "sex")
     @classmethod

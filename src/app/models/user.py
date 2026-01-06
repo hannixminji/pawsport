@@ -19,6 +19,8 @@ class User(Base):
     __tablename__ = "user"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
+    first_name: Mapped[str] = mapped_column(String(30))
+    last_name: Mapped[str] = mapped_column(String(30))
     username: Mapped[str] = mapped_column(String(20), index=True)
     email: Mapped[str] = mapped_column(String(255), index=True)
     linked_accounts: Mapped[list["UserLinkedAccount"]] = relationship(
@@ -38,10 +40,15 @@ class User(Base):
         init=False
     )
 
-    name: Mapped[str | None] = mapped_column(String(30), default=None)
     phone_number: Mapped[str | None] = mapped_column(String(20), default=None)
     hashed_password: Mapped[str | None] = mapped_column(String(255), default=None)
     profile_image_object_key: Mapped[str | None] = mapped_column(String(1024), default=None)
+    country: Mapped[str | None] = mapped_column(String(60), default=None)
+    street_address_1: Mapped[str | None] = mapped_column(String(255), default=None)
+    street_address_2: Mapped[str | None] = mapped_column(String(255), default=None)
+    city: Mapped[str | None] = mapped_column(String(100), default=None)
+    state_province_region: Mapped[str | None] = mapped_column(String(100), default=None)
+    postal_code: Mapped[str | None] = mapped_column(String(16), default=None)
     uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), default_factory=uuid7, nullable=False, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default_factory=lambda: datetime.now(UTC), nullable=False

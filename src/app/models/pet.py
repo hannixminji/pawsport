@@ -2,11 +2,12 @@ import uuid as uuid_pkg
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import UUID, Boolean, Date, DateTime, ForeignKey, String
+from sqlalchemy import UUID, Boolean, Date, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from uuid6 import uuid7
 
 from ..core.db.database import Base
+from ..core.utils.google_cloud_storage import generate_view_signed_url
 from .missing_report import MissingReportStatus
 
 if TYPE_CHECKING:
@@ -45,6 +46,10 @@ class Pet(Base):
     )
 
     is_neutered: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    color: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    markings: Mapped[str | None] = mapped_column(Text, nullable=True)
+    qr_code_image_object_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), default_factory=uuid7, nullable=False, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default_factory=lambda: datetime.now(UTC), nullable=False
@@ -61,6 +66,13 @@ class Pet(Base):
     def primary_profile_image_url(self) -> str | None:
         primary = next((profile_image for profile_image in self.profile_images if profile_image.is_primary), None)
         return primary.image_url if primary else None
+
+    @property
+    def qr_code_url(self) -> str | None:
+        if not self.qr_code_image_object_key:
+            return None
+
+        return generate_view_signed_url(self.qr_code_image_object_key)
 
     @property
     def missing_status(self) -> MissingReportStatus | None:

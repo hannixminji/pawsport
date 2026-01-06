@@ -41,6 +41,7 @@ dependencies = [
     "pillow>=12.0.0",
     "pydantic-extra-types>=2.10.6",
     "qdrant-client>=1.16.2",
+    "segno>=1.6.6",
     "shapely>=2.1.2",
 ]
 
