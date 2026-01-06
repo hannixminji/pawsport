@@ -12,7 +12,7 @@ class PetBase(BaseModel):
     type: Annotated[str, Field(pattern=r"^(?i)(cat|dog)$", examples=["Cat", "Dog"])]
     breed: Annotated[str, Field(min_length=3, max_length=30, examples=["Golden Retriever"])]
     sex: Annotated[str, Field(pattern=r"^(?i)(male|female)$", examples=["Male", "Female"])]
-    is_neutered: Annotated[bool, Field(examples=[True, False])]
+    is_sterilized: Annotated[bool, Field(examples=[True, False])]
     date_of_birth: Annotated[date, Field(examples=["2020-06-15"])]
     weight_kg: Annotated[float | None, Field(gt=0, le=120, examples=[4.25], default=None)]
     color: Annotated[str | None, Field(min_length=1, max_length=30, examples=["black-white"], default=None)]
@@ -39,7 +39,7 @@ class PetRead(BaseModel):
     type: str
     breed: str
     sex: str
-    is_neutered: bool
+    is_sterilized: bool
     date_of_birth: date
     profile_images: list[PetProfileImageRead]
     weight_kg: float | None
@@ -57,7 +57,7 @@ class PetReadWithPrimaryProfilePicture(BaseModel):
     type: str
     breed: str
     sex: str
-    is_neutered: bool
+    is_sterilized: bool
     date_of_birth: date
     primary_profile_image_url: str
     weight_kg: float | None
@@ -107,7 +107,7 @@ class PetUpdate(BaseModel):
     type: Annotated[str | None, Field(pattern=r"^(?i)(cat|dog)$", examples=["Cat", "Dog"], default=None)]
     breed: Annotated[str | None, Field(min_length=3, max_length=30, examples=["Golden Retriever"], default=None)]
     sex: Annotated[str | None, Field(pattern=r"^(?i)(male|female)$", examples=["Male", "Female"], default=None)]
-    is_neutered: Annotated[bool | None, Field(examples=[True, False], default=None)]
+    is_sterilized: Annotated[bool | None, Field(examples=[True, False], default=None)]
     date_of_birth: Annotated[date | None, Field(examples=["2020-06-15"], default=None)]
     weight_kg: Annotated[float | None, Field(gt=0, le=120, examples=[4.25], default=None)]
     color: Annotated[str | None, Field(min_length=1, max_length=30, examples=["black-white"], default=None)]

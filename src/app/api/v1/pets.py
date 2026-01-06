@@ -386,7 +386,7 @@ async def read_pet_by_qr(
         <p><strong>Weight:</strong> {db_pet.weight_kg or 'Unknown'} kg</p>
         <p><strong>Color:</strong> {db_pet.color or 'Unknown'}</p>
         <p><strong>Markings:</strong> {db_pet.markings or 'None'}</p>
-        <p><strong>Neutered:</strong> {"Yes" if db_pet.is_neutered else "No"}</p>
+        <p><strong>Neutered:</strong> {"Yes" if db_pet.is_sterilized else "No"}</p>
         <p><strong>Missing Status:</strong> {db_pet.missing_status.name if db_pet.missing_status else 'None'}</p>
         {images_html}
       </body>
