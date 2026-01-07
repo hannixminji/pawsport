@@ -2,6 +2,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Annotated, Any
+from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
@@ -71,7 +72,7 @@ async def write_pet(
     await db.flush()
 
     qr_object_key = generate_qr_and_upload_gcs(
-        data=f"http://localhost/pet/qr/{pet_model.uuid}",
+        data=f"http://localhost/api/v1/pet/qr/{pet_model.uuid}",
         object_key=f"qr_codes/{pet_model.uuid}.png",
         scale=10,
         error="H",
@@ -360,7 +361,7 @@ async def read_pet_by_qr(
             select(Pet)
             .options(selectinload(Pet.profile_images))
             .where(
-                Pet.qr_uuid == uuid,
+                Pet.uuid == UUID(uuid),
                 ~Pet.is_deleted
             )
         )

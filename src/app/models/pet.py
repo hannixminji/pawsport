@@ -48,8 +48,8 @@ class Pet(Base):
     weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     color: Mapped[str | None] = mapped_column(String(30), nullable=True)
     markings: Mapped[str | None] = mapped_column(Text, nullable=True)
-    qr_code_image_object_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     is_sterilized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    qr_code_image_object_key: Mapped[str | None] = mapped_column(String(1024), nullable=True, default=None)
     uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), default_factory=uuid7, nullable=False, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default_factory=lambda: datetime.now(UTC), nullable=False

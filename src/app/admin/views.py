@@ -34,7 +34,7 @@ def register_admin_views(admin: CRUDAdmin) -> None:
         password_field="password",
         hashed_field="hashed_password",
         hash_function=get_password_hash,
-        required_fields=["name", "username", "email"],
+        required_fields=["username", "email"],
     )
 
     admin.add_view(

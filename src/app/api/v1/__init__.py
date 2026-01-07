@@ -8,6 +8,7 @@ from .missing_reports import router as missing_reports_router
 from .pets import router as pets_router
 from .posts import router as posts_router
 from .sighting_reports import router as sighting_reports_router
+from .test import router as test_router
 from .users import router as users_router
 
 router = APIRouter(prefix="/v1")
@@ -20,3 +21,5 @@ router.include_router(pets_router)
 router.include_router(posts_router)
 router.include_router(sighting_reports_router)
 router.include_router(users_router)
+
+router.include_router(test_router)
