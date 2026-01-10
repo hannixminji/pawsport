@@ -8,11 +8,11 @@ from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
 
 
 class UserBase(BaseModel):
-    first_name: Annotated[str, Field(min_length=2, max_length=30, examples=["John"])]
-    last_name: Annotated[str, Field(min_length=2, max_length=30, examples=["Doe"])]
     username: Annotated[str, Field(min_length=3, max_length=20, pattern=r"^[a-z0-9]+$", examples=["userson"])]
     email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
     phone_number: Annotated[PhoneNumber, Field(examples=["+639123456789"])]
+    first_name: Annotated[str | None, Field(min_length=2, max_length=30, examples=["John"], default=None)]
+    last_name: Annotated[str | None, Field(min_length=2, max_length=30, examples=["Doe"], default=None)]
     profile_image_object_key: Annotated[
         str | None, Field(min_length=1, max_length=1024, examples=["path/to/image.jpg"], default=None)
     ]
@@ -34,10 +34,10 @@ class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    first_name: str
-    last_name: str
     username: str
     email: EmailStr
+    first_name: str | None
+    last_name: str | None
     phone_number: str | None
     tier_id: int | None
     profile_image_url: str | None
