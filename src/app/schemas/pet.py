@@ -16,7 +16,7 @@ class PetBase(BaseModel):
     date_of_birth: Annotated[date, Field(examples=["2020-06-15"])]
     weight_kg: Annotated[float | None, Field(gt=0, le=120, examples=[4.25], default=None)]
     color: Annotated[str | None, Field(min_length=1, max_length=30, examples=["black-white"], default=None)]
-    markings: Annotated[str | None, Field(max_length=300, examples=["White patch on chest"], default=None)]
+    markings: Annotated[str | None, Field(max_length=255, examples=["White patch on chest"], default=None)]
 
     @field_validator("type", "sex")
     @classmethod
@@ -111,7 +111,7 @@ class PetUpdate(BaseModel):
     date_of_birth: Annotated[date | None, Field(examples=["2020-06-15"], default=None)]
     weight_kg: Annotated[float | None, Field(gt=0, le=120, examples=[4.25], default=None)]
     color: Annotated[str | None, Field(min_length=1, max_length=30, examples=["black-white"], default=None)]
-    markings: Annotated[str | None, Field(max_length=300, examples=["White patch on chest"], default=None)]
+    markings: Annotated[str | None, Field(max_length=255, examples=["White patch on chest"], default=None)]
 
     @field_validator("type", "sex")
     @classmethod

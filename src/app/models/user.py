@@ -19,8 +19,6 @@ class User(Base):
     __tablename__ = "user"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    first_name: Mapped[str] = mapped_column(String(30))
-    last_name: Mapped[str] = mapped_column(String(30))
     username: Mapped[str] = mapped_column(String(20), index=True)
     email: Mapped[str] = mapped_column(String(255), index=True)
     linked_accounts: Mapped[list["UserLinkedAccount"]] = relationship(
@@ -40,6 +38,8 @@ class User(Base):
         init=False
     )
 
+    first_name: Mapped[str | None] = mapped_column(String(30), default=None)
+    last_name: Mapped[str | None] = mapped_column(String(30), default=None)
     phone_number: Mapped[str | None] = mapped_column(String(20), default=None)
     hashed_password: Mapped[str | None] = mapped_column(String(255), default=None)
     profile_image_object_key: Mapped[str | None] = mapped_column(String(1024), default=None)
