@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PawsPort ID - {{ pet.name }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FF6B35;
+            --primary-dark: #E85A28;
+            --primary-light: #FF8F66;
+            --accent: #FFC857;
+            --bg-page: #0F172A;
+            --surface: #FFFFFF;
+            --surface-alt: #FFF8F0;
+            --text-primary: #1E293B;
+            --text-secondary: #64748B;
+            --border: #E2E8F0;
+            --radius-lg: 24px;
+            --shadow-lg: 0 20px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 25px 60px -15px rgba(0, 0, 0, 0.3);
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: 'Outfit', sans-serif; background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); color: var(--text-primary); min-height:100vh; display:flex; justify-content:center; align-items:center; padding:20px; position:relative; overflow-x:hidden; }
+        body::before { content: ''; position: fixed; top: -50%; right: -50%; width:200%; height:200%; background: radial-gradient(circle, rgba(255,107,53,0.08) 0%, transparent 70%); animation: pulse 15s ease-in-out infinite; pointer-events:none; }
+        @keyframes pulse { 0%,100%{opacity:0.3;transform:scale(1);} 50%{opacity:0.6;transform:scale(1.1);} }
+
+        .id-card-container { width:100%; max-width:750px; perspective:1500px; animation:fadeIn 0.6s ease-out; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(20px);} to{opacity:1;transform:translateY(0);} }
+
+        .id-card { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); overflow:hidden; position:relative; display:flex; flex-direction:column; transform-style:preserve-3d; transition: transform 0.3s ease; }
+        .id-card:hover { transform: translateY(-4px); box-shadow:0 30px 70px -20px rgba(0,0,0,0.35); }
+
+        .id-header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); padding:24px; color:white; text-align:center; position:relative; overflow:hidden; }
+        .id-header::before { content:''; position:absolute; top:-50%; left:-50%; width:200%; height:200%; background: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.03) 10px, rgba(255,255,255,0.03) 20px); animation: slide 20s linear infinite; }
+        @keyframes slide { 0%{transform:translate(0,0);} 100%{transform:translate(50%,50%);} }
+        .id-header::after { content:''; position:absolute; top:0; left:0; right:0; bottom:0; background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.15), transparent 60%); }
+
+        .app-logo-text { font-weight:800; font-size:1.5rem; letter-spacing:-0.02em; text-transform:uppercase; display:flex; align-items:center; justify-content:center; gap:10px; position:relative; z-index:1; text-shadow:0 2px 10px rgba(0,0,0,0.2);}
+        .app-logo-text svg { width:28px; height:28px; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
+
+        .id-body { padding:40px; display:grid; grid-template-columns:1fr 280px; gap:32px; background:linear-gradient(135deg, #FFFFFF 0%, #FFF8F0 50%, #FFF0E0 100%); position:relative;}
+        .left-content { display:flex; flex-direction:column; gap:28px; }
+        .pet-info { text-align:left; width:100%; }
+        .pet-name { font-size:3rem; font-weight:800; background:linear-gradient(135deg, #1E293B 0%, #334155 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; line-height:1.1; letter-spacing:-0.02em; }
+
+        .pet-breed-row { color: var(--text-secondary); font-weight:600; font-size:1.1rem; margin-bottom:6px; display:flex; align-items:center; gap:10px; }
+        .pet-breed-row span:first-child { color: var(--primary); font-weight:700; }
+
+        .status-badge { display:inline-flex; align-items:center; gap:8px; padding:10px 20px; background:linear-gradient(135deg,#FEE2E2 0%,#FECACA 100%); color:#DC2626; border-radius:12px; font-weight:700; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.05em; border:2px solid #FCA5A5; box-shadow:0 4px 12px rgba(220,38,38,0.15); animation:statusPulse 2s ease-in-out infinite; flex-shrink:0; }
+        @keyframes statusPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.02);} }
+
+        .details-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; width:100%; text-align:left; background:white; padding:28px; border-radius:16px; box-shadow:0 4px 16px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.04); position:relative; overflow:hidden;}
+        .details-grid::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background: linear-gradient(90deg, var(--primary), var(--accent), var(--primary)); background-size:200% 100%; animation:shimmer 3s linear infinite; }
+        @keyframes shimmer {0%{background-position:-200% 0;} 100%{background-position:200% 0;}}
+
+        .field { display:flex; flex-direction:column; gap:4px; }
+        .field-label { font-size:0.7rem; text-transform:uppercase; color:var(--text-secondary); font-weight:700; letter-spacing:0.08em; }
+        .field-value { font-size:1.05rem; font-weight:700; color:var(--text-primary); }
+
+        .photo-gallery { display:flex; flex-direction:column; gap:14px; }
+        .main-photo-wrapper { width:100%; aspect-ratio:3/4; border-radius:16px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,0.2); border:4px solid white; position:relative; transform:rotate(-1deg); transition:transform 0.3s ease; cursor:pointer; }
+        .main-photo-wrapper:hover { transform: rotate(0deg) scale(1.02); }
+        .main-photo-wrapper::after { content:''; position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.1)); pointer-events:none; }
+
+        .photo-carousel { position:relative; width:100%; height:100%; }
+        .photo-carousel img { width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0; opacity:0; transition:opacity 0.4s ease; }
+        .photo-carousel img.active { opacity:1; }
+
+        .carousel-nav { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:10; background:rgba(0,0,0,0.4); padding:8px 12px; border-radius:20px; backdrop-filter:blur(8px); }
+        .carousel-dot { width:8px; height:8px; border-radius:50%; background: rgba(255,255,255,0.5); cursor:pointer; transition:all 0.3s ease; border:1px solid rgba(255,255,255,0.3); }
+        .carousel-dot.active { background:white; width:24px; border-radius:10px; }
+        .carousel-dot:hover { background: rgba(255,255,255,0.8); transform: scale(1.2); }
+
+        .carousel-arrow { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.5); color:white; border:none; width:36px; height:36px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px; opacity:0; transition:all 0.3s ease; z-index:10; backdrop-filter:blur(4px); }
+        .main-photo-wrapper:hover .carousel-arrow { opacity:1; }
+        .carousel-arrow.prev { left:12px; }
+        .carousel-arrow.next { right:12px; }
+
+        .thumbnail-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+        .thumbnail-box { aspect-ratio:1; border-radius:10px; overflow:hidden; border:3px solid white; box-shadow:0 4px 12px rgba(0,0,0,0.15); background:#f0f0f0; transition:all 0.2s ease; cursor:pointer; position:relative; }
+        .thumbnail-box.active { border-color:var(--primary); box-shadow:0 4px 16px rgba(255,107,53,0.4); }
+        .thumbnail-box.empty { background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%); border:3px dashed #CBD5E1; box-shadow:none; cursor:default; }
+
+        .watermark { position:absolute; bottom:20px; right:20px; opacity:0.04; pointer-events:none; width:180px; }
+
+        @media(max-width:768px) {
+            .id-body { grid-template-columns:1fr; gap:28px; padding:32px 24px; }
+            .main-photo-wrapper { max-width:300px; margin:0 auto; }
+            .pet-name { font-size:2.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="id-card-container">
+        <div class="id-card">
+            <div class="id-header">
+                <div class="app-logo-text">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C13.6569 2 15 3.34315 15 5C15 6.65685 13.6569 8 12 8C10.3431 8 9 6.65685 9 5C9 3.34315 10.3431 2 12 2ZM6.5 6C8.433 6 10 7.567 10 9.5C10 11.433 8.433 13 6.5 13C4.567 13 3 11.433 3 9.5C3 7.567 4.567 6 6.5 6ZM17.5 6C19.433 6 21 7.567 21 9.5C21 11.433 19.433 13 17.5 13C15.567 13 14 11.433 14 9.5C14 7.567 15.567 6 17.5 6ZM12 10C15.3137 10 18 12.6863 18 16V18H6V16C6 12.6863 8.68629 10 12 10Z"/>
+                    </svg>
+                    PawsPort
+                </div>
+            </div>
+
+            <div class="id-body">
+                <div class="left-content">
+                    <div class="pet-info">
+                        <div style="display:flex; align-items:center; gap:16px; margin-bottom:10px;">
+                            <h1 class="pet-name">{{ pet.name }}</h1>
+                            {% if pet.missing_status %}
+                            <div class="status-badge">⚠️ {{ pet.missing_status.name }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="pet-breed-row">
+                            <span>{{ pet.type|title }}</span> • <span>{{ pet.breed|title }}</span>
+                        </div>
+                    </div>
+
+                    <div class="details-grid">
+                        <div class="field"><span class="field-label">Sex</span><span class="field-value">{{ pet.sex|title }}</span></div>
+                        <div class="field"><span class="field-label">Weight</span><span class="field-value">{{ pet.weight_kg or 'Unknown' }} kg</span></div>
+                        <div class="field"><span class="field-label">Color</span><span class="field-value">{{ pet.color|title or 'Unknown' }}</span></div>
+                        <div class="field"><span class="field-label">Neutered</span><span class="field-value">{% if pet.is_sterilized %}Yes{% else %}No{% endif %}</span></div>
+                        <div class="field"><span class="field-label">Markings</span><span class="field-value">{{ pet.markings or 'None' }}</span></div>
+                        <div class="field"><span class="field-label">Age</span><span class="field-value">{{ pet.age or 'Unknown' }}</span></div>
+                    </div>
+                </div>
+
+                <div class="photo-gallery">
+                    <div class="main-photo-wrapper">
+                        <div class="photo-carousel" id="photoCarousel">
+                            {% for img in pet.profile_images %}
+                            <img src="{{ img.image_url }}" alt="{{ pet.name }} photo {{ loop.index }}" class="{% if loop.first %}active{% endif %}">
+                            {% endfor %}
+                        </div>
+                        <button class="carousel-arrow prev" onclick="changePhoto(-1)">‹</button>
+                        <button class="carousel-arrow next" onclick="changePhoto(1)">›</button>
+                        <div class="carousel-nav" id="carouselNav"></div>
+                    </div>
+                    <div class="thumbnail-grid" id="thumbnailGrid">
+                        {% for img in pet.profile_images %}
+                        <div class="thumbnail-box {% if loop.first %}active{% endif %}" onclick="goToPhoto('{{ loop.index0 }}')">
+                            <img src="{{ img.image_url }}" alt="{{ pet.name }} thumbnail {{ loop.index }}">
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <svg class="watermark" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C13.6569 2 15 3.34315 15 5C15 6.65685 13.6569 8 12 8C10.3431 8 9 6.65685 9 5C9 3.34315 10.3431 2 12 2ZM6.5 6C8.433 6 10 7.567 10 9.5C10 11.433 8.433 13 6.5 13C4.567 13 3 11.433 3 9.5C3 7.567 4.567 6 6.5 6ZM17.5 6C19.433 6 21 7.567 21 9.5C21 11.433 19.433 13 17.5 13C15.567 13 14 11.433 14 9.5C14 7.567 15.567 6 17.5 6ZM12 10C15.3137 10 18 12.6863 18 16V18H6V16C6 12.6863 8.68629 10 12 10Z"/>
+            </svg>
+        </div>
+    </div>
+
+    <script>
+        let currentPhotoIndex = 0;
+        const photos = document.querySelectorAll('#photoCarousel img');
+        const totalPhotos = photos.length;
+
+        function initCarousel() {
+            const navContainer = document.getElementById('carouselNav');
+            navContainer.innerHTML = '';
+            for (let i = 0; i < totalPhotos; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'carousel-dot' + (i === 0 ? ' active' : '');
+                dot.onclick = () => goToPhoto(i);
+                navContainer.appendChild(dot);
+            }
+
+            const thumbnailGrid = document.getElementById('thumbnailGrid');
+            thumbnailGrid.innerHTML = '';
+            const displayCount = Math.min(3, totalPhotos);
+            for (let i = 0; i < displayCount; i++) {
+                const thumb = document.createElement('div');
+                thumb.className = 'thumbnail-box' + (i === 0 ? ' active' : '');
+                thumb.onclick = () => goToPhoto(i);
+                const img = document.createElement('img');
+                img.src = photos[i].src;
+                img.alt = photos[i].alt;
+                thumb.appendChild(img);
+                thumbnailGrid.appendChild(thumb);
+            }
+            for (let i = displayCount; i < 3; i++) {
+                const emptyThumb = document.createElement('div');
+                emptyThumb.className = 'thumbnail-box empty';
+                thumbnailGrid.appendChild(emptyThumb);
+            }
+        }
+
+        function changePhoto(direction) {
+            currentPhotoIndex = (currentPhotoIndex + direction + totalPhotos) % totalPhotos;
+            updatePhotoDisplay();
+        }
+
+        function goToPhoto(index) {
+            currentPhotoIndex = index;
+            updatePhotoDisplay();
+        }
+
+        function updatePhotoDisplay() {
+            photos.forEach((photo, index) => {
+                photo.classList.toggle('active', index === currentPhotoIndex);
+            });
+            const dots = document.querySelectorAll('.carousel-dot');
+            dots.forEach((dot, index) => {
+                dot.classList.toggle('active', index === currentPhotoIndex);
+            });
+            const thumbnails = document.querySelectorAll('.thumbnail-box:not(.empty)');
+            thumbnails.forEach((thumb, index) => {
+                thumb.classList.toggle('active', index === currentPhotoIndex);
+            });
+        }
+
+        let autoPlayInterval = setInterval(() => changePhoto(1), 4000);
+        const wrapper = document.querySelector('.main-photo-wrapper');
+        wrapper.addEventListener('mouseenter', () => clearInterval(autoPlayInterval));
+        wrapper.addEventListener('mouseleave', () => { autoPlayInterval = setInterval(() => changePhoto(1), 4000); });
+        initCarousel();
+    </script>
+</body>
+</html>

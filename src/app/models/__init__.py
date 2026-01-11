@@ -8,3 +8,4 @@ from .sighting_report_image import SightingReportImage
 from .tier import Tier
 from .user import User
 from .user_linked_account import UserLinkedAccount
+from .vaccination_record import VaccinationRecord

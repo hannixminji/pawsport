@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from .missing_report import MissingReport
     from .pet_profile_image import PetProfileImage
     from .user import User
+    from .vaccination_record import VaccinationRecord
 
 
 class Pet(Base):
@@ -33,6 +34,14 @@ class Pet(Base):
         order_by="(PetProfileImage.sort_order.asc(), PetProfileImage.created_at.desc())",
         back_populates="pet",
         cascade="delete, delete-orphan",
+        lazy="selectin",
+        init=False
+    )
+    vaccination_records: Mapped[list["VaccinationRecord"]] = relationship(
+        "VaccinationRecord",
+        primaryjoin="and_(Pet.id == VaccinationRecord.pet_id, ~VaccinationRecord.is_deleted)",
+        back_populates="pet",
+        cascade="all, delete-orphan",
         lazy="selectin",
         init=False
     )
