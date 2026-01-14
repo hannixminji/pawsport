@@ -70,7 +70,7 @@ def search_pet(
     collection_name: str,
     query_vector: list[float],
     limit: int = 10,
-    score_threshold: float = 0.70,
+    score_threshold: float = 0.60,
     query_filter: Filter = None
 ) -> list[dict[str, Any]]:
     search_results = client.search(

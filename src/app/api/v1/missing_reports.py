@@ -30,7 +30,7 @@ router = APIRouter(tags=["missing reports"])
 
 
 @router.post("/{username}/pet/{pet_id}/missing_report", response_model=MissingReportRead, status_code=201)
-async def write_pet(
+async def write_report_missing(
     request: Request,
     username: str,
     pet_id: int,
@@ -55,7 +55,7 @@ async def write_pet(
 
     db_pet = (
         await db.execute(
-            select(Pet.id)
+            select(Pet)
             .options(selectinload(Pet.profile_images))
             .where(
                 Pet.id == pet_id,
@@ -67,7 +67,7 @@ async def write_pet(
     if not db_pet:
         raise NotFoundException("Pet not found")
 
-    profile_image_ids = [profile_image.id for profile_image in db_pet.profile_images]
+    profile_image_ids = [str(profile_image.uuid) for profile_image in db_pet.profile_images]
 
     try:
         result = update_payload(

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -53,9 +53,3 @@ class PetProfileImageDelete(BaseModel):
 
     is_deleted: bool
     deleted_at: datetime
-
-
-class ProfileImagePayload(BaseModel):
-    id: int
-    image_object_key: str
-    payload: dict[str, Any]
