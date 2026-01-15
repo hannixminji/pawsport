@@ -73,7 +73,7 @@ def search_pet(
     score_threshold: float = 0.60,
     query_filter: Filter = None
 ) -> list[dict[str, Any]]:
-    search_results = client.search(
+    search_results = client.query_points(
         collection_name=collection_name,
         query_vector=query_vector,
         limit=limit * 5,
