@@ -13,8 +13,8 @@ from ...core.exceptions.http_exceptions import BadRequestException, ForbiddenExc
 from ...core.utils.cache import cache
 from ...core.utils.google_cloud_storage import is_objects_exist
 from ...models.pet import Pet
-from ...models.pet_vaccination_record import PetVaccinationRecord
 from ...models.user import User
+from ...models.vaccination_record import VaccinationRecord
 from ...schemas.user import UserRead
 from ...schemas.vaccination_record import PetVaccinationRecordCreate, PetVaccinationRecordRead
 
@@ -69,7 +69,7 @@ async def write_vaccination_records(
 
     vaccination_record_models = []
     for vaccination_record in vaccination_records:
-        vaccination_record_model = PetVaccinationRecord(
+        vaccination_record_model = VaccinationRecord(
             pet_id=db_pet_id,
             file_object_key=vaccination_record.file_object_key,
             expiry_date=vaccination_record.expiry_date
@@ -141,10 +141,10 @@ async def read_vaccination_records(
 
     db_vaccination_records = (
         await db.execute(
-            select(PetVaccinationRecord)
+            select(VaccinationRecord)
             .where(
-                PetVaccinationRecord.pet_id == pet_id,
-                ~PetVaccinationRecord.is_deleted
+                VaccinationRecord.pet_id == pet_id,
+                ~VaccinationRecord.is_deleted
             )
         )
     ).scalars().all()
@@ -200,11 +200,11 @@ async def read_vaccination_record(
 
     db_vaccination_record = (
         await db.execute(
-            select(PetVaccinationRecord)
+            select(VaccinationRecord)
             .where(
-                PetVaccinationRecord.id == id,
-                PetVaccinationRecord.pet_id == pet_id,
-                ~PetVaccinationRecord.is_deleted
+                VaccinationRecord.id == id,
+                VaccinationRecord.pet_id == pet_id,
+                ~VaccinationRecord.is_deleted
             )
         )
     ).scalar_one_or_none()
@@ -257,11 +257,11 @@ async def erase_vaccination_record(
 
     db_vaccination_record = (
         await db.execute(
-            select(PetVaccinationRecord)
+            select(VaccinationRecord)
             .where(
-                PetVaccinationRecord.id == id,
-                PetVaccinationRecord.pet_id == pet_id,
-                ~PetVaccinationRecord.is_deleted
+                VaccinationRecord.id == id,
+                VaccinationRecord.pet_id == pet_id,
+                ~VaccinationRecord.is_deleted
             )
         )
     ).scalar_one_or_none()
