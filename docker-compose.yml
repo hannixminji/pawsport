@@ -47,7 +47,7 @@ services:
       - ./src/.env:/code/.env
 
   db:
-    image: postgis/postgis:18-3.6
+    image: postgis/postgis:18-3.6-alpine
     env_file:
       - ./src/.env
     volumes:
@@ -56,7 +56,7 @@ services:
       - "5432"
 
   redis:
-    image: redis:8.4.0-bookworm
+    image: redis:8.4.0-alpine3.22
     volumes:
       - redis-data:/data
     expose:
@@ -64,7 +64,7 @@ services:
 
   # -------- nginx reverse proxy --------
   nginx:
-    image: nginx:1.29.4-trixie
+    image: nginx:1.29.4-alpine3.23
     ports:
       - "80:80"
     volumes:

@@ -1,5 +1,5 @@
 # --------- Builder Stage ---------
-FROM ghcr.io/astral-sh/uv:0.9.25-python3.13-trixie-slim AS builder
+FROM ghcr.io/astral-sh/uv:0.9.26-python3.13-trixie-slim AS builder
 
 # Set environment variables for uv
 ENV UV_COMPILE_BYTECODE=1

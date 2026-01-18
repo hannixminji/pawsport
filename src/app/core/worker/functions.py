@@ -21,7 +21,7 @@ async def sample_background_task(ctx: Worker, name: str) -> str:
     return f"Task {name} is complete!"
 
 
-async def extract_features_task(ctx, data: list[dict], collection_name="pet_profile_images"):
+async def extract_features_task(ctx, data: list[dict], collection_name: str = "pet_profile_images"):
     data_hash = hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
     job_id = f"extract_features:{data_hash}"
     logging.info(f"🚀 Starting feature extraction task: {job_id} (attempt {ctx['job_try']})")
@@ -40,9 +40,14 @@ async def extract_features_task(ctx, data: list[dict], collection_name="pet_prof
                 for item in data
             ])
 
+            species = data[0]["payload"]["pet_type"].lower().strip()
+
             response = await client.post(
                 "http://ml:9000/extract_features",
-                data={"image_object_keys": payload}
+                data={
+                    "species": species,
+                    "image_object_keys": payload,
+                },
             )
             response.raise_for_status()
 

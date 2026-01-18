@@ -2,15 +2,31 @@ import cv2
 import numpy as np
 import onnxruntime as ort
 
-session = ort.InferenceSession("ai/models/yolov8sbboxcat640.onnx", providers=["CPUExecutionProvider"])
-input_name = session.get_inputs()[0].name
+_CAT_MODEL = "ai/models/yolov8sbboxcat640.onnx"
+_DOG_MODEL = "ai/models/yolov8sbboxdog640.onnx"
+
+_CAT_SESSION = ort.InferenceSession(_CAT_MODEL, providers=["CPUExecutionProvider"])
+_DOG_SESSION = ort.InferenceSession(_DOG_MODEL, providers=["CPUExecutionProvider"])
+
+_CAT_INPUT = _CAT_SESSION.get_inputs()[0].name
+_DOG_INPUT = _DOG_SESSION.get_inputs()[0].name
 
 
-def detect(images: dict[str, np.ndarray],
-           conf_threshold: float = 0.50,
-           iou_threshold: float = 0.45,
-           input_size: tuple[int, int] = (640, 640)) -> dict[str, dict[str, np.ndarray]]:
-    results = {}
+def detect(
+    images: dict[str, np.ndarray],
+    species: str = "cat",
+    conf_threshold: float = 0.50,
+    iou_threshold: float = 0.45,
+    input_size: tuple[int, int] = (640, 640),
+) -> dict[str, dict[str, np.ndarray]]:
+    species = species.lower().strip()
+    if species not in {"cat", "dog"}:
+        raise ValueError("species must be 'cat' or 'dog'")
+
+    session = _CAT_SESSION if species == "cat" else _DOG_SESSION
+    input_name = _CAT_INPUT if species == "cat" else _DOG_INPUT
+
+    results: dict[str, dict[str, np.ndarray]] = {}
     for image_id, img in images.items():
         img_height, img_width = img.shape[:2]
         input_tensor, scale, pad_w, pad_h = preprocess_image(img, input_size)
@@ -39,39 +55,51 @@ def preprocess_image(img: np.ndarray, input_size: tuple[int, int]) -> tuple[np.n
     return input_tensor, scale, pad_w, pad_h
 
 
-def postprocess_boxes(outputs: np.ndarray,
-                      img_width: int,
-                      img_height: int,
-                      scale: float,
-                      pad_w: int,
-                      pad_h: int,
-                      conf_threshold: float,
-                      iou_threshold: float) -> dict:
+def postprocess_boxes(
+    outputs: np.ndarray,
+    img_width: int,
+    img_height: int,
+    scale: float,
+    pad_w: int,
+    pad_h: int,
+    conf_threshold: float,
+    iou_threshold: float,
+) -> dict:
     preds = outputs
     if preds.ndim == 3:
         preds = preds[0]
     if preds.shape[0] == 5:
         preds = preds.transpose(1, 0)
+
     boxes = preds[:, :4]
     scores = preds[:, 4]
+
     mask = scores > conf_threshold
     boxes = boxes[mask]
     scores = scores[mask]
+
     if len(boxes) == 0:
         return {'boxes': np.array([]), 'scores': np.array([])}
-    boxes_xyxy = np.column_stack([
-        boxes[:, 0] - boxes[:, 2] / 2,
-        boxes[:, 1] - boxes[:, 3] / 2,
-        boxes[:, 0] + boxes[:, 2] / 2,
-        boxes[:, 1] + boxes[:, 3] / 2
-    ])
+
+    boxes_xyxy = np.column_stack(
+        [
+            boxes[:, 0] - boxes[:, 2] / 2,
+            boxes[:, 1] - boxes[:, 3] / 2,
+            boxes[:, 0] + boxes[:, 2] / 2,
+            boxes[:, 1] + boxes[:, 3] / 2,
+        ]
+    )
+
     keep_indices = nms(boxes_xyxy, scores, iou_threshold)
     boxes_xyxy = boxes_xyxy[keep_indices]
     scores = scores[keep_indices]
+
     boxes_xyxy[:, [0, 2]] = (boxes_xyxy[:, [0, 2]] - pad_w) / scale
     boxes_xyxy[:, [1, 3]] = (boxes_xyxy[:, [1, 3]] - pad_h) / scale
+
     boxes_xyxy[:, [0, 2]] = np.clip(boxes_xyxy[:, [0, 2]], 0, img_width)
     boxes_xyxy[:, [1, 3]] = np.clip(boxes_xyxy[:, [1, 3]], 0, img_height)
+
     return {'boxes': boxes_xyxy, 'scores': scores}
 
 
@@ -79,9 +107,9 @@ def nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> list[int
     x1, y1, x2, y2 = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
     areas = (x2 - x1) * (y2 - y1)
     order = scores.argsort()[::-1]
-    keep = []
+    keep: list[int] = []
     while order.size > 0:
-        i = order[0]
+        i = int(order[0])
         keep.append(i)
         xx1 = np.maximum(x1[i], x1[order[1:]])
         yy1 = np.maximum(y1[i], y1[order[1:]])
@@ -97,7 +125,7 @@ def nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> list[int
 
 
 def crop_objects(image: np.ndarray, boxes: np.ndarray) -> list[np.ndarray]:
-    cropped = []
+    cropped: list[np.ndarray] = []
     for box in boxes:
         x1, y1, x2, y2 = map(int, box)
         x1, y1 = max(0, x1), max(0, y1)

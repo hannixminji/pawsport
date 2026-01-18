@@ -178,7 +178,7 @@ async def search_pets(
     query_conditions = [
         FieldCondition(
             key="type",
-            match=MatchValue(value="cat")
+            match=MatchValue(value=ml_response["species"])
         )
     ]
 

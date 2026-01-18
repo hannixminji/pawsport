@@ -2,8 +2,14 @@ import cv2
 import numpy as np
 import onnxruntime as ort
 
-session = ort.InferenceSession("ai/models/yolov8sposecat640.onnx", providers=["CPUExecutionProvider"])
-input_name = session.get_inputs()[0].name
+_CAT_POSE_MODEL = "ai/models/yolov8sposecat640.onnx"
+_DOG_POSE_MODEL = "ai/models/yolov8sposedog640.onnx"
+
+_CAT_POSE_SESSION = ort.InferenceSession(_CAT_POSE_MODEL, providers=["CPUExecutionProvider"])
+_DOG_POSE_SESSION = ort.InferenceSession(_DOG_POSE_MODEL, providers=["CPUExecutionProvider"])
+
+_CAT_POSE_INPUT = _CAT_POSE_SESSION.get_inputs()[0].name
+_DOG_POSE_INPUT = _DOG_POSE_SESSION.get_inputs()[0].name
 
 
 def preprocess_image(img: np.ndarray, input_size: tuple[int, int]) -> tuple[np.ndarray, float, int, int]:
@@ -21,8 +27,15 @@ def preprocess_image(img: np.ndarray, input_size: tuple[int, int]) -> tuple[np.n
     return tensor, scale, pad_w, pad_h
 
 
-def postprocess_keypoints(outputs: np.ndarray, img_w: int, img_h: int, scale: float,
-                         pad_w: int, pad_h: int, conf_threshold: float = 0.25) -> np.ndarray:
+def postprocess_keypoints(
+    outputs: list[np.ndarray],
+    img_w: int,
+    img_h: int,
+    scale: float,
+    pad_w: int,
+    pad_h: int,
+    conf_threshold: float = 0.25,
+) -> np.ndarray:
     preds = outputs[0]
     if preds.ndim == 3:
         preds = preds[0]
@@ -48,10 +61,20 @@ def postprocess_keypoints(outputs: np.ndarray, img_w: int, img_h: int, scale: fl
     return kpts
 
 
-def detect_pose(images: dict[str, np.ndarray],
-                conf_threshold: float = 0.25,
-                input_size: tuple[int, int] = (640, 640)) -> dict[str, np.ndarray]:
-    results = {}
+def detect_pose(
+    images: dict[str, np.ndarray],
+    species: str = "cat",
+    conf_threshold: float = 0.25,
+    input_size: tuple[int, int] = (640, 640),
+) -> dict[str, np.ndarray]:
+    species = species.lower().strip()
+    if species not in {"cat", "dog"}:
+        raise ValueError("species must be 'cat' or 'dog'")
+
+    session = _CAT_POSE_SESSION if species == "cat" else _DOG_POSE_SESSION
+    input_name = _CAT_POSE_INPUT if species == "cat" else _DOG_POSE_INPUT
+
+    results: dict[str, np.ndarray] = {}
     for image_id, img in images.items():
         h, w = img.shape[:2]
         tensor, scale, pad_w, pad_h = preprocess_image(img, input_size)
@@ -61,13 +84,24 @@ def detect_pose(images: dict[str, np.ndarray],
     return results
 
 
-def align_eyes(img: np.ndarray, keypoints: np.ndarray) -> np.ndarray:
+def align_eyes(img: np.ndarray, keypoints: np.ndarray, species: str = "cat") -> np.ndarray:
     if keypoints.shape[0] < 2:
         return img
 
-    right_eye = keypoints[0, :2]
-    left_eye = keypoints[1, :2]
-    if keypoints[0, 2] < 0.5 or keypoints[1, 2] < 0.5:
+    species = species.lower().strip()
+
+    if species == "dog":
+        left_eye = keypoints[0, :2]
+        right_eye = keypoints[1, :2]
+        left_c = keypoints[0, 2]
+        right_c = keypoints[1, 2]
+    else:
+        right_eye = keypoints[0, :2]
+        left_eye = keypoints[1, :2]
+        right_c = keypoints[0, 2]
+        left_c = keypoints[1, 2]
+
+    if left_c < 0.5 or right_c < 0.5:
         return img
 
     dx = left_eye[0] - right_eye[0]
