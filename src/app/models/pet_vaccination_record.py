@@ -10,7 +10,7 @@ from ..core.db.database import Base
 
 if TYPE_CHECKING:
     from .pet import Pet
-    from .vaccination_record_attachment import VaccinationRecordAttachment
+    from .pet_vaccination_record_attachment import PetVaccinationRecordAttachment
 
 
 class VaccineType(str, Enum):
@@ -18,7 +18,7 @@ class VaccineType(str, Enum):
     NON_CORE = "non_core"
 
 
-class VaccinationRecord(Base):
+class PetVaccinationRecord(Base):
     __tablename__ = "pet_vaccination_record"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
@@ -28,24 +28,24 @@ class VaccinationRecord(Base):
     vaccine_type: Mapped[VaccineType] = mapped_column(
         SQLEnum(VaccineType, name="vaccine_type_enum"),
         nullable=False,
-        index=True,
+        index=True
     )
     date_administered: Mapped[date] = mapped_column(Date, nullable=False)
 
     pet: Mapped["Pet"] = relationship("Pet", back_populates="vaccination_records", lazy="selectin", init=False)
 
-    attachments: Mapped[list["VaccinationRecordAttachment"]] = relationship(
-        "VaccinationRecordAttachment",
+    attachments: Mapped[list["PetVaccinationRecordAttachment"]] = relationship(
+        "PetVaccinationRecordAttachment",
         primaryjoin=(
             "and_("
-            "VaccinationRecord.id == VaccinationRecordAttachment.vaccination_record_id, "
-            "~VaccinationRecordAttachment.is_deleted"
+            "PetVaccinationRecord.id == PetVaccinationRecordAttachment.vaccination_record_id, "
+            "~PetVaccinationRecordAttachment.is_deleted"
             ")"
         ),
         back_populates="vaccination_record",
         cascade="all, delete-orphan",
         lazy="selectin",
-        init=False,
+        init=False
     )
 
     next_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)

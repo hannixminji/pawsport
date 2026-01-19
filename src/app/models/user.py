@@ -12,6 +12,7 @@ from ..core.utils.google_cloud_storage import generate_view_signed_url
 
 if TYPE_CHECKING:
     from .pet import Pet
+    from .pet_inventory import PetInventory
     from .user_linked_account import UserLinkedAccount
 
 
@@ -26,6 +27,14 @@ class User(Base):
         primaryjoin="and_(User.id == UserLinkedAccount.user_id, ~UserLinkedAccount.is_deleted)",
         back_populates="user",
         cascade="delete, delete-orphan",
+        lazy="selectin",
+        init=False
+    )
+    pet_inventories: Mapped[list["PetInventory"]] = relationship(
+        "PetInventory",
+        primaryjoin="and_(User.id == PetInventory.owner_id, ~PetInventory.is_deleted)",
+        back_populates="owner",
+        cascade="all, delete-orphan",
         lazy="selectin",
         init=False
     )

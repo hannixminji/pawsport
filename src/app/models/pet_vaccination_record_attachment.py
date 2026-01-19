@@ -10,7 +10,7 @@ from ..core.db.database import Base
 from ..core.utils.google_cloud_storage import generate_view_signed_url
 
 if TYPE_CHECKING:
-    from .vaccination_record import VaccinationRecord
+    from .pet_vaccination_record import PetVaccinationRecord
 
 
 class AttachmentFileType(str, Enum):
@@ -20,7 +20,7 @@ class AttachmentFileType(str, Enum):
     PNG = "png"
 
 
-class VaccinationRecordAttachment(Base):
+class PetVaccinationRecordAttachment(Base):
     __tablename__ = "pet_vaccination_record_attachment"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
@@ -30,18 +30,18 @@ class VaccinationRecordAttachment(Base):
 
     object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
 
-    vaccination_record: Mapped["VaccinationRecord"] = relationship(
-        "VaccinationRecord",
+    vaccination_record: Mapped["PetVaccinationRecord"] = relationship(
+        "PetVaccinationRecord",
         back_populates="attachments",
         lazy="selectin",
-        init=False,
+        init=False
     )
 
     file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     file_type: Mapped[AttachmentFileType | None] = mapped_column(
         SQLEnum(AttachmentFileType, name="vaccination_record_attachment_file_type"),
         nullable=True,
-        index=True,
+        index=True
     )
 
     created_at: Mapped[datetime] = mapped_column(

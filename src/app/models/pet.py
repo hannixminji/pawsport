@@ -12,9 +12,13 @@ from .missing_report import MissingReportStatus
 
 if TYPE_CHECKING:
     from .missing_report import MissingReport
+    from .pet_allergy import PetAllergy
+    from .pet_medical_condition import PetMedicalCondition
+    from .pet_medication import PetMedication
     from .pet_profile_image import PetProfileImage
+    from .pet_schedule import PetSchedule
+    from .pet_vaccination_record import PetVaccinationRecord
     from .user import User
-    from .vaccination_record import VaccinationRecord
 
 
 class Pet(Base):
@@ -22,11 +26,13 @@ class Pet(Base):
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False, index=True)
+
     name: Mapped[str] = mapped_column(String(25), nullable=False)
     type: Mapped[str] = mapped_column(String(3), nullable=False, index=True)
     breed: Mapped[str] = mapped_column(String(30), nullable=False)
     sex: Mapped[str] = mapped_column(String(6), nullable=False)
     date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
+
     owner: Mapped["User"] = relationship("User", back_populates="pets", lazy="selectin", init=False)
     profile_images: Mapped[list["PetProfileImage"]] = relationship(
         "PetProfileImage",
@@ -37,9 +43,41 @@ class Pet(Base):
         lazy="selectin",
         init=False
     )
-    vaccination_records: Mapped[list["VaccinationRecord"]] = relationship(
-        "VaccinationRecord",
-        primaryjoin="and_(Pet.id == VaccinationRecord.pet_id, ~VaccinationRecord.is_deleted)",
+    vaccination_records: Mapped[list["PetVaccinationRecord"]] = relationship(
+        "PetVaccinationRecord",
+        primaryjoin="and_(Pet.id == PetVaccinationRecord.pet_id, ~PetVaccinationRecord.is_deleted)",
+        back_populates="pet",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        init=False
+    )
+    allergies: Mapped[list["PetAllergy"]] = relationship(
+        "PetAllergy",
+        primaryjoin="and_(Pet.id == PetAllergy.pet_id, ~PetAllergy.is_deleted)",
+        back_populates="pet",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        init=False
+    )
+    medications: Mapped[list["PetMedication"]] = relationship(
+        "PetMedication",
+        primaryjoin="and_(Pet.id == PetMedication.pet_id, ~PetMedication.is_deleted)",
+        back_populates="pet",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        init=False,
+    )
+    medical_conditions: Mapped[list["PetMedicalCondition"]] = relationship(
+        "PetMedicalCondition",
+        primaryjoin="and_(Pet.id == PetMedicalCondition.pet_id, ~PetMedicalCondition.is_deleted)",
+        back_populates="pet",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        init=False
+    )
+    schedules: Mapped[list["PetSchedule"]] = relationship(
+        "PetSchedule",
+        primaryjoin="and_(Pet.id == PetSchedule.pet_id, ~PetSchedule.is_deleted)",
         back_populates="pet",
         cascade="all, delete-orphan",
         lazy="selectin",
