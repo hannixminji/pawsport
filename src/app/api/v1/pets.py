@@ -99,7 +99,7 @@ async def write_pet(
             "image_object_key": profile_image.image_object_key,
             "payload": {
                 "pet_id": pet_model.id,
-                "pet_type": pet_model.type,
+                "species": pet_model.type,
                 "is_missing": False
             }
         }
@@ -177,7 +177,7 @@ async def search_pets(
 
     query_conditions = [
         FieldCondition(
-            key="type",
+            key="species",
             match=MatchValue(value=ml_response["species"])
         )
     ]
@@ -482,7 +482,7 @@ async def patch_pet(
                 "image_object_key": profile_image.image_object_key,
                 "payload": {
                     "pet_id": db_pet.id,
-                    "pet_type": db_pet.type,
+                    "species": db_pet.type,
                     "is_missing": False
                 }
             }

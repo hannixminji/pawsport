@@ -20,7 +20,7 @@ COLLECTIONS = {
 
 INDEX_FIELDS = {
     "pet_profile_images": {
-        "type": PayloadSchemaType.KEYWORD,
+        "species": PayloadSchemaType.KEYWORD,
         "is_missing": PayloadSchemaType.BOOL
     }
 }

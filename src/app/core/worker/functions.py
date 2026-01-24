@@ -38,9 +38,9 @@ async def extract_features_task(ctx, data: list[dict], collection_name: str = "p
                 [{"id": str(item["id"]), "image_object_key": item["image_object_key"]} for item in data]
             )
 
-            species_raw = data[0].get("payload", {}).get("pet_type")
+            species_raw = data[0].get("payload", {}).get("species")
             if species_raw is None:
-                raise KeyError("payload.pet_type is missing")
+                raise KeyError("payload.species is missing")
 
             if hasattr(species_raw, "value"):
                 species_raw = species_raw.value

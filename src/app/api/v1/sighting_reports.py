@@ -90,7 +90,7 @@ async def write_sighting_report(
             "image_object_key": image.image_object_key,
             "payload": {
                 "sighting_report_id": sighting_report_model.id,
-                "pet_type": sighting_report_model.pet_type
+                "species": sighting_report_model.pet_type
             }
         }
         for image in image_models
@@ -485,7 +485,7 @@ async def patch_sighting_report(
                 "image_object_key": image.image_object_key,
                 "payload": {
                     "sighting_report_id": db_sighting_report.id,
-                    "pet_type": db_sighting_report.pet_type
+                    "species": db_sighting_report.pet_type
                 }
             }
             for image in new_image_models
