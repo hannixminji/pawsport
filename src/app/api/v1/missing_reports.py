@@ -296,7 +296,7 @@ async def patch_missing_report(
     if db_missing_report is None:
         raise NotFoundException("Missing report not found")
 
-    profile_image_ids = [profile_image.id for profile_image in db_missing_report.pet.profile_images]
+    profile_image_ids = [str(profile_image.uuid) for profile_image in db_missing_report.pet.profile_images]
 
     for field, value in values.model_dump(exclude_unset=True, exclude={"last_seen_location"}).items():
         setattr(db_missing_report, field, value)

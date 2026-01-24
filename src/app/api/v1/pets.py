@@ -66,7 +66,7 @@ async def write_pet(
     if current_user.id != db_user_id:
         raise ForbiddenException()
 
-    object_keys = [profile_image.image_object_key for profile_image in pet.profile_images]
+    object_keys = [profile_image.image_object_key for profile_image in pet.profile_images] if pet.profile_images else []
     exists_map = await asyncio.to_thread(is_objects_exist, object_keys)
     missing_object_keys = [object_key for object_key, exists in exists_map.items() if not exists]
     if missing_object_keys:
@@ -99,7 +99,7 @@ async def write_pet(
             "image_object_key": profile_image.image_object_key,
             "payload": {
                 "pet_id": pet_model.id,
-                "type": pet_model.type,
+                "pet_type": pet_model.type,
                 "is_missing": False
             }
         }
@@ -482,7 +482,7 @@ async def patch_pet(
                 "image_object_key": profile_image.image_object_key,
                 "payload": {
                     "pet_id": db_pet.id,
-                    "type": db_pet.type,
+                    "pet_type": db_pet.type,
                     "is_missing": False
                 }
             }

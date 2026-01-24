@@ -84,24 +84,13 @@ def detect_pose(
     return results
 
 
-def align_eyes(img: np.ndarray, keypoints: np.ndarray, species: str = "cat") -> np.ndarray:
+def align_eyes_cat(img: np.ndarray, keypoints: np.ndarray) -> np.ndarray:
     if keypoints.shape[0] < 2:
         return img
 
-    species = species.lower().strip()
-
-    if species == "dog":
-        left_eye = keypoints[0, :2]
-        right_eye = keypoints[1, :2]
-        left_c = keypoints[0, 2]
-        right_c = keypoints[1, 2]
-    else:
-        right_eye = keypoints[0, :2]
-        left_eye = keypoints[1, :2]
-        right_c = keypoints[0, 2]
-        left_c = keypoints[1, 2]
-
-    if left_c < 0.5 or right_c < 0.5:
+    right_eye = keypoints[0, :2]
+    left_eye = keypoints[1, :2]
+    if keypoints[0, 2] < 0.5 or keypoints[1, 2] < 0.5:
         return img
 
     dx = left_eye[0] - right_eye[0]
@@ -137,3 +126,60 @@ def align_eyes(img: np.ndarray, keypoints: np.ndarray, species: str = "cat") -> 
         borderMode=cv2.BORDER_CONSTANT, borderValue=(114, 114, 114)
     )
     return rotated
+
+
+def align_eyes_dog(img: np.ndarray, keypoints: np.ndarray) -> np.ndarray:
+    if keypoints.shape[0] < 2:
+        return img
+
+    min_conf = 0.25
+    if float(keypoints[0, 2]) < min_conf or float(keypoints[1, 2]) < min_conf:
+        return img
+
+    eye_l = keypoints[0, :2].astype(float)
+    eye_r = keypoints[1, :2].astype(float)
+
+    if eye_l[0] > eye_r[0]:
+        eye_l, eye_r = eye_r, eye_l
+
+    dx = eye_r[0] - eye_l[0]
+    dy = eye_r[1] - eye_l[1]
+    angle = np.degrees(np.arctan2(dy, dx))
+    eye_center = ((eye_l[0] + eye_r[0]) / 2, (eye_l[1] + eye_r[1]) / 2)
+
+    h, w = img.shape[:2]
+    rotation_matrix = cv2.getRotationMatrix2D(eye_center, angle, 1.0)
+
+    corners = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]], dtype=np.float32)
+    corners = np.hstack([corners, np.ones((4, 1), dtype=np.float32)])
+    rc = rotation_matrix @ corners.T
+    x_coords, y_coords = rc[0, :], rc[1, :]
+
+    x_min, x_max = np.min(x_coords), np.max(x_coords)
+    y_min, y_max = np.min(y_coords), np.max(y_coords)
+
+    pad_left, pad_top = int(max(0, -x_min)), int(max(0, -y_min))
+    pad_right, pad_bottom = int(max(0, x_max - (w - 1))), int(max(0, y_max - (h - 1)))
+
+    img_padded = cv2.copyMakeBorder(
+        img, pad_top, pad_bottom, pad_left, pad_right,
+        borderType=cv2.BORDER_CONSTANT, value=(114, 114, 114)
+    )
+
+    eye_center = (eye_center[0] + pad_left, eye_center[1] + pad_top)
+    rotation_matrix = cv2.getRotationMatrix2D(eye_center, angle, 1.0)
+
+    return cv2.warpAffine(
+        img_padded, rotation_matrix,
+        (img_padded.shape[1], img_padded.shape[0]),
+        flags=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=(114, 114, 114),
+    )
+
+
+def align_eyes(img: np.ndarray, keypoints: np.ndarray, species: str = "cat") -> np.ndarray:
+    species = species.lower().strip()
+    if species == "dog":
+        return align_eyes_dog(img, keypoints)
+    return align_eyes_cat(img, keypoints)

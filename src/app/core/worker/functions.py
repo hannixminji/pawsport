@@ -22,32 +22,33 @@ async def sample_background_task(ctx: Worker, name: str) -> str:
 
 
 async def extract_features_task(ctx, data: list[dict], collection_name: str = "pet_profile_images"):
-    data_hash = hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
-    job_id = f"extract_features:{data_hash}"
-    logging.info(f"🚀 Starting feature extraction task: {job_id} (attempt {ctx['job_try']})")
+    if not data:
+        logging.warning("⚠️ extract_features_task called with empty data")
+        return
 
-    timeout = httpx.Timeout(
-        connect=60.0,
-        write=120.0,
-        read=900.0,
-        pool=None,
-    )
+    data_hash = hashlib.md5(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
+    job_id = f"extract_features:{data_hash}"
+    logging.info(f"🚀 Starting feature extraction task: {job_id} (attempt {ctx.get('job_try')})")
+
+    timeout = httpx.Timeout(connect=60.0, write=120.0, read=900.0, pool=None)
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
-            payload = json.dumps([
-                {"id": str(item["id"]), "image_object_key": item["image_object_key"]}
-                for item in data
-            ])
+            payload = json.dumps(
+                [{"id": str(item["id"]), "image_object_key": item["image_object_key"]} for item in data]
+            )
 
-            species = data[0]["payload"]["pet_type"].lower().strip()
+            species_raw = data[0].get("payload", {}).get("pet_type")
+            if species_raw is None:
+                raise KeyError("payload.pet_type is missing")
+
+            if hasattr(species_raw, "value"):
+                species_raw = species_raw.value
+            species = str(species_raw).lower().strip()
 
             response = await client.post(
                 "http://ml:9000/extract_features",
-                data={
-                    "species": species,
-                    "image_object_keys": payload,
-                },
+                data={"species": species, "image_object_keys": payload},
             )
             response.raise_for_status()
 
@@ -56,26 +57,28 @@ async def extract_features_task(ctx, data: list[dict], collection_name: str = "p
                 logging.warning(f"⚠️ No valid embeddings returned for job {job_id}")
                 return
 
+            by_id = {str(item["id"]): item for item in data}
             points = []
+
             for embedding_item in embeddings_data:
                 embedding_id = str(embedding_item["id"])
-                original_item = next((item for item in data if str(item["id"]) == embedding_id), None)
+                original_item = by_id.get(embedding_id)
                 if original_item:
-                    points.append(PointStruct(
-                        id=embedding_id,
-                        vector=embedding_item["embedding"],
-                        payload=original_item.get("payload")
-                    ))
+                    points.append(
+                        PointStruct(
+                            id=embedding_id,
+                            vector=embedding_item["embedding"],
+                            payload=original_item.get("payload"),
+                        )
+                    )
 
             upsert_embedding(collection_name, points)
             logging.info(f"✅ Upserted {len(points)} embeddings into Qdrant for job {job_id}")
 
         except httpx.RequestError as error:
             logging.error(f"❌ Connection failed while contacting ML service: {error}")
-
         except httpx.HTTPStatusError as error:
             logging.error(f"❌ ML service returned {error.response.status_code}: {error.response.text}")
-
         except Exception as error:
             logging.error(f"❌ Unexpected error during feature extraction: {error}")
 
