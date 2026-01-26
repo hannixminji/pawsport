@@ -25,10 +25,26 @@ class PetMedicalConditionBase(BaseModel):
     condition_status: Annotated[MedicalConditionStatus, Field(examples=[MedicalConditionStatus.ACTIVE])]
     diagnosis_date: Annotated[date | None, Field(examples=["2024-05-12"], default=None)]
 
-    @field_validator("condition_name")
+    @field_validator("condition_name", mode="before")
     @classmethod
-    def normalize_condition_name(cls, v: str) -> str:
-        return v.strip()
+    def normalize_condition_name(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @field_validator("severity_level", "condition_status", mode="before")
+    @classmethod
+    def normalize_enum_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
+
+    @field_validator("diagnosis_date")
+    @classmethod
+    def validate_diagnosis_date(cls, v: date | None):
+        if v is not None and v > date.today():
+            raise ValueError("Diagnosis date cannot be in the future.")
+        return v
 
 
 class PetMedicalCondition(TimestampSchema, PetMedicalConditionBase, UUIDSchema, PersistentDeletion):
@@ -50,7 +66,7 @@ class PetMedicalConditionCreate(PetMedicalConditionBase):
     model_config = ConfigDict(extra="forbid")
 
 
-class PetMedicalConditionCreateInternal(PetMedicalConditionCreate):
+class PetMedicalConditionCreateInternal(PetMedicalConditionBase):
     pet_id: int
 
 
@@ -66,10 +82,26 @@ class PetMedicalConditionUpdate(BaseModel):
     ]
     diagnosis_date: Annotated[date | None, Field(examples=["2024-05-12"], default=None)]
 
-    @field_validator("condition_name")
+    @field_validator("condition_name", mode="before")
     @classmethod
-    def normalize_condition_name(cls, v: str | None) -> str | None:
-        return v.strip() if isinstance(v, str) else v
+    def normalize_condition_name(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
+    @field_validator("severity_level", "condition_status", mode="before")
+    @classmethod
+    def normalize_enum_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
+
+    @field_validator("diagnosis_date")
+    @classmethod
+    def validate_diagnosis_date(cls, v: date | None):
+        if v is not None and v > date.today():
+            raise ValueError("Diagnosis date cannot be in the future.")
+        return v
 
 
 class PetMedicalConditionUpdateInternal(PetMedicalConditionUpdate):

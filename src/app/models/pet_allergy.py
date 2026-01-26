@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -53,3 +53,13 @@ class PetAllergy(Base):
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
+
+    __table_args__ = (
+        Index(
+            "uq_pet_allergy_pet_id_allergen_active",
+            "pet_id",
+            "allergen",
+            unique=True,
+            postgresql_where=~is_deleted,
+        ),
+    )

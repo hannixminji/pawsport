@@ -1,4 +1,6 @@
+import math
 from datetime import date, datetime
+from enum import Enum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -7,23 +9,71 @@ from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
 from .pet_profile_image import PetProfileImageCreate, PetProfileImageRead
 
 
+class PetType(str, Enum):
+    CAT = "cat"
+    DOG = "dog"
+
+class PetSex(str, Enum):
+    MALE = "male"
+    FEMALE = "female"
+
+
 class PetBase(BaseModel):
     name: Annotated[str, Field(min_length=2, max_length=25, examples=["Max"])]
-    type: Annotated[str, Field(pattern=r"^(?i)(cat|dog)$", examples=["Cat", "Dog"])]
+    type: Annotated[PetType, Field(examples=[PetType.DOG])]
     breed: Annotated[str, Field(min_length=3, max_length=30, examples=["Golden Retriever"])]
-    sex: Annotated[str, Field(pattern=r"^(?i)(male|female)$", examples=["Male", "Female"])]
+    sex: Annotated[PetSex, Field(examples=[PetSex.MALE])]
     is_sterilized: Annotated[bool, Field(examples=[True, False])]
     date_of_birth: Annotated[date, Field(examples=["2020-06-15"])]
     weight_kg: Annotated[float | None, Field(gt=0, le=120, examples=[4.25], default=None)]
     color: Annotated[str | None, Field(min_length=1, max_length=30, examples=["black-white"], default=None)]
     markings: Annotated[str | None, Field(max_length=255, examples=["White patch on chest"], default=None)]
 
-    @field_validator("type", "sex")
+    @field_validator("name", "breed", mode="before")
     @classmethod
-    def normalize_fields(cls, v):
-        if not v:
-            return v
-        return v.lower()
+    def normalize_required_text_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @field_validator("color", "markings", mode="before")
+    @classmethod
+    def normalize_optional_text_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
+    @field_validator("type", "sex", mode="before")
+    @classmethod
+    def normalize_enum_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
+
+    @field_validator("color", "markings")
+    @classmethod
+    def validate_printable_optional_text(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        if any(ch for ch in v if not ch.isprintable()):
+            raise ValueError("text fields must not contain control characters")
+        return v
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_date_of_birth(cls, v: date) -> date:
+        if v > date.today():
+            raise ValueError("date_of_birth must not be in the future")
+        return v
+
+    @field_validator("weight_kg")
+    @classmethod
+    def validate_weight_kg(cls, v: float | None) -> float | None:
+        if v is None:
+            return None
+        if not math.isfinite(float(v)):
+            raise ValueError("weight_kg must be a finite number")
+        return float(v)
 
 
 class Pet(TimestampSchema, PetBase, UUIDSchema, PersistentDeletion):
@@ -104,21 +154,57 @@ class PetUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: Annotated[str | None, Field(min_length=2, max_length=25, examples=["Max"], default=None)]
-    type: Annotated[str | None, Field(pattern=r"^(?i)(cat|dog)$", examples=["Cat", "Dog"], default=None)]
+    type: Annotated[PetType | None, Field(examples=[PetType.DOG], default=None)]
     breed: Annotated[str | None, Field(min_length=3, max_length=30, examples=["Golden Retriever"], default=None)]
-    sex: Annotated[str | None, Field(pattern=r"^(?i)(male|female)$", examples=["Male", "Female"], default=None)]
-    is_sterilized: Annotated[bool | None, Field(examples=[True, False], default=None)]
+    sex: Annotated[PetSex | None, Field(examples=[PetSex.MALE], default=None)]
+    is_sterilized: Annotated[bool | None, Field(examples=[True], default=None)]
     date_of_birth: Annotated[date | None, Field(examples=["2020-06-15"], default=None)]
     weight_kg: Annotated[float | None, Field(gt=0, le=120, examples=[4.25], default=None)]
     color: Annotated[str | None, Field(min_length=1, max_length=30, examples=["black-white"], default=None)]
     markings: Annotated[str | None, Field(max_length=255, examples=["White patch on chest"], default=None)]
 
-    @field_validator("type", "sex")
+    @field_validator("name", "breed", "color", "markings", mode="before")
     @classmethod
-    def normalize_fields(cls, v):
-        if not v:
-            return v
-        return v.capitalize()
+    def normalize_text_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
+    @field_validator("type", "sex", mode="before")
+    @classmethod
+    def normalize_enum_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower() or None
+        return v
+
+    @field_validator("name", "breed", "color", "markings")
+    @classmethod
+    def validate_printable_text(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        if any(ch for ch in v if not ch.isprintable()):
+            raise ValueError("text fields must not contain control characters")
+        return v
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_date_of_birth(cls, v: date | None) -> date | None:
+        if v is None:
+            return None
+
+        if v > date.today():
+            raise ValueError("date_of_birth must not be in the future")
+
+        return v
+
+    @field_validator("weight_kg")
+    @classmethod
+    def validate_weight_kg(cls, v: float | None) -> float | None:
+        if v is None:
+            return None
+        if not math.isfinite(float(v)):
+            raise ValueError("weight_kg must be a finite number")
+        return float(v)
 
 
 class PetProfileImageUpdate(BaseModel):

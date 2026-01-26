@@ -1,5 +1,6 @@
 import asyncio
-from typing import Annotated
+import logging
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -22,7 +23,16 @@ from ...models.user import User
 from ...schemas.pet import PetCreateWithProfileImages, PetRead
 from ...schemas.user import UserCreate, UserRead
 
+LOGGER = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/test", tags=["tests"])
+
+def normalize_species(value: Any) -> str:
+    if value is None:
+        return ""
+    if hasattr(value, "value"):
+        value = value.value
+    return str(value).lower().strip()
 
 
 @router.post("/user", response_model=UserRead)
@@ -61,7 +71,7 @@ async def create_test_user(
 
 
 @router.post("/{username}/pet", response_model=PetRead, status_code=201)
-async def write_test_pet(
+async def write_pet(
     username: str,
     pet: PetCreateWithProfileImages,
     db: Annotated[AsyncSession, Depends(async_get_db)],
@@ -78,7 +88,7 @@ async def write_test_pet(
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    object_keys = [profile_image.image_object_key for profile_image in pet.profile_images]
+    object_keys = [profile_image.image_object_key for profile_image in pet.profile_images] if pet.profile_images else []
     exists_map = await asyncio.to_thread(is_objects_exist, object_keys)
     missing_object_keys = [object_key for object_key, exists in exists_map.items() if not exists]
     if missing_object_keys:
@@ -105,13 +115,15 @@ async def write_test_pet(
 
     await db.flush()
 
+    species_value = normalize_species(pet_model.type)
+
     new_profile_images = [
         {
             "id": str(profile_image.uuid),
             "image_object_key": profile_image.image_object_key,
             "payload": {
                 "pet_id": pet_model.id,
-                "type": pet_model.type,
+                "species": species_value,
                 "is_missing": False
             }
         }
@@ -133,9 +145,51 @@ async def write_test_pet(
 
     try:
         await queue.pool.enqueue_job("extract_features_task", new_profile_images)
-    except Exception:
-        pass
+    except Exception as error:
+        LOGGER.warning(f"Failed to enqueue extract_features_task for pet {pet_model.id}: {error}")
 
     await db.refresh(pet_model)
 
     return PetRead.model_validate(pet_model)
+
+
+@router.get("/debug/due_schedules")
+async def debug_due_schedules(
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> dict[str, Any]:
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from ...models.pet import Pet
+    from ...models.pet_schedule import PetSchedule
+
+    now = datetime.now(UTC)
+
+    rows = (
+        await db.execute(
+            select(PetSchedule, Pet.owner_id)
+            .join(Pet, Pet.id == PetSchedule.pet_id)
+            .where(
+                ~Pet.is_deleted,
+                ~PetSchedule.is_deleted,
+                PetSchedule.next_scheduled_at.is_not(None),
+                PetSchedule.next_scheduled_at <= now,
+            )
+        )
+    ).all()
+
+    data = [
+        {
+            "schedule_id": schedule.id,
+            "pet_id": schedule.pet_id,
+            "owner_id": owner_id,
+            "title": schedule.title,
+            "type": getattr(schedule.type, "value", str(schedule.type)),
+            "scheduled_at": schedule.scheduled_at.isoformat() if schedule.scheduled_at else None,
+            "next_scheduled_at": schedule.next_scheduled_at.isoformat() if schedule.next_scheduled_at else None,
+        }
+        for schedule, owner_id in rows
+    ]
+
+    return {"now": now.isoformat(), "count": len(data), "data": data}

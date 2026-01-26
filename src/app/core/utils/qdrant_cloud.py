@@ -71,20 +71,26 @@ def search_pet(
     query_vector: list[float],
     limit: int = 10,
     score_threshold: float = 0.60,
-    query_filter: Filter = None
+    query_filter: Filter | None = None,
 ) -> list[dict[str, Any]]:
     search_results = client.query_points(
         collection_name=collection_name,
-        query_vector=query_vector,
+        query=query_vector,
         limit=limit * 5,
         score_threshold=score_threshold,
-        query_filter=query_filter
+        query_filter=query_filter,
+        with_payload=True,
     )
+
+    points = getattr(search_results, "points", None) or getattr(search_results, "result", None) or search_results
 
     best_per_pet = {}
 
-    for result in search_results:
-        pet_id = result.payload.get("pet_id")
+    for result in points:
+        if isinstance(result, tuple):
+            result = result[0]
+
+        pet_id = (result.payload or {}).get("pet_id")
 
         if pet_id and (
             pet_id not in best_per_pet

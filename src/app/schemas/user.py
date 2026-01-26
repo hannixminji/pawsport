@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from pydantic_extra_types.phone_numbers import PhoneNumber
 
 from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
@@ -22,6 +22,85 @@ class UserBase(BaseModel):
     city: Annotated[str | None, Field(max_length=100, examples=["Caloocan"], default=None)]
     state_province_region: Annotated[str | None, Field(max_length=100, examples=["Metro Manila"], default=None)]
     postal_code: Annotated[str | None, Field(max_length=16, examples=["1400"], default=None)]
+
+    @field_validator(
+        "first_name",
+        "last_name",
+        "country",
+        "street_address_1",
+        "street_address_2",
+        "city",
+        "state_province_region",
+        "postal_code",
+        mode="before"
+    )
+    @classmethod
+    def normalize_optional_text_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def normalize_phone_number(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_username(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
+
+    @field_validator("profile_image_object_key")
+    @classmethod
+    def validate_profile_image_object_key(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        if any(ch.isspace() for ch in v):
+            raise ValueError("profile_image_object_key must not contain whitespace")
+
+        if "\\" in v or "'" in v or '"' in v:
+            raise ValueError("profile_image_object_key must not contain backslashes or quotes")
+
+        if any(ch for ch in v if not ch.isprintable()):
+            raise ValueError("profile_image_object_key must not contain control characters")
+
+        if v.startswith("/"):
+            raise ValueError("profile_image_object_key must be a relative path")
+
+        if "//" in v:
+            raise ValueError("profile_image_object_key must not contain empty path segments")
+
+        parts = v.split("/")
+        if "." in parts or ".." in parts:
+            raise ValueError("profile_image_object_key must not contain '.' or '..' path segments")
+
+        if v.endswith("/"):
+            raise ValueError("profile_image_object_key must not end with '/'")
+
+        return v
+
+    @field_validator("postal_code")
+    @classmethod
+    def validate_postal_code(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        if any(ch.isspace() for ch in v):
+            raise ValueError("postal_code must not contain whitespace")
+
+        return v
 
 
 class User(TimestampSchema, UserBase, UUIDSchema, PersistentDeletion):
@@ -63,8 +142,24 @@ class UserCreateInternal(UserBase):
 
 
 class UserSignup(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     username: Annotated[str, Field(min_length=3, max_length=20, pattern=r"^[a-z0-9]+$", examples=["userson"])]
     email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_username(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
 
 
 class UserUpdate(BaseModel):
@@ -86,6 +181,72 @@ class UserUpdate(BaseModel):
     city: Annotated[str | None, Field(max_length=100, default=None)]
     state_province_region: Annotated[str | None, Field(max_length=100, default=None)]
     postal_code: Annotated[str | None, Field(max_length=16, default=None)]
+
+    @field_validator(
+        "first_name",
+        "last_name",
+        "phone_number",
+        "country",
+        "street_address_1",
+        "street_address_2",
+        "city",
+        "state_province_region",
+        "postal_code",
+        mode="before"
+    )
+    @classmethod
+    def normalize_text_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
+    @field_validator("username", "email", mode="before")
+    @classmethod
+    def normalize_username_and_email(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower() or None
+        return v
+
+    @field_validator("profile_image_object_key")
+    @classmethod
+    def validate_profile_image_object_key(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        if any(ch.isspace() for ch in v):
+            raise ValueError("profile_image_object_key must not contain whitespace")
+
+        if "\\" in v or "'" in v or '"' in v:
+            raise ValueError("profile_image_object_key must not contain backslashes or quotes")
+
+        if any(ch for ch in v if not ch.isprintable()):
+            raise ValueError("profile_image_object_key must not contain control characters")
+
+        if v.startswith("/"):
+            raise ValueError("profile_image_object_key must be a relative path")
+
+        if "//" in v:
+            raise ValueError("profile_image_object_key must not contain empty path segments")
+
+        parts = v.split("/")
+        if "." in parts or ".." in parts:
+            raise ValueError("profile_image_object_key must not contain '.' or '..' path segments")
+
+        if v.endswith("/"):
+            raise ValueError("profile_image_object_key must not end with '/'")
+
+        return v
+
+    @field_validator("postal_code")
+    @classmethod
+    def validate_postal_code(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        if any(ch.isspace() for ch in v):
+            raise ValueError("postal_code must not contain whitespace")
+
+        return v
 
 
 class UserUpdateInternal(UserUpdate):

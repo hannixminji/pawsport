@@ -42,6 +42,13 @@ router = APIRouter(tags=["pets"])
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "core" / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
+def normalize_species(value: Any) -> str:
+    if value is None:
+        return ""
+    if hasattr(value, "value"):
+        value = value.value
+    return str(value).lower().strip()
+
 
 @router.post("/{username}/pet", response_model=PetRead, status_code=201)
 async def write_pet(
@@ -93,13 +100,15 @@ async def write_pet(
 
     await db.flush()
 
+    species_value = normalize_species(pet_model.type)
+
     new_profile_images = [
         {
             "id": str(profile_image.uuid),
             "image_object_key": profile_image.image_object_key,
             "payload": {
                 "pet_id": pet_model.id,
-                "species": pet_model.type,
+                "species": species_value,
                 "is_missing": False
             }
         }
@@ -173,12 +182,16 @@ async def search_pets(
     embedding = ml_response["embedding"]
 
     if not embedding or not isinstance(embedding, list):
-        raise BadRequestException(ml_response["message"])
+        raise BadRequestException(ml_response.get("message", "Failed to detect a valid pet in the image."))
+
+    species_query = normalize_species(ml_response.get("species"))
+    if not species_query:
+        raise BadRequestException(ml_response.get("message", "Failed to detect a valid pet in the image."))
 
     query_conditions = [
         FieldCondition(
             key="species",
-            match=MatchValue(value=ml_response["species"])
+            match=MatchValue(value=species_query)
         )
     ]
 
@@ -476,13 +489,15 @@ async def patch_pet(
         raise BadRequestException("A pet can only have one primary profile image")
 
     if new_profile_image_models:
+        species_value = normalize_species(db_pet.type)
+
         new_profile_images_payload = [
             {
                 "id": str(profile_image.uuid),
                 "image_object_key": profile_image.image_object_key,
                 "payload": {
                     "pet_id": db_pet.id,
-                    "species": db_pet.type,
+                    "species": species_value,
                     "is_missing": False
                 }
             }
@@ -498,7 +513,7 @@ async def patch_pet(
             except Exception as error:
                 LOGGER.warning(
                     f"Failed to delete embeddings for pet_profile_images {deleted_image_uuids}: {error}"
-            )
+                )
 
         if new_profile_images_payload:
             try:

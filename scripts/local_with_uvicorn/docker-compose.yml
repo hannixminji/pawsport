@@ -1,6 +1,6 @@
 services:
   web:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     # -------- Both of the following commands should be commented to run with nginx --------
@@ -23,7 +23,7 @@ services:
       - ./src/.env:/code/.env
 
   worker:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     command: arq app.core.worker.settings.WorkerSettings
@@ -64,7 +64,7 @@ services:
 
   #-------- uncomment to create first superuser --------
   create_superuser:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     env_file:
@@ -78,9 +78,9 @@ services:
 
   #-------- uncomment to run tests --------
   pytest:
-    build: 
+    build:
       context: .
-      dockerfile: Dockerfile 
+      dockerfile: Dockerfile
     env_file:
       - ./src/.env
     depends_on:
@@ -93,7 +93,7 @@ services:
 
   #-------- uncomment to create first tier --------
   # create_tier:
-  #   build: 
+  #   build:
   #     context: .
   #     dockerfile: Dockerfile
   #   env_file:
@@ -109,4 +109,3 @@ services:
 volumes:
   postgres-data:
   redis-data:
- 

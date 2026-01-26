@@ -7,19 +7,19 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
 
 
-class AttachmentFileType(str, Enum):
-    PDF = "pdf"
+class InventoryImageFileType(str, Enum):
     JPG = "jpg"
     JPEG = "jpeg"
     PNG = "png"
 
 
-class PetVaccinationRecordAttachmentBase(BaseModel):
+class PetInventoryImageBase(BaseModel):
     object_key: Annotated[str, Field(min_length=1, max_length=1024, examples=["path/to/file.pdf"])]
+    sort_order: Annotated[int, Field(ge=0, examples=[0, 1, 2])]
 
     @field_validator("object_key")
     @classmethod
-    def validate_object_key(cls, v: str) -> str:
+    def validate_object_key(cls, v):
         if any(ch.isspace() for ch in v):
             raise ValueError("object_key must not contain whitespace")
 
@@ -45,35 +45,31 @@ class PetVaccinationRecordAttachmentBase(BaseModel):
         return v
 
 
-class PetVaccinationRecordAttachment(
-    TimestampSchema, PetVaccinationRecordAttachmentBase, UUIDSchema, PersistentDeletion
-):
-    vaccination_record_id: int
-    file_name: str | None
-    file_type: AttachmentFileType | None
+class PetInventoryImage(TimestampSchema, PetInventoryImageBase, UUIDSchema, PersistentDeletion):
+    inventory_id: int
+    file_type: InventoryImageFileType | None
 
 
-class PetVaccinationRecordAttachmentRead(BaseModel):
+class PetInventoryImageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    vaccination_record_id: int
-    attachment_url: str
-    file_name: str | None
-    file_type: AttachmentFileType | None
+    inventory_id: int
+    image_url: str
+    sort_order: int
+    file_type: InventoryImageFileType | None
 
 
-class PetVaccinationRecordAttachmentCreate(PetVaccinationRecordAttachmentBase):
+class PetInventoryImageCreate(PetInventoryImageBase):
     model_config = ConfigDict(extra="forbid")
 
 
-class PetVaccinationRecordAttachmentCreateInternal(PetVaccinationRecordAttachmentBase):
-    vaccination_record_id: int
-    file_name: str | None
-    file_type: AttachmentFileType | None
+class PetInventoryImageCreateInternal(PetInventoryImageBase):
+    inventory_id: int
+    file_type: InventoryImageFileType | None
 
 
-class PetVaccinationRecordAttachmentUpdate(BaseModel):
+class PetInventoryImageUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: Annotated[int | None, Field(gt=0, default=None)]
@@ -81,6 +77,7 @@ class PetVaccinationRecordAttachmentUpdate(BaseModel):
         str | None,
         Field(min_length=1, max_length=1024, examples=["path/to/image.jpg"], default=None)
     ]
+    sort_order: Annotated[int, Field(ge=0, examples=[0, 1, 2])]
 
     @field_validator("object_key")
     @classmethod
@@ -126,11 +123,11 @@ class PetVaccinationRecordAttachmentUpdate(BaseModel):
         return self
 
 
-class PetVaccinationRecordAttachmentUpdateInternal(PetVaccinationRecordAttachmentUpdate):
+class PetInventoryImageUpdateInternal(PetInventoryImageUpdate):
     updated_at: datetime
 
 
-class PetVaccinationRecordAttachmentDelete(BaseModel):
+class PetInventoryImageDelete(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     is_deleted: bool

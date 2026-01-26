@@ -28,10 +28,26 @@ class PetAllergyBase(BaseModel):
         str | None, Field(min_length=5, max_length=500, examples=["Itchy skin and watery eyes"], default=None)
     ]
 
-    @field_validator("allergen", "reaction")
+    @field_validator("allergen", mode="before")
     @classmethod
-    def normalize_text_fields(cls, v: str | None) -> str | None:
-        return v.strip() if isinstance(v, str) else v
+    def normalize_allergen(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @field_validator("reaction", mode="before")
+    @classmethod
+    def normalize_reaction(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
+    @field_validator("allergen_type", "severity_level", mode="before")
+    @classmethod
+    def normalize_enum_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
 
 
 class PetAllergy(TimestampSchema, PetAllergyBase, UUIDSchema, PersistentDeletion):
@@ -67,10 +83,19 @@ class PetAllergyUpdate(BaseModel):
         str | None, Field(min_length=5, max_length=500, examples=["Sneezing and itchy eyes"], default=None)
     ]
 
-    @field_validator("allergen", "reaction")
+    @field_validator("allergen", "reaction", mode="before")
     @classmethod
-    def normalize_text_fields(cls, v: str | None) -> str | None:
-        return v.strip() if isinstance(v, str) else v
+    def normalize_text_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
+    @field_validator("allergen_type", "severity_level", mode="before")
+    @classmethod
+    def normalize_enum_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
 
 
 class PetAllergyUpdateInternal(PetAllergyUpdate):

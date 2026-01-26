@@ -1,7 +1,9 @@
 import io
+from collections.abc import Mapping
 from datetime import timedelta
 from typing import cast
 
+from google.api_core.exceptions import NotFound
 from google.cloud import storage
 from PIL import Image
 
@@ -57,12 +59,23 @@ def generate_download_signed_url(blob_name: str) -> str:
     )
 
 
-def generate_upload_signed_url(blob_name: str, content_type: ImageMimeType) -> str:
+def generate_upload_signed_url(
+    blob_name: str,
+    content_type: ImageMimeType | str,
+    metadata: Mapping[str, str] | None = None,
+) -> str:
+    headers: dict[str, str] = {}
+
+    if metadata:
+        for key, value in metadata.items():
+            headers[f"x-goog-meta-{key.lower()}"] = value
+
     return generate_signed_url(
         blob_name=blob_name,
         expiration_minutes=settings.GCS_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES,
         method="PUT",
-        content_type=content_type
+        content_type=content_type,
+        headers=headers,
     )
 
 
@@ -100,5 +113,35 @@ def is_objects_exist(blob_names: list[str], bucket_name: str | None = None) -> d
     for blob_name in blob_names:
         blob = bucket.blob(blob_name)
         results[blob_name] = blob.exists()
+
+    return results
+
+
+def get_object_metadata(blob_name: str, bucket_name: str | None = None) -> dict[str, str] | None:
+    bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.get_blob(blob_name)
+
+    if blob is None:
+        return None
+
+    return blob.metadata or {}
+
+
+def get_objects_metadata(
+    blob_names: list[str],
+    bucket_name: str | None = None,
+) -> dict[str, dict[str, str]]:
+    bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+    bucket = storage_client.bucket(bucket_name)
+
+    results: dict[str, dict[str, str]] = {}
+    for blob_name in blob_names:
+        blob = bucket.blob(blob_name)
+        try:
+            blob.reload(client=storage_client)
+            results[blob_name] = blob.metadata or {}
+        except NotFound:
+            results[blob_name] = {}
 
     return results

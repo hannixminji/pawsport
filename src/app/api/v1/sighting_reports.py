@@ -39,6 +39,13 @@ LOGGER = logging.getLogger(__name__)
 
 router = APIRouter(tags=["sighting reports"])
 
+def normalize_species(value: Any) -> str:
+    if value is None:
+        return ""
+    if hasattr(value, "value"):
+        value = value.value
+    return str(value).lower().strip()
+
 
 @router.post("/{username}/sighting_report", response_model=SightingReportRead, status_code=201)
 async def write_sighting_report(
@@ -84,13 +91,15 @@ async def write_sighting_report(
 
     await db.flush()
 
+    species_value = normalize_species(sighting_report.pet_type)
+
     new_images = [
         {
             "id": str(image.uuid),
             "image_object_key": image.image_object_key,
             "payload": {
                 "sighting_report_id": sighting_report_model.id,
-                "species": sighting_report_model.pet_type
+                "species": species_value
             }
         }
         for image in image_models
@@ -479,13 +488,15 @@ async def patch_sighting_report(
     await db.flush()
 
     if new_image_models:
+        species_value = normalize_species(db_sighting_report.pet_type)
+
         new_images_payload = [
             {
                 "id": str(image.uuid),
                 "image_object_key": image.image_object_key,
                 "payload": {
                     "sighting_report_id": db_sighting_report.id,
-                    "species": db_sighting_report.pet_type
+                    "species": species_value
                 }
             }
             for image in new_image_models
