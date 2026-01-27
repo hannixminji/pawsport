@@ -53,7 +53,6 @@ async def write_rate_limit(
 
     name = rate_limit.name or _default_rate_limit_name(rate_limit.path, rate_limit.limit, rate_limit.period)
 
-    # Prevent duplicates (name + (tier_id, path))
     existing_by_name = (
         await db.execute(
             select(RateLimit.id).where(

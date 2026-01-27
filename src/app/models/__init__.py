@@ -1,3 +1,4 @@
+from .article import Article
 from .missing_report import MissingReport
 from .pet import Pet
 from .pet_allergy import PetAllergy
