@@ -1,12 +1,14 @@
-from datetime import UTC, datetime
-from typing import Annotated, Any
+from datetime import UTC, date, datetime
+from enum import Enum
+from typing import Annotated, Any, Literal, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastcrud import PaginatedListResponse, compute_offset, paginated_response
 from geoalchemy2.shape import from_shape
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from qdrant_client.http.models import UpdateStatus
 from shapely.geometry import Point
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, not_, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -20,13 +22,217 @@ from ...core.exceptions.http_exceptions import (
 )
 from ...core.utils.cache import cache
 from ...core.utils.qdrant_cloud import update_payload
-from ...models.missing_report import MissingReport
+from ...models.missing_report import MissingReport, MissingReportStatus
 from ...models.pet import Pet
 from ...models.user import User
 from ...schemas.missing_report import MissingReportCreate, MissingReportRead, MissingReportUpdate
 from ...schemas.user import UserRead
 
 router = APIRouter(tags=["missing reports"])
+
+
+class SortOrder(str, Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+
+class MissingReportSortBy(str, Enum):
+    LAST_SEEN_DATETIME = "last_seen_datetime"
+    CREATED_AT = "created_at"
+
+
+class FilterOp(str, Enum):
+    EQ = "eq"
+    ILIKE = "ilike"
+    GTE = "gte"
+    LTE = "lte"
+    IN = "in"
+
+
+class MissingReportFilterField(str, Enum):
+    STATUS = "status"
+    LAST_SEEN_DATETIME = "last_seen_datetime"
+    CREATED_AT = "created_at"
+    LAST_SEEN_ADDRESS = "last_seen_address"
+    PET_NAME = "pet_name"
+    OWNER_NAME = "owner_name"
+    DESCRIPTION = "description"
+
+
+class WhereRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["rule"]
+    field: MissingReportFilterField
+    op: FilterOp
+    value: Any
+
+
+class WhereGroup(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["group"]
+    op: Literal["and", "or"]
+    conditions: list["WhereNode"] = Field(min_length=1, max_length=50)
+
+
+class WhereNot(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["not"]
+    condition: "WhereNode"
+
+
+WhereNode = Annotated[Union[WhereRule, WhereGroup, WhereNot], Field(discriminator="type")]
+
+
+class MissingReportSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    page: int = Field(1, ge=1)
+    items_per_page: int = Field(10, ge=1, le=100)
+
+    sort_by: MissingReportSortBy = MissingReportSortBy.CREATED_AT
+    sort_order: SortOrder = SortOrder.DESC
+
+    where: WhereNode | None = None
+
+    @model_validator(mode="after")
+    def limit_complexity(self):
+        def count_nodes(node: WhereNode, depth: int = 0) -> int:
+            if depth > 10:
+                raise ValueError("where is too deeply nested")
+
+            if isinstance(node, WhereRule):
+                return 1
+
+            if isinstance(node, WhereNot):
+                return 1 + count_nodes(node.condition, depth + 1)
+
+            total = 1
+            for child in node.conditions:
+                total += count_nodes(child, depth + 1)
+            return total
+
+        if self.where is not None:
+            total = count_nodes(self.where, 0)
+            if total > 200:
+                raise ValueError("where is too large")
+        return self
+
+
+def _parse_iso_datetime(value: Any) -> datetime:
+    if isinstance(value, datetime):
+        dt = value
+
+    elif isinstance(value, date) and not isinstance(value, datetime):
+        dt = datetime(value.year, value.month, value.day, tzinfo=UTC)
+
+    elif isinstance(value, str):
+        raw = value.strip()
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+
+        try:
+            dt = datetime.fromisoformat(raw)
+        except ValueError:
+            raise BadRequestException("Datetime filter value must be ISO 8601.")
+
+    else:
+        raise BadRequestException("Datetime filter value must be ISO 8601.")
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+
+    return dt
+
+
+def build_where(node: WhereNode, filter_columns: dict[MissingReportFilterField, Any]):  # noqa: C901
+    if isinstance(node, WhereRule):
+        column = filter_columns[node.field]
+        value = node.value
+
+        if node.field == MissingReportFilterField.STATUS:
+            if node.op == FilterOp.EQ:
+                if isinstance(value, str):
+                    try:
+                        value = MissingReportStatus(value.lower())
+                    except ValueError:
+                        raise BadRequestException("Invalid status.")
+                if not isinstance(value, MissingReportStatus):
+                    raise BadRequestException("Invalid status.")
+
+            elif node.op == FilterOp.IN:
+                if not isinstance(value, list) or not value:
+                    raise BadRequestException("IN value must be a non-empty list.")
+                converted: list[MissingReportStatus] = []
+                for item in value:
+                    if not isinstance(item, str):
+                        raise BadRequestException("status IN values must be strings.")
+                    try:
+                        converted.append(MissingReportStatus(item.lower()))
+                    except ValueError:
+                        raise BadRequestException("Invalid status.")
+                value = converted
+
+            else:
+                raise BadRequestException("status only supports eq or in.")
+
+        if node.field in {
+            MissingReportFilterField.LAST_SEEN_DATETIME,
+            MissingReportFilterField.CREATED_AT,
+        }:
+            if node.op not in {FilterOp.EQ, FilterOp.GTE, FilterOp.LTE}:
+                raise BadRequestException("datetime fields only support eq, gte, or lte.")
+            value = _parse_iso_datetime(value)
+
+        if node.field in {
+            MissingReportFilterField.LAST_SEEN_ADDRESS,
+            MissingReportFilterField.PET_NAME,
+            MissingReportFilterField.OWNER_NAME,
+            MissingReportFilterField.DESCRIPTION,
+        }:
+            if node.op == FilterOp.EQ:
+                if not isinstance(value, str):
+                    raise BadRequestException("text eq value must be a string.")
+
+            elif node.op == FilterOp.ILIKE:
+                if not isinstance(value, str):
+                    raise BadRequestException("ILIKE value must be a string.")
+
+            elif node.op == FilterOp.IN:
+                if not isinstance(value, list) or not value:
+                    raise BadRequestException("IN value must be a non-empty list.")
+                if not all(isinstance(item, str) for item in value):
+                    raise BadRequestException("text IN values must be strings.")
+
+            else:
+                raise BadRequestException("text fields only support eq, ilike, or in.")
+
+        if node.op == FilterOp.EQ:
+            return column == value
+
+        if node.op == FilterOp.ILIKE:
+            return func.coalesce(column, "").ilike(f"%{value}%")
+
+        if node.op == FilterOp.GTE:
+            return column >= value
+
+        if node.op == FilterOp.LTE:
+            return column <= value
+
+        if node.op == FilterOp.IN:
+            if not isinstance(value, list) or not value:
+                raise BadRequestException("IN value must be a non-empty list.")
+            return column.in_(value)
+
+        raise BadRequestException("Invalid filter operator.")
+
+    if isinstance(node, WhereNot):
+        return not_(build_where(node.condition, filter_columns))
+
+    children = [build_where(child, filter_columns) for child in node.conditions]
+    return and_(*children) if node.op == "and" else or_(*children)
 
 
 @router.post("/{username}/pet/{pet_id}/missing_report", response_model=MissingReportRead, status_code=201)
@@ -114,6 +320,88 @@ async def write_report_missing(
         )
 
     return MissingReportRead.model_validate(missing_report_model)
+
+
+@router.post(
+    "/missing_reports/search",
+    response_model=PaginatedListResponse[MissingReportRead],
+)
+async def search_missing_reports(
+    request: Request,
+    values: MissingReportSearchRequest,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> dict[str, Any]:
+    owner_name_column = (
+        getattr(User, "name", None)
+        or getattr(User, "full_name", None)
+        or getattr(User, "display_name", None)
+        or User.username
+    )
+
+    filter_columns = {
+        MissingReportFilterField.STATUS: MissingReport.status,
+        MissingReportFilterField.LAST_SEEN_DATETIME: MissingReport.last_seen_datetime,
+        MissingReportFilterField.CREATED_AT: MissingReport.created_at,
+        MissingReportFilterField.LAST_SEEN_ADDRESS: MissingReport.last_seen_address,
+        MissingReportFilterField.PET_NAME: Pet.name,
+        MissingReportFilterField.OWNER_NAME: owner_name_column,
+        MissingReportFilterField.DESCRIPTION: MissingReport.description,
+    }
+
+    sort_columns = {
+        MissingReportSortBy.LAST_SEEN_DATETIME: MissingReport.last_seen_datetime,
+        MissingReportSortBy.CREATED_AT: MissingReport.created_at,
+    }
+
+    where_clauses = [
+        ~MissingReport.is_deleted,
+        ~Pet.is_deleted,
+        ~User.is_deleted,
+    ]
+
+    if values.where is not None:
+        where_clauses.append(build_where(values.where, filter_columns))
+
+    sort_column = sort_columns.get(values.sort_by)
+    if not sort_column:
+        raise BadRequestException("Invalid sort_by field.")
+
+    order_by_clause = sort_column.asc() if values.sort_order == SortOrder.ASC else sort_column.desc()
+
+    db_missing_reports = (
+        await db.execute(
+            select(MissingReport)
+            .options(selectinload(MissingReport.pet).selectinload(Pet.profile_images))
+            .join(Pet, Pet.id == MissingReport.pet_id)
+            .join(User, User.id == Pet.owner_id)
+            .where(*where_clauses)
+            .order_by(order_by_clause)
+            .offset(compute_offset(values.page, values.items_per_page))
+            .limit(values.items_per_page)
+        )
+    ).scalars().all()
+
+    total_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(MissingReport)
+            .join(Pet, Pet.id == MissingReport.pet_id)
+            .join(User, User.id == Pet.owner_id)
+            .where(*where_clauses)
+        )
+    ).scalar_one()
+
+    missing_reports_data = {
+        "data": [MissingReportRead.model_validate(item) for item in db_missing_reports],
+        "total_count": total_count,
+    }
+
+    response: dict[str, Any] = paginated_response(
+        crud_data=missing_reports_data,
+        page=values.page,
+        items_per_page=values.items_per_page,
+    )
+    return response
 
 
 @router.get("/missing_reports", response_model=PaginatedListResponse[MissingReportRead])

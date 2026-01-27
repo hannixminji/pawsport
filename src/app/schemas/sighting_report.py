@@ -59,6 +59,19 @@ class SightingReportCreateInternal(SightingReportCreate):
 class SightingReportCreateWithImages(SightingReportCreate):
     images: Annotated[list[SightingReportImageCreate], Field(..., min_length=1, max_length=10)]
 
+    @field_validator("images", mode="after")
+    @classmethod
+    def validate_images_sort_order(cls, images):
+        if not images:
+            return images
+
+        sort_orders = [image.sort_order for image in images]
+
+        if len(sort_orders) != len(set(sort_orders)):
+            raise ValueError("Image order numbers must not have duplicates")
+
+        return images
+
 
 class SightingReportUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -71,7 +84,6 @@ class SightingReportImageUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: Annotated[int | None, Field(default=None)]
-    image_url: Annotated[str | None, Field(default=None)]
     image_object_key: Annotated[
         str | None, Field(min_length=1, max_length=1024, examples=["path/to/image.jpg"], default=None)
     ]
@@ -80,6 +92,19 @@ class SightingReportImageUpdate(BaseModel):
 
 class SightingReportUpdateWithImages(SightingReportUpdate):
     images: Annotated[list[SightingReportImageUpdate], Field(..., min_length=1, max_length=10)]
+
+    @field_validator("images", mode="after")
+    @classmethod
+    def validate_images_sort_order(cls, images):
+        if not images:
+            return images
+
+        sort_orders = [image.sort_order for image in images]
+
+        if len(sort_orders) != len(set(sort_orders)):
+            raise ValueError("Image order numbers must not have duplicates")
+
+        return images
 
 
 class SightingReportUpdateInternal(SightingReportUpdate):

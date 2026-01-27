@@ -73,7 +73,7 @@ def search_pet(
     score_threshold: float = 0.60,
     query_filter: Filter | None = None,
 ) -> list[dict[str, Any]]:
-    search_results = client.query_points(
+    query_response = client.query_points(
         collection_name=collection_name,
         query=query_vector,
         limit=limit * 5,
@@ -82,29 +82,26 @@ def search_pet(
         with_payload=True,
     )
 
-    points = getattr(search_results, "points", None) or getattr(search_results, "result", None) or search_results
+    scored_points = query_response.points or []
 
-    best_per_pet = {}
+    best_per_pet: dict[Any, dict[str, Any]] = {}
 
-    for result in points:
-        if isinstance(result, tuple):
-            result = result[0]
+    for scored_point in scored_points:
+        payload = scored_point.payload or {}
+        pet_id = payload.get("pet_id")
+        if pet_id is None:
+            continue
 
-        pet_id = (result.payload or {}).get("pet_id")
-
-        if pet_id and (
-            pet_id not in best_per_pet
-            or result.score > best_per_pet[pet_id]["score"]
-        ):
+        prev = best_per_pet.get(pet_id)
+        if prev is None or scored_point.score > prev["score"]:
             best_per_pet[pet_id] = {
-                "id": result.id,
+                "id": scored_point.id,
                 "pet_id": pet_id,
-                "score": result.score,
-                "payload": result.payload,
+                "score": scored_point.score,
+                "payload": payload,
             }
 
-    unique_results = sorted(best_per_pet.values(), key=lambda x: x["score"], reverse=True)
-    return unique_results[:limit]
+    return sorted(best_per_pet.values(), key=lambda x: x["score"], reverse=True)[:limit]
 
 
 def update_payload(

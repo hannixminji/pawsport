@@ -371,17 +371,28 @@ async def read_pet(
 
 
 @router.get("/pet/qr/{uuid}", response_class=HTMLResponse)
-async def read_pet_by_qr(request: Request, uuid: str, db: AsyncSession = Depends(async_get_db)):
+async def read_pet_by_qr(
+    request: Request,
+    uuid: UUID,
+    db: AsyncSession = Depends(async_get_db),
+):
     db_pet = (
         await db.execute(
             select(Pet)
             .options(selectinload(Pet.profile_images))
-            .where(Pet.uuid == UUID(uuid), ~Pet.is_deleted)
+            .where(
+                Pet.uuid == uuid,
+                ~Pet.is_deleted
+            )
         )
     ).scalar_one_or_none()
-
     if not db_pet:
         raise NotFoundException("Pet not found")
+
+    accept = (request.headers.get("accept") or "").lower()
+
+    if "application/json" in accept:
+        return PetRead.model_validate(db_pet)
 
     return templates.TemplateResponse("pet_qr.html", {"request": request, "pet": db_pet})
 

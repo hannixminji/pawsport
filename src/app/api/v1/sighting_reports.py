@@ -15,8 +15,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ...api.dependencies import get_authenticated_user
 from ...core.db.database import async_get_db
-from ...core.exceptions.http_exceptions import BadRequestException, NotFoundException
+from ...core.exceptions.http_exceptions import BadRequestException, ForbiddenException, NotFoundException
 from ...core.utils import queue
 from ...core.utils.cache import cache
 from ...core.utils.google_cloud_storage import is_objects_exist
@@ -34,6 +35,7 @@ from ...schemas.sighting_report import (
     SightingReportUpdateWithImages,
     SightingReportWithMatches,
 )
+from ...schemas.user import UserRead
 
 LOGGER = logging.getLogger(__name__)
 
@@ -52,28 +54,41 @@ async def write_sighting_report(
     request: Request,
     username: str,
     sighting_report: SightingReportCreateWithImages,
+    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> SightingReportRead:
     db_user_id = (
         await db.execute(
-            select(User.id)
-            .where(
+            select(User.id).where(
                 User.username == username,
-                ~User.is_deleted
+                ~User.is_deleted,
             )
         )
     ).scalar_one_or_none()
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    object_keys = [image.image_object_key for image in sighting_report.images]
-    exists_map = await asyncio.to_thread(is_objects_exist, object_keys)
-    missing_object_keys = [object_key for object_key, exists in exists_map.items() if not exists]
-    if missing_object_keys:
-        raise BadRequestException("Some image files might not have been uploaded. Please upload them and try again.")
+    if current_user.id != db_user_id:
+        raise ForbiddenException()
+
+    images = sighting_report.images or []
+    object_keys = [image.image_object_key for image in images]
+
+    if object_keys:
+        exists_map = await asyncio.to_thread(is_objects_exist, object_keys)
+        missing_object_keys = [
+            object_key for object_key, exists in exists_map.items() if not exists
+        ]
+        if missing_object_keys:
+            raise BadRequestException(
+                "Some attachment files might not have been uploaded. Please upload them and try again."
+            )
 
     geo_point = sighting_report.sighting_location
-    wkb_location = from_shape(Point(geo_point.longitude, geo_point.latitude), srid=4326)
+    wkb_location = from_shape(
+        Point(geo_point.longitude, geo_point.latitude),
+        srid=4326,
+    )
 
     sighting_report_model = SightingReport(
         **sighting_report.model_dump(exclude={"sighting_location", "images"}),
@@ -83,9 +98,12 @@ async def write_sighting_report(
     db.add(sighting_report_model)
     await db.flush()
 
-    image_models = []
-    for image in sighting_report.images:
-        image_model = SightingReportImage(**image.model_dump(), sighting_report_id=sighting_report_model.id)
+    image_models: list[SightingReportImage] = []
+    for image in images:
+        image_model = SightingReportImage(
+            **image.model_dump(),
+            sighting_report_id=sighting_report_model.id,
+        )
         db.add(image_model)
         image_models.append(image_model)
 
@@ -99,15 +117,14 @@ async def write_sighting_report(
             "image_object_key": image.image_object_key,
             "payload": {
                 "sighting_report_id": sighting_report_model.id,
-                "species": species_value
-            }
+                "species": species_value,
+            },
         }
         for image in image_models
     ]
 
     try:
         await db.commit()
-        await db.refresh(sighting_report_model)
 
     except SQLAlchemyError:
         await db.rollback()
@@ -117,8 +134,12 @@ async def write_sighting_report(
             detail="An unexpected error occurred while creating the sighting report. Please try again later."
         )
 
+    await db.refresh(sighting_report_model)
+
     try:
-        await queue.pool.enqueue_job("extract_features_task", new_images, "report_sightings")
+        if new_images:
+            await queue.pool.enqueue_job("extract_features_task", new_images, "report_sightings")
+
     except Exception as error:
         LOGGER.warning(f"Failed to enqueue extract_features_task for pet {sighting_report_model.id}: {error}")
 
@@ -311,7 +332,11 @@ async def read_sighting_report(
 ) -> SightingReportWithMatches:
     db_user_id = (
         await db.execute(
-            select(User.id).where(User.username == username, ~User.is_deleted)
+            select(User.id)
+            .where(
+                User.username == username,
+                ~User.is_deleted
+            )
         )
     ).scalar_one_or_none()
     if not db_user_id:
@@ -324,7 +349,7 @@ async def read_sighting_report(
             .where(
                 SightingReport.id == id,
                 SightingReport.user_id == db_user_id,
-                ~SightingReport.is_deleted,
+                ~SightingReport.is_deleted
             )
         )
     ).scalar_one_or_none()
@@ -352,7 +377,7 @@ async def read_sighting_report(
             collection_name="pet_profile_images",
             query_vector=embedding,
             limit=25,
-            score_threshold=60.0,
+            score_threshold=0.60,
             query_filter=Filter(
                 must=[FieldCondition(key="is_missing", match=MatchValue(value=True))]
             ),
@@ -400,26 +425,29 @@ async def read_sighting_report(
 @cache(
     "{username}_sighting_report_cache",
     resource_id_name="id",
-    pattern_to_invalidate_extra=["{username}_sighting_reports:*"]
+    pattern_to_invalidate_extra=["{username}_sighting_reports:*"],
 )
 async def patch_sighting_report(
     request: Request,
     username: str,
     id: int,
     values: SightingReportUpdateWithImages,
+    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, str]:
     db_user_id = (
         await db.execute(
-            select(User.id)
-            .where(
+            select(User.id).where(
                 User.username == username,
-                ~User.is_deleted
+                ~User.is_deleted,
             )
         )
     ).scalar_one_or_none()
     if not db_user_id:
         raise NotFoundException("User not found")
+
+    if current_user.id != db_user_id:
+        raise ForbiddenException()
 
     db_sighting_report = (
         await db.execute(
@@ -441,93 +469,102 @@ async def patch_sighting_report(
     object_keys = [
         image.image_object_key
         for image in values.images
-        if not getattr(image, "id", None) and getattr(image, "image_object_key", None) is not None
-    ]
-    exists_map = await asyncio.to_thread(is_objects_exist, object_keys)
-    missing_object_keys = [object_key for object_key, exists in exists_map.items() if not exists]
-    if missing_object_keys:
-        raise BadRequestException("Some image files might not have been uploaded. Please upload them and try again.")
+        if getattr(image, "image_object_key", None) is not None
+    ] if values.images else []
+
+    if object_keys:
+        exists_map = await asyncio.to_thread(is_objects_exist, object_keys)
+        missing_object_keys = [k for k, exists in exists_map.items() if not exists]
+        if missing_object_keys:
+            raise BadRequestException(
+                "Some image files might not have been uploaded. Please upload them and try again."
+            )
 
     existing_images = {image.id: image for image in db_sighting_report.images}
-    updated_image_ids = {
-        image.id
-        for image in values.images
-        if getattr(image, "id", None) is not None
-    }
 
-    invalid_ids = updated_image_ids - set(existing_images.keys())
-    if invalid_ids:
-        raise NotFoundException("Some sighting report images do not exist.")
+    deleted_image_uuids: list[str] = []
+    new_image_models: list[SightingReportImage] = []
+    new_images_payload: list[dict[str, Any]] = []
 
-    deleted_image_ids = list(set(existing_images) - updated_image_ids)
-    deleted_image_uuids = [str(existing_images[image_id].uuid) for image_id in deleted_image_ids]
+    if values.images is not None:
+        image_ids = {
+            image.id
+            for image in values.images
+            if getattr(image, "id", None) is not None
+        }
 
-    now = datetime.now(UTC)
-    for image_id in deleted_image_ids:
-        image = existing_images[image_id]
-        image.is_deleted = True
-        image.deleted_at = now
+        invalid_ids = image_ids - set(existing_images.keys())
+        if invalid_ids:
+            raise NotFoundException("Some sighting report images do not exist.")
 
-    new_image_models = []
-    new_images_payload = []
+        deleted_image_ids = list(set(existing_images) - image_ids)
+        deleted_image_uuids = [str(existing_images[image_id].uuid) for image_id in deleted_image_ids]
 
-    for image in values.images:
-        if getattr(image, "id", None):
-            existing_image = existing_images[image.id]
-            existing_image.sort_order = image.sort_order
-        elif getattr(image, "image_object_key", None):
-            new_image = SightingReportImage(
-                sighting_report_id=db_sighting_report.id,
-                image_object_key=image.image_object_key,
-                sort_order=image.sort_order
-            )
-            db.add(new_image)
-            db_sighting_report.images.append(new_image)
-            new_image_models.append(new_image)
+        now = datetime.now(UTC)
+        for image_id in deleted_image_ids:
+            image = existing_images[image_id]
+            image.is_deleted = True
+            image.deleted_at = now
 
-    await db.flush()
+        for image in values.images:
+            if getattr(image, "id", None) is not None:
+                existing_image = existing_images[image.id]
+                existing_image.sort_order = image.sort_order
 
-    if new_image_models:
-        species_value = normalize_species(db_sighting_report.pet_type)
+            elif getattr(image, "image_object_key", None) is not None:
+                new_image = SightingReportImage(
+                    sighting_report_id=db_sighting_report.id,
+                    image_object_key=image.image_object_key,
+                    sort_order=image.sort_order
+                )
+                db.add(new_image)
+                db_sighting_report.images.append(new_image)
+                new_image_models.append(new_image)
 
-        new_images_payload = [
-            {
-                "id": str(image.uuid),
-                "image_object_key": image.image_object_key,
-                "payload": {
-                    "sighting_report_id": db_sighting_report.id,
-                    "species": species_value
+        await db.flush()
+
+        if new_image_models:
+            species_value = normalize_species(db_sighting_report.pet_type)
+
+            new_images_payload = [
+                {
+                    "id": str(image.uuid),
+                    "image_object_key": image.image_object_key,
+                    "payload": {
+                        "sighting_report_id": db_sighting_report.id,
+                        "species": species_value,
+                    },
                 }
-            }
-            for image in new_image_models
-        ]
+                for image in new_image_models
+            ]
 
     db_sighting_report.updated_at = datetime.now(UTC)
     db.add(db_sighting_report)
 
     try:
         await db.commit()
-        await db.refresh(db_sighting_report)
-
-        if deleted_image_uuids:
-            try:
-                await asyncio.to_thread(delete_embedding, "report_sightings", deleted_image_uuids)
-            except Exception as error:
-                LOGGER.warning(f"Failed to delete embeddings for report_sightings {deleted_image_uuids}: {error}")
-
-        if new_images_payload:
-            try:
-                await queue.pool.enqueue_job("extract_features_task", new_images_payload, "report_sightings")
-            except Exception as error:
-                LOGGER.warning(f"Failed to enqueue feature extraction job: {error}")
 
     except SQLAlchemyError:
         await db.rollback()
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred while updating the sighting report. Please try again later."
+            detail="An unexpected error occurred while updating the sighting report. Please try again later.",
         )
+
+    if deleted_image_uuids:
+        try:
+            await asyncio.to_thread(delete_embedding, "report_sightings", deleted_image_uuids)
+        except Exception as error:
+            LOGGER.warning(
+                f"Failed to delete embeddings for report_sightings {deleted_image_uuids}: {error}"
+            )
+
+    if new_images_payload:
+        try:
+            await queue.pool.enqueue_job("extract_features_task", new_images_payload, "report_sightings")
+        except Exception as error:
+            LOGGER.warning(f"Failed to enqueue feature extraction job: {error}")
 
     return {"message": "Sighting report updated"}
 

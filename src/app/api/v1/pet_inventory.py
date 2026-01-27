@@ -526,7 +526,7 @@ async def patch_pet_inventory(
     object_keys = [
         image.object_key
         for image in values.images
-        if getattr(image, "id", None) is None and getattr(image, "object_key", None) is not None
+        if getattr(image, "object_key", None) is not None
     ] if values.images else []
 
     metadata_map: dict[str, dict[str, str]] = {}
