@@ -3,10 +3,32 @@ import secrets
 from datetime import UTC, datetime
 from typing import Any
 
+from fastapi import HTTPException, Request, status
+from itsdangerous import BadSignature, URLSafeSerializer
 from redis.asyncio import Redis
 
 SESSION_COOKIE_NAME = "admin_session"
 CSRF_COOKIE_NAME = "admin_csrf"
+
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+SIGNING_SECRET = "change-me"
+SIGNING_SALT = "admin-session"
+
+_serializer = URLSafeSerializer(SIGNING_SECRET, salt=SIGNING_SALT)
+
+
+def sign_session_id(session_id: str) -> str:
+    return _serializer.dumps({"sid": session_id})
+
+
+def unsign_session_id(signed_value: str) -> str | None:
+    try:
+        payload = _serializer.loads(signed_value)
+        sid = payload.get("sid")
+        return sid if isinstance(sid, str) else None
+    except BadSignature:
+        return None
 
 
 def _session_key(session_id: str) -> str:
@@ -130,3 +152,68 @@ async def validate_csrf(
         csrf_raw = csrf_raw.decode()
 
     return secrets.compare_digest(csrf_raw, csrf_token_from_header)
+
+
+async def get_admin_session(
+    request: Request,
+    redis: Redis,
+    sliding_ttl_seconds: int,
+    absolute_ttl_seconds: int,
+) -> dict[str, Any] | None:
+    signed = request.cookies.get(SESSION_COOKIE_NAME)
+    if not signed:
+        return None
+
+    session_id = unsign_session_id(signed)
+    if not session_id:
+        return None
+
+    ok = await refresh_session(redis, session_id, sliding_ttl_seconds, absolute_ttl_seconds)
+    if not ok:
+        return None
+
+    data = await read_session(redis, session_id)
+    if not data:
+        return None
+
+    data["_session_id"] = session_id
+    return data
+
+
+async def require_admin_session(
+    request: Request,
+    redis: Redis,
+    sliding_ttl_seconds: int,
+    absolute_ttl_seconds: int,
+) -> dict[str, Any]:
+    session = await get_admin_session(request, redis, sliding_ttl_seconds, absolute_ttl_seconds)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    return session
+
+
+async def enforce_admin_csrf(
+    request: Request,
+    redis: Redis,
+    sliding_ttl_seconds: int,
+    absolute_ttl_seconds: int,
+) -> None:
+    if request.method in SAFE_METHODS:
+        return
+
+    signed = request.cookies.get(SESSION_COOKIE_NAME)
+    if not signed:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    session_id = unsign_session_id(signed)
+    if not session_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    ok = await refresh_session(redis, session_id, sliding_ttl_seconds, absolute_ttl_seconds)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    csrf_header = request.headers.get("x-csrf-token")
+    valid = await validate_csrf(redis, session_id, csrf_header)
+    if not valid:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF validation failed")
