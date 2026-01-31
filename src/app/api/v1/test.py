@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,9 +18,16 @@ from ...core.utils import queue
 from ...core.utils.google_cloud_storage import is_objects_exist
 from ...core.utils.qr_code import generate_qr_and_upload_gcs
 from ...models.pet import Pet
+from ...models.pet_allergy import PetAllergy
+from ...models.pet_medical_condition import PetMedicalCondition
 from ...models.pet_profile_image import PetProfileImage
 from ...models.user import User
 from ...schemas.pet import PetCreateWithProfileImages, PetRead
+from ...schemas.pet_allergy import PetAllergyCreate, PetAllergyRead
+from ...schemas.pet_medical_condition import (
+    PetMedicalConditionCreate,
+    PetMedicalConditionRead,
+)
 from ...schemas.user import UserCreate, UserRead
 
 LOGGER = logging.getLogger(__name__)
@@ -193,3 +200,123 @@ async def debug_due_schedules(
     ]
 
     return {"now": now.isoformat(), "count": len(data), "data": data}
+
+
+@router.post("/{username}/pet/{pet_id}/allergy", response_model=PetAllergyRead, status_code=201)
+async def write_pet_allergy(
+    request: Request,
+    username: str,
+    pet_id: int,
+    allergy: PetAllergyCreate,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> PetAllergyRead:
+    db_user_id = (
+        await db.execute(
+            select(User.id)
+            .where(
+                User.username == username,
+                ~User.is_deleted
+            )
+        )
+    ).scalar_one_or_none()
+    if not db_user_id:
+        raise NotFoundException("User not found")
+
+    db_pet_id = (
+        await db.execute(
+            select(Pet.id)
+            .where(
+                Pet.id == pet_id,
+                Pet.owner_id == db_user_id,
+                ~Pet.is_deleted
+            )
+        )
+    ).scalar_one_or_none()
+    if not db_pet_id:
+        raise NotFoundException("Pet not found")
+
+    pet_allergy_model = PetAllergy(**allergy.model_dump(), pet_id=db_pet_id)
+    db.add(pet_allergy_model)
+
+    try:
+        await db.commit()
+
+    except IntegrityError as error:
+        await db.rollback()
+
+        if "uq_pet_allergy_pet_id_allergen_active" in str(getattr(error, "orig", "")):
+            raise BadRequestException("This allergen already exists for this pet.")
+
+        raise BadRequestException("Unable to create the allergy. Please try again.")
+
+    except SQLAlchemyError:
+        await db.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while creating the pet allergy. Please try again later."
+        )
+
+    await db.refresh(pet_allergy_model)
+
+    return PetAllergyRead.model_validate(pet_allergy_model)
+
+
+@router.post("/{username}/pet/{pet_id}/medical_condition", response_model=PetMedicalConditionRead, status_code=201)
+async def write_pet_medical_condition(
+    request: Request,
+    username: str,
+    pet_id: int,
+    medical_condition: PetMedicalConditionCreate,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> PetMedicalConditionRead:
+    db_user_id = (
+        await db.execute(
+            select(User.id)
+            .where(
+                User.username == username,
+                ~User.is_deleted
+            )
+        )
+    ).scalar_one_or_none()
+    if not db_user_id:
+        raise NotFoundException("User not found")
+
+    db_pet_id = (
+        await db.execute(
+            select(Pet.id)
+            .where(
+                Pet.id == pet_id,
+                Pet.owner_id == db_user_id,
+                ~Pet.is_deleted
+            )
+        )
+    ).scalar_one_or_none()
+    if not db_pet_id:
+        raise NotFoundException("Pet not found")
+
+    pet_medical_condition_model = PetMedicalCondition(**medical_condition.model_dump(), pet_id=db_pet_id)
+    db.add(pet_medical_condition_model)
+
+    try:
+        await db.commit()
+
+    except IntegrityError as error:
+        await db.rollback()
+
+        if "uq_pet_medical_condition_pet_id_condition_name_active" in str(getattr(error, "orig", "")):
+            raise BadRequestException("This condition already exists for this pet.")
+
+        raise BadRequestException("Unable to create the medical condition. Please try again.")
+
+    except SQLAlchemyError:
+        await db.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while creating the pet medical condition. Please try again later."
+        )
+
+    await db.refresh(pet_medical_condition_model)
+
+    return PetMedicalConditionRead.model_validate(pet_medical_condition_model)

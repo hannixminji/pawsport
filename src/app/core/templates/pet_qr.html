@@ -22,76 +22,1046 @@
             --radius-lg: 24px;
             --shadow-lg: 0 20px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
             --shadow-xl: 0 25px 60px -15px rgba(0, 0, 0, 0.3);
+            --error: #DC2626;
+            --warning: #F59E0B;
+            --success: #10B981;
+            --info: #3B82F6;
         }
 
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: 'Outfit', sans-serif; background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); color: var(--text-primary); min-height:100vh; display:flex; justify-content:center; align-items:center; padding:20px; position:relative; overflow-x:hidden; }
-        body::before { content: ''; position: fixed; top: -50%; right: -50%; width:200%; height:200%; background: radial-gradient(circle, rgba(255,107,53,0.08) 0%, transparent 70%); animation: pulse 15s ease-in-out infinite; pointer-events:none; }
-        @keyframes pulse { 0%,100%{opacity:0.3;transform:scale(1);} 50%{opacity:0.6;transform:scale(1.1);} }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+            color: var(--text-primary);
+            min-height:100vh;
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            padding:40px 20px;
+            position:relative;
+            overflow-x:hidden;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            right: -50%;
+            width:200%;
+            height:200%;
+            background: radial-gradient(circle, rgba(255,107,53,0.08) 0%, transparent 70%);
+            animation: pulse 15s ease-in-out infinite;
+            pointer-events:none;
+        }
+        @keyframes pulse {
+            0%,100%{opacity:0.3;transform:scale(1);}
+            50%{opacity:0.6;transform:scale(1.1);}
+        }
 
-        .id-card-container { width:100%; max-width:750px; perspective:1500px; animation:fadeIn 0.6s ease-out; }
-        @keyframes fadeIn { from{opacity:0;transform:translateY(20px);} to{opacity:1;transform:translateY(0);} }
+        .id-card-container {
+            width:100%;
+            max-width:1100px;
+            perspective:1500px;
+            animation:fadeIn 0.6s ease-out;
+        }
+        @keyframes fadeIn {
+            from{opacity:0;transform:translateY(20px);}
+            to{opacity:1;transform:translateY(0);}
+        }
 
-        .id-card { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); overflow:hidden; position:relative; display:flex; flex-direction:column; transform-style:preserve-3d; transition: transform 0.3s ease; }
-        .id-card:hover { transform: translateY(-4px); box-shadow:0 30px 70px -20px rgba(0,0,0,0.35); }
+        .id-card {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xl);
+            overflow:hidden;
+            position:relative;
+            display:flex;
+            flex-direction:column;
+            transform-style:preserve-3d;
+            transition: transform 0.3s ease;
+        }
+        .id-card:hover {
+            transform: translateY(-4px);
+            box-shadow:0 30px 70px -20px rgba(0,0,0,0.35);
+        }
 
-        .id-header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); padding:24px; color:white; text-align:center; position:relative; overflow:hidden; }
-        .id-header::before { content:''; position:absolute; top:-50%; left:-50%; width:200%; height:200%; background: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.03) 10px, rgba(255,255,255,0.03) 20px); animation: slide 20s linear infinite; }
-        @keyframes slide { 0%{transform:translate(0,0);} 100%{transform:translate(50%,50%);} }
-        .id-header::after { content:''; position:absolute; top:0; left:0; right:0; bottom:0; background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.15), transparent 60%); }
+        .id-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            padding:32px;
+            color:white;
+            text-align:center;
+            position:relative;
+            overflow:hidden;
+        }
+        .id-header::before {
+            content:'';
+            position:absolute;
+            top:-50%;
+            left:-50%;
+            width:200%;
+            height:200%;
+            background: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.03) 10px, rgba(255,255,255,0.03) 20px);
+            animation: slide 20s linear infinite;
+        }
+        @keyframes slide {
+            0%{transform:translate(0,0);}
+            100%{transform:translate(50%,50%);}
+        }
+        .id-header::after {
+            content:'';
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            bottom:0;
+            background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.15), transparent 60%);
+        }
 
-        .app-logo-text { font-weight:800; font-size:1.5rem; letter-spacing:-0.02em; text-transform:uppercase; display:flex; align-items:center; justify-content:center; gap:10px; position:relative; z-index:1; text-shadow:0 2px 10px rgba(0,0,0,0.2);}
-        .app-logo-text svg { width:28px; height:28px; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
+        .app-logo-text {
+            font-weight:800;
+            font-size:1.75rem;
+            letter-spacing:-0.02em;
+            text-transform:uppercase;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:12px;
+            position:relative;
+            z-index:1;
+            text-shadow:0 2px 10px rgba(0,0,0,0.2);
+        }
+        .app-logo-text svg {
+            width:32px;
+            height:32px;
+            filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+        }
 
-        .id-body { padding:40px; display:grid; grid-template-columns:1fr 280px; gap:32px; background:linear-gradient(135deg, #FFFFFF 0%, #FFF8F0 50%, #FFF0E0 100%); position:relative;}
-        .left-content { display:flex; flex-direction:column; gap:28px; }
-        .pet-info { text-align:left; width:100%; }
-        .pet-name { font-size:3rem; font-weight:800; background:linear-gradient(135deg, #1E293B 0%, #334155 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; line-height:1.1; letter-spacing:-0.02em; }
+        .id-body {
+            padding:48px;
+            display:grid;
+            grid-template-columns:1fr 300px;
+            gap:40px;
+            background:linear-gradient(135deg, #FFFFFF 0%, #FFF8F0 50%, #FFE8D6 100%);
+            position:relative;
+        }
 
-        .pet-breed-row { color: var(--text-secondary); font-weight:600; font-size:1.1rem; margin-bottom:6px; display:flex; align-items:center; gap:10px; }
-        .pet-breed-row span:first-child { color: var(--primary); font-weight:700; }
+        .left-content {
+            display:flex;
+            flex-direction:column;
+            gap:32px;
+        }
 
-        .status-badge { display:inline-flex; align-items:center; gap:8px; padding:10px 20px; background:linear-gradient(135deg,#FEE2E2 0%,#FECACA 100%); color:#DC2626; border-radius:12px; font-weight:700; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.05em; border:2px solid #FCA5A5; box-shadow:0 4px 12px rgba(220,38,38,0.15); animation:statusPulse 2s ease-in-out infinite; flex-shrink:0; }
-        @keyframes statusPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.02);} }
+        .pet-info {
+            text-align:left;
+            width:100%;
+        }
 
-        .details-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; width:100%; text-align:left; background:white; padding:28px; border-radius:16px; box-shadow:0 4px 16px rgba(0,0,0,0.06),0 0 0 1px rgba(0,0,0,0.04); position:relative; overflow:hidden;}
-        .details-grid::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background: linear-gradient(90deg, var(--primary), var(--accent), var(--primary)); background-size:200% 100%; animation:shimmer 3s linear infinite; }
-        @keyframes shimmer {0%{background-position:-200% 0;} 100%{background-position:200% 0;}}
+        .pet-name {
+            font-size:3.5rem;
+            font-weight:800;
+            background:linear-gradient(135deg, #1E293B 0%, #334155 100%);
+            -webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;
+            background-clip:text;
+            line-height:1.1;
+            letter-spacing:-0.03em;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+        }
 
-        .field { display:flex; flex-direction:column; gap:4px; }
-        .field-label { font-size:0.7rem; text-transform:uppercase; color:var(--text-secondary); font-weight:700; letter-spacing:0.08em; }
-        .field-value { font-size:1.05rem; font-weight:700; color:var(--text-primary); }
+        .pet-breed-row {
+            color: var(--text-secondary);
+            font-weight:600;
+            font-size:1.15rem;
+            margin-top:8px;
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap: wrap;
+        }
+        .pet-breed-row span:first-child {
+            color: var(--primary);
+            font-weight:700;
+        }
 
-        .photo-gallery { display:flex; flex-direction:column; gap:14px; }
-        .main-photo-wrapper { width:100%; aspect-ratio:3/4; border-radius:16px; overflow:hidden; box-shadow:0 8px 24px rgba(0,0,0,0.2); border:4px solid white; position:relative; transform:rotate(-1deg); transition:transform 0.3s ease; cursor:pointer; }
-        .main-photo-wrapper:hover { transform: rotate(0deg) scale(1.02); }
-        .main-photo-wrapper::after { content:''; position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.1)); pointer-events:none; }
+        .status-badge {
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            padding:12px 24px;
+            background:linear-gradient(135deg,#FEE2E2 0%,#FECACA 100%);
+            color:#DC2626;
+            border-radius:12px;
+            font-weight:700;
+            font-size:0.95rem;
+            text-transform:uppercase;
+            letter-spacing:0.05em;
+            border:2px solid #FCA5A5;
+            box-shadow:0 4px 12px rgba(220,38,38,0.15);
+            animation:statusPulse 2s ease-in-out infinite;
+            flex-shrink:0;
+        }
+        @keyframes statusPulse {
+            0%,100%{transform:scale(1);}
+            50%{transform:scale(1.03);}
+        }
 
-        .photo-carousel { position:relative; width:100%; height:100%; }
-        .photo-carousel img { width:100%; height:100%; object-fit:cover; position:absolute; top:0; left:0; opacity:0; transition:opacity 0.4s ease; }
-        .photo-carousel img.active { opacity:1; }
+        .details-grid {
+            display:grid;
+            grid-template-columns:repeat(2, 1fr);
+            gap:24px;
+            width:100%;
+            text-align:left;
+            background:white;
+            padding:32px;
+            border-radius:16px;
+            box-shadow:0 4px 20px rgba(0,0,0,0.08),0 0 0 1px rgba(0,0,0,0.05);
+            position:relative;
+            overflow:hidden;
+        }
+        .details-grid::before {
+            content:'';
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            height:4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent), var(--primary));
+            background-size:200% 100%;
+            animation:shimmer 3s linear infinite;
+        }
+        @keyframes shimmer {
+            0%{background-position:-200% 0;}
+            100%{background-position:200% 0;}
+        }
 
-        .carousel-nav { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:10; background:rgba(0,0,0,0.4); padding:8px 12px; border-radius:20px; backdrop-filter:blur(8px); }
-        .carousel-dot { width:8px; height:8px; border-radius:50%; background: rgba(255,255,255,0.5); cursor:pointer; transition:all 0.3s ease; border:1px solid rgba(255,255,255,0.3); }
-        .carousel-dot.active { background:white; width:24px; border-radius:10px; }
-        .carousel-dot:hover { background: rgba(255,255,255,0.8); transform: scale(1.2); }
+        .field {
+            display:flex;
+            flex-direction:column;
+            gap:6px;
+        }
+        .field-label {
+            font-size:0.75rem;
+            text-transform:uppercase;
+            color:var(--text-secondary);
+            font-weight:700;
+            letter-spacing:0.08em;
+        }
+        .field-value {
+            font-size:1.1rem;
+            font-weight:700;
+            color:var(--text-primary);
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
 
-        .carousel-arrow { position:absolute; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.5); color:white; border:none; width:36px; height:36px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:18px; opacity:0; transition:all 0.3s ease; z-index:10; backdrop-filter:blur(4px); }
-        .main-photo-wrapper:hover .carousel-arrow { opacity:1; }
-        .carousel-arrow.prev { left:12px; }
-        .carousel-arrow.next { right:12px; }
+        .photo-gallery {
+            display:flex;
+            flex-direction:column;
+            gap:16px;
+        }
+        .main-photo-wrapper {
+            width:100%;
+            aspect-ratio:3/4;
+            border-radius:16px;
+            overflow:hidden;
+            box-shadow:0 8px 28px rgba(0,0,0,0.25);
+            border:5px solid white;
+            position:relative;
+            transform:rotate(-1deg);
+            transition:transform 0.3s ease;
+            cursor:pointer;
+        }
+        .main-photo-wrapper:hover {
+            transform: rotate(0deg) scale(1.03);
+        }
+        .main-photo-wrapper::after {
+            content:'';
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            bottom:0;
+            background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.12));
+            pointer-events:none;
+        }
 
-        .thumbnail-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
-        .thumbnail-box { aspect-ratio:1; border-radius:10px; overflow:hidden; border:3px solid white; box-shadow:0 4px 12px rgba(0,0,0,0.15); background:#f0f0f0; transition:all 0.2s ease; cursor:pointer; position:relative; }
-        .thumbnail-box.active { border-color:var(--primary); box-shadow:0 4px 16px rgba(255,107,53,0.4); }
-        .thumbnail-box.empty { background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%); border:3px dashed #CBD5E1; box-shadow:none; cursor:default; }
+        .photo-carousel {
+            position:relative;
+            width:100%;
+            height:100%;
+            background: #f5f5f5;
+        }
+        .photo-carousel img {
+            width:100%;
+            height:100%;
+            object-fit:cover;
+            position:absolute;
+            top:0;
+            left:0;
+            opacity:0;
+            transition:opacity 0.5s ease;
+        }
+        .photo-carousel img.active {
+            opacity:1;
+        }
 
-        .watermark { position:absolute; bottom:20px; right:20px; opacity:0.04; pointer-events:none; width:180px; }
+        .carousel-nav {
+            position:absolute;
+            bottom:16px;
+            left:50%;
+            transform:translateX(-50%);
+            display:flex;
+            gap:10px;
+            z-index:10;
+            background:rgba(0,0,0,0.5);
+            padding:10px 16px;
+            border-radius:24px;
+            backdrop-filter:blur(10px);
+        }
+        .carousel-dot {
+            width:10px;
+            height:10px;
+            border-radius:50%;
+            background: rgba(255,255,255,0.5);
+            cursor:pointer;
+            transition:all 0.3s ease;
+            border:2px solid rgba(255,255,255,0.3);
+        }
+        .carousel-dot.active {
+            background:white;
+            width:28px;
+            border-radius:12px;
+        }
+        .carousel-dot:hover {
+            background: rgba(255,255,255,0.8);
+            transform: scale(1.2);
+        }
+
+        .carousel-arrow {
+            position:absolute;
+            top:50%;
+            transform:translateY(-50%);
+            background:rgba(0,0,0,0.6);
+            color:white;
+            border:none;
+            width:40px;
+            height:40px;
+            border-radius:50%;
+            cursor:pointer;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:20px;
+            opacity:0;
+            transition:all 0.3s ease;
+            z-index:10;
+            backdrop-filter:blur(6px);
+        }
+        .main-photo-wrapper:hover .carousel-arrow {
+            opacity:1;
+        }
+        .carousel-arrow:hover {
+            background:rgba(0,0,0,0.8);
+            transform: translateY(-50%) scale(1.1);
+        }
+        .carousel-arrow.prev {
+            left:16px;
+        }
+        .carousel-arrow.next {
+            right:16px;
+        }
+
+        .thumbnail-grid {
+            display:grid;
+            grid-template-columns:repeat(3,1fr);
+            gap:12px;
+        }
+        .thumbnail-box {
+            aspect-ratio:1;
+            border-radius:12px;
+            overflow:hidden;
+            border:4px solid white;
+            box-shadow:0 4px 14px rgba(0,0,0,0.18);
+            background:#f0f0f0;
+            transition:all 0.2s ease;
+            cursor:pointer;
+            position:relative;
+        }
+        .thumbnail-box.active {
+            border-color:var(--primary);
+            box-shadow:0 4px 18px rgba(255,107,53,0.5);
+            transform: scale(1.05);
+        }
+        .thumbnail-box.empty {
+            background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+            border:4px dashed #CBD5E1;
+            box-shadow:none;
+            cursor:default;
+        }
+        .thumbnail-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Medical Information Sections */
+        .medical-section {
+            background:white;
+            border-radius:16px;
+            box-shadow:0 4px 20px rgba(0,0,0,0.08),0 0 0 1px rgba(0,0,0,0.05);
+            margin-top:32px;
+            position:relative;
+            overflow:hidden;
+            transition: all 0.3s ease;
+        }
+
+        .section-header-wrapper {
+            background: linear-gradient(135deg, #FFFFFF 0%, #FFF8F0 100%);
+            padding: 24px 32px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .section-header-wrapper::before {
+            content:'';
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            height:4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent), var(--primary));
+            background-size:200% 100%;
+            animation:shimmer 3s linear infinite;
+        }
+        .section-header-wrapper:hover {
+            background: linear-gradient(135deg, #FFF8F0 0%, #FFE8D6 100%);
+        }
+
+        .section-header {
+            display:flex;
+            align-items:center;
+            justify-content: space-between;
+            gap:16px;
+        }
+
+        .section-header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .section-icon {
+            width:44px;
+            height:44px;
+            border-radius:12px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:22px;
+            background:linear-gradient(135deg, var(--primary-light), var(--primary));
+            color:white;
+            box-shadow:0 4px 14px rgba(255,107,53,0.3);
+            flex-shrink: 0;
+        }
+
+        .section-title-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .section-title {
+            font-size:1.6rem;
+            font-weight:800;
+            color:var(--text-primary);
+            letter-spacing:-0.02em;
+        }
+
+        .section-count {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .collapse-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: white;
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+        .collapse-button:hover {
+            background: var(--surface-alt);
+            border-color: var(--primary);
+        }
+        .collapse-button svg {
+            width: 20px;
+            height: 20px;
+            transition: transform 0.3s ease;
+            color: var(--text-secondary);
+        }
+        .section-header-wrapper:hover .collapse-button svg {
+            color: var(--primary);
+        }
+        .medical-section.collapsed .collapse-button svg {
+            transform: rotate(-90deg);
+        }
+
+        .section-content {
+            max-height: 2000px;
+            overflow: hidden;
+            transition: max-height 0.4s ease, padding 0.4s ease, opacity 0.4s ease;
+            padding: 32px;
+            opacity: 1;
+        }
+        .medical-section.collapsed .section-content {
+            max-height: 0;
+            padding: 0 32px;
+            opacity: 0;
+        }
+
+        .medical-grid {
+            display:grid;
+            grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
+            gap:20px;
+        }
+
+        .medical-card {
+            background:linear-gradient(135deg, #FAFBFC 0%, #F3F4F6 100%);
+            padding:24px;
+            border-radius:14px;
+            border-left:5px solid var(--primary);
+            transition:all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .medical-card:hover {
+            transform:translateX(6px);
+            box-shadow:0 6px 20px rgba(0,0,0,0.12);
+        }
+
+        .medical-card.severity-critical,
+        .medical-card.severity-severe {
+            border-left-color:var(--error);
+        }
+        .medical-card.severity-high,
+        .medical-card.severity-moderate {
+            border-left-color:var(--warning);
+        }
+        .medical-card.severity-low,
+        .medical-card.severity-mild {
+            border-left-color:var(--success);
+        }
+
+        .medical-card-header {
+            display:flex;
+            justify-content:space-between;
+            align-items:start;
+            margin-bottom:16px;
+            gap:16px;
+        }
+        .medical-card-title {
+            font-size:1.2rem;
+            font-weight:700;
+            color:var(--text-primary);
+            line-height:1.3;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+            flex: 1;
+        }
+
+        .badge-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+            flex-shrink: 0;
+        }
+
+        .severity-badge,
+        .type-badge,
+        .status-badge-small {
+            padding:6px 14px;
+            border-radius:8px;
+            font-size:0.7rem;
+            font-weight:700;
+            text-transform:uppercase;
+            letter-spacing:0.05em;
+            white-space:nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .severity-badge.critical,
+        .severity-badge.severe {
+            background:#FEE2E2;
+            color:#DC2626;
+            border:2px solid #FCA5A5;
+        }
+        .severity-badge.high,
+        .severity-badge.moderate {
+            background:#FEF3C7;
+            color:#D97706;
+            border:2px solid #FDE68A;
+        }
+        .severity-badge.low,
+        .severity-badge.mild {
+            background:#D1FAE5;
+            color:#059669;
+            border:2px solid #A7F3D0;
+        }
+
+        .type-badge {
+            background:#DBEAFE;
+            color:#1D4ED8;
+            border:2px solid #BFDBFE;
+        }
+
+        .status-badge-small.active {
+            background:#D1FAE5;
+            color:#059669;
+            border:2px solid #A7F3D0;
+        }
+        .status-badge-small.chronic {
+            background:#FEF3C7;
+            color:#D97706;
+            border:2px solid #FDE68A;
+        }
+        .status-badge-small.resolved {
+            background:#E0E7FF;
+            color:#4F46E5;
+            border:2px solid #C7D2FE;
+        }
+
+        .medical-detail {
+            font-size:0.95rem;
+            color:var(--text-secondary);
+            margin-top:12px;
+            line-height:1.6;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        .medical-detail strong {
+            color:var(--text-primary);
+            font-weight:700;
+        }
+
+        .vaccination-list {
+            display:flex;
+            flex-direction:column;
+            gap:16px;
+        }
+        .vaccination-item {
+            background:linear-gradient(135deg, #FAFBFC 0%, #F3F4F6 100%);
+            padding:24px;
+            border-radius:14px;
+            border-left:5px solid var(--success);
+            transition:all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .vaccination-item.overdue {
+            border-left-color:var(--error);
+        }
+        .vaccination-item.upcoming {
+            border-left-color:var(--warning);
+        }
+        .vaccination-item:hover {
+            transform:translateX(6px);
+            box-shadow:0 6px 20px rgba(0,0,0,0.12);
+        }
+
+        .vaccination-header {
+            display:flex;
+            justify-content:space-between;
+            align-items:start;
+            margin-bottom:12px;
+            flex-wrap:wrap;
+            gap:12px;
+        }
+        .vaccination-name {
+            font-size:1.15rem;
+            font-weight:700;
+            color:var(--text-primary);
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            flex: 1;
+        }
+        .vaccination-dates {
+            display:flex;
+            flex-wrap: wrap;
+            gap:16px;
+            font-size:0.9rem;
+            color:var(--text-secondary);
+            margin-top:8px;
+        }
+        .vaccination-dates span {
+            display:flex;
+            align-items:center;
+            gap:6px;
+        }
+
+        .attachment-list {
+            display:flex;
+            flex-wrap:wrap;
+            gap:10px;
+            margin-top:12px;
+        }
+        .attachment-badge {
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            padding:8px 16px;
+            background:white;
+            border-radius:10px;
+            font-size:0.85rem;
+            color:var(--text-secondary);
+            border:2px solid var(--border);
+            text-decoration:none;
+            transition:all 0.2s ease;
+            font-weight: 600;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .attachment-badge:hover {
+            background:var(--surface-alt);
+            border-color:var(--primary);
+            color:var(--primary);
+            transform:translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255,107,53,0.2);
+        }
+
+        .empty-state {
+            text-align:center;
+            padding:60px 20px;
+            color:var(--text-secondary);
+        }
+        .empty-state-icon {
+            font-size:64px;
+            margin-bottom:16px;
+            opacity:0.4;
+        }
+        .empty-state-text {
+            font-size:1.1rem;
+            font-weight:600;
+        }
+
+        .watermark {
+            position:absolute;
+            bottom:24px;
+            right:24px;
+            opacity:0.04;
+            pointer-events:none;
+            width:200px;
+        }
+
+        /* ===========================
+           Overflow / long-text safety
+           =========================== */
+        .id-card, .id-body, .left-content, .details-grid,
+        .medical-section, .section-header, .medical-card, .vaccination-item,
+        .photo-gallery, .pet-info {
+            min-width: 0;
+        }
+
+        .section-header-left,
+        .section-title-group,
+        .medical-card-header,
+        .vaccination-header,
+        .badge-group {
+            min-width: 0;
+        }
+
+        .section-title,
+        .section-count,
+        .field-value,
+        .medical-card-title,
+        .medical-detail,
+        .vaccination-name,
+        .attachment-badge {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .medical-card-header {
+            flex-wrap: wrap;
+        }
+
+        .badge-group {
+            max-width: 100%;
+        }
+
+        .severity-badge,
+        .type-badge,
+        .status-badge-small {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .status-badge {
+            max-width: 100%;
+            min-width: 0;
+            flex-shrink: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .attachment-list {
+            min-width: 0;
+        }
+        .attachment-badge {
+            min-width: 0;
+        }
+
+        /* ===========================
+           Owner contact reveal section
+           =========================== */
+        .owner-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08),0 0 0 1px rgba(0,0,0,0.05);
+            margin-top: 0;
+            overflow: hidden;
+            position: relative;
+        }
+        .owner-card::before {
+            content:'';
+            position:absolute;
+            top:0;
+            left:0;
+            right:0;
+            height:4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent), var(--primary));
+            background-size:200% 100%;
+            animation:shimmer 3s linear infinite;
+        }
+        .owner-header {
+            padding: 22px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #FFF8F0 100%);
+        }
+        .owner-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+        }
+        .owner-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size: 22px;
+            background:linear-gradient(135deg, var(--primary-light), var(--primary));
+            color:white;
+            box-shadow:0 4px 14px rgba(255,107,53,0.3);
+            flex-shrink: 0;
+        }
+        .owner-title {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .reveal-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            border: 2px solid var(--border);
+            background: white;
+            color: var(--text-primary);
+            font-weight: 800;
+            border-radius: 12px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            max-width: 100%;
+        }
+        .reveal-btn:hover {
+            border-color: var(--primary);
+            background: var(--surface-alt);
+            color: var(--primary);
+            transform: translateY(-1px);
+        }
+        .reveal-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+        .owner-content {
+            padding: 0 32px 28px 32px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease, padding 0.4s ease, opacity 0.4s ease;
+            opacity: 0;
+        }
+        .owner-content.owner-visible {
+            max-height: 500px;
+            padding: 0 32px 28px 32px;
+            opacity: 1;
+        }
+        .owner-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px 22px;
+            padding-top: 22px;
+        }
+        .owner-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+        .owner-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            font-weight: 800;
+            letter-spacing: 0.08em;
+        }
+        .owner-value {
+            font-size: 1.02rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            min-width: 0;
+        }
+        .owner-actions {
+            display:flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 18px;
+        }
+        .owner-action {
+            display:inline-flex;
+            align-items:center;
+            gap:10px;
+            padding:10px 14px;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            background: white;
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 800;
+            transition: all 0.2s ease;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .owner-action:hover {
+            border-color: var(--primary);
+            background: var(--surface-alt);
+            color: var(--primary);
+            transform: translateY(-1px);
+        }
+        .owner-action span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        @media(max-width:1024px) {
+            .id-card-container {
+                max-width:800px;
+            }
+            .id-body {
+                grid-template-columns:1fr;
+            }
+            .photo-gallery {
+                max-width:350px;
+                margin:0 auto;
+            }
+            .pet-name {
+                font-size: 3rem;
+            }
+        }
 
         @media(max-width:768px) {
-            .id-body { grid-template-columns:1fr; gap:28px; padding:32px 24px; }
-            .main-photo-wrapper { max-width:300px; margin:0 auto; }
-            .pet-name { font-size:2.5rem; }
+            .id-body {
+                padding:32px 24px;
+                gap: 32px;
+            }
+            .pet-name {
+                font-size:2.5rem;
+            }
+            .section-header-wrapper {
+                padding: 20px 24px;
+            }
+            .section-content {
+                padding: 24px;
+            }
+            .medical-section.collapsed .section-content {
+                padding: 0 24px;
+            }
+            .medical-grid {
+                grid-template-columns:1fr;
+            }
+            .details-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            .section-title {
+                font-size: 1.3rem;
+            }
+            .owner-header {
+                padding: 18px 24px;
+            }
+            .owner-content.owner-visible {
+                padding: 0 24px 22px 24px;
+            }
+            .owner-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media(max-width:480px) {
+            body {
+                padding: 20px 10px;
+            }
+            .id-body {
+                padding: 24px 16px;
+            }
+            .pet-name {
+                font-size: 2rem;
+            }
+            .section-header-wrapper {
+                padding: 16px 20px;
+            }
+            .section-content {
+                padding: 20px;
+            }
+            .medical-section.collapsed .section-content {
+                padding: 0 20px;
+            }
+            .owner-header {
+                padding: 16px 20px;
+            }
+            .owner-content.owner-visible {
+                padding: 0 20px 18px 20px;
+            }
         }
     </style>
 </head>
@@ -110,7 +1080,7 @@
             <div class="id-body">
                 <div class="left-content">
                     <div class="pet-info">
-                        <div style="display:flex; align-items:center; gap:16px; margin-bottom:10px;">
+                        <div style="display:flex; align-items:center; gap:16px; margin-bottom:12px; flex-wrap:wrap;">
                             <h1 class="pet-name">{{ pet.name }}</h1>
                             {% if pet.missing_status %}
                             <div class="status-badge">⚠️ {{ pet.missing_status.name }}</div>
@@ -125,10 +1095,74 @@
                         <div class="field"><span class="field-label">Sex</span><span class="field-value">{{ pet.sex|title }}</span></div>
                         <div class="field"><span class="field-label">Weight</span><span class="field-value">{{ pet.weight_kg or 'Unknown' }} kg</span></div>
                         <div class="field"><span class="field-label">Color</span><span class="field-value">{{ pet.color|title or 'Unknown' }}</span></div>
-                        <div class="field"><span class="field-label">Neutered</span><span class="field-value">{% if pet.is_sterilized %}Yes{% else %}No{% endif %}</span></div>
+                        <div class="field"><span class="field-label">Neutered / Spayed</span><span class="field-value">{% if pet.is_sterilized %}Yes{% else %}No{% endif %}</span></div>
                         <div class="field"><span class="field-label">Markings</span><span class="field-value">{{ pet.markings or 'None' }}</span></div>
                         <div class="field"><span class="field-label">Age</span><span class="field-value">{{ pet.age or 'Unknown' }}</span></div>
                     </div>
+
+                    {% set has_owner_contact = (pet.owner_name or pet.owner_email or pet.owner_phone_number or pet.owner_address) %}
+                    {% if has_owner_contact %}
+                    <div class="owner-card" id="ownerCard">
+                        <div class="owner-header">
+                            <div class="owner-header-left">
+                                <div class="owner-icon">👤</div>
+                                <div class="owner-title">Owner Contact</div>
+                            </div>
+                            <button class="reveal-btn" id="revealOwnerBtn" type="button">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <span id="revealOwnerBtnText">Show</span>
+                            </button>
+                        </div>
+
+                        <div class="owner-content" id="ownerContent">
+                            <div class="owner-grid">
+                                {% if pet.owner_name %}
+                                <div class="owner-field">
+                                    <div class="owner-label">Name</div>
+                                    <div class="owner-value">{{ pet.owner_name }}</div>
+                                </div>
+                                {% endif %}
+
+                                {% if pet.owner_email %}
+                                <div class="owner-field">
+                                    <div class="owner-label">Email</div>
+                                    <div class="owner-value">{{ pet.owner_email }}</div>
+                                </div>
+                                {% endif %}
+
+                                {% if pet.owner_phone_number %}
+                                <div class="owner-field">
+                                    <div class="owner-label">Phone</div>
+                                    <div class="owner-value">{{ pet.owner_phone_number }}</div>
+                                </div>
+                                {% endif %}
+
+                                {% if pet.owner_address %}
+                                <div class="owner-field" style="grid-column: 1 / -1;">
+                                    <div class="owner-label">Address</div>
+                                    <div class="owner-value">{{ pet.owner_address }}</div>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="owner-actions">
+                                {% if pet.owner_email %}
+                                <a class="owner-action" href="mailto:{{ pet.owner_email }}" title="{{ pet.owner_email }}">
+                                    ✉️ <span>Email</span>
+                                </a>
+                                {% endif %}
+                                {% if pet.owner_phone_number %}
+                                <a class="owner-action" href="tel:{{ pet.owner_phone_number }}" title="{{ pet.owner_phone_number }}">
+                                    📞 <span>Call</span>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <div class="photo-gallery">
@@ -142,15 +1176,154 @@
                         <button class="carousel-arrow next" onclick="changePhoto(1)">›</button>
                         <div class="carousel-nav" id="carouselNav"></div>
                     </div>
-                    <div class="thumbnail-grid" id="thumbnailGrid">
-                        {% for img in pet.profile_images %}
-                        <div class="thumbnail-box {% if loop.first %}active{% endif %}" onclick="goToPhoto('{{ loop.index0 }}')">
-                            <img src="{{ img.image_url }}" alt="{{ pet.name }} thumbnail {{ loop.index }}">
+                    <div class="thumbnail-grid" id="thumbnailGrid"></div>
+                </div>
+            </div>
+
+            <!-- Allergies Section -->
+            {% if pet.allergies %}
+            <div class="medical-section" id="allergiesSection">
+                <div class="section-header-wrapper" onclick="toggleSection('allergiesSection')">
+                    <div class="section-header">
+                        <div class="section-header-left">
+                            <div class="section-icon">⚠️</div>
+                            <div class="section-title-group">
+                                <h2 class="section-title">Allergies</h2>
+                                <span class="section-count">{{ pet.allergies|length }} {{ 'allergy' if pet.allergies|length == 1 else 'allergies' }} recorded</span>
+                            </div>
+                        </div>
+                        <button class="collapse-button" type="button">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div class="medical-grid">
+                        {% for allergy in pet.allergies %}
+                        <div class="medical-card severity-{{ (allergy.severity_level.name if allergy.severity_level.name is defined else allergy.severity_level)|lower }}">
+                            <div class="medical-card-header">
+                                <div class="medical-card-title">{{ allergy.allergen }}</div>
+                                <div class="badge-group">
+                                    <span class="severity-badge {{ (allergy.severity_level.name if allergy.severity_level.name is defined else allergy.severity_level)|lower }}">{{ (allergy.severity_level.name if allergy.severity_level.name is defined else allergy.severity_level)|lower }}</span>
+                                    <span class="type-badge">{{ allergy.allergen_type|replace('_', ' ')|title }}</span>
+                                </div>
+                            </div>
+                            {% if allergy.reaction %}
+                            <div class="medical-detail">
+                                <strong>Reaction:</strong> {{ allergy.reaction }}
+                            </div>
+                            {% endif %}
                         </div>
                         {% endfor %}
                     </div>
                 </div>
             </div>
+            {% endif %}
+
+            <!-- Medical Conditions Section -->
+            {% if pet.medical_conditions %}
+            <div class="medical-section" id="conditionsSection">
+                <div class="section-header-wrapper" onclick="toggleSection('conditionsSection')">
+                    <div class="section-header">
+                        <div class="section-header-left">
+                            <div class="section-icon">🏥</div>
+                            <div class="section-title-group">
+                                <h2 class="section-title">Medical Conditions</h2>
+                                <span class="section-count">{{ pet.medical_conditions|length }} {{ 'condition' if pet.medical_conditions|length == 1 else 'conditions' }} recorded</span>
+                            </div>
+                        </div>
+                        <button class="collapse-button" type="button">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div class="medical-grid">
+                        {% for condition in pet.medical_conditions %}
+                        <div class="medical-card severity-{{ (condition.severity_level.name if condition.severity_level.name is defined else condition.severity_level)|lower }}">
+                            <div class="medical-card-header">
+                                <div class="medical-card-title">{{ condition.condition_name }}</div>
+                                <div class="badge-group">
+                                    <span class="severity-badge {{ (condition.severity_level.name if condition.severity_level.name is defined else condition.severity_level)|lower }}">{{ (condition.severity_level.name if condition.severity_level.name is defined else condition.severity_level)|lower }}</span>
+                                    <span class="status-badge-small {{ (condition.condition_status.name if condition.condition_status.name is defined else condition.condition_status)|lower }}">{{ (condition.condition_status.name if condition.condition_status.name is defined else condition.condition_status)|lower }}</span>
+                                </div>
+                            </div>
+                            {% if condition.diagnosis_date %}
+                            <div class="medical-detail">
+                                <strong>Diagnosed:</strong> {{ condition.diagnosis_date.strftime('%b %d, %Y') }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Vaccination Records Section -->
+            {% if pet.vaccination_records %}
+            <div class="medical-section" id="vaccinationsSection">
+                <div class="section-header-wrapper" onclick="toggleSection('vaccinationsSection')">
+                    <div class="section-header">
+                        <div class="section-header-left">
+                            <div class="section-icon">💉</div>
+                            <div class="section-title-group">
+                                <h2 class="section-title">Vaccination Records</h2>
+                                <span class="section-count">{{ pet.vaccination_records|length }} {{ 'vaccine' if pet.vaccination_records|length == 1 else 'vaccines' }} recorded</span>
+                            </div>
+                        </div>
+                        <button class="collapse-button" type="button">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div class="vaccination-list">
+                        {% for vaccine in pet.vaccination_records %}
+                        <div class="vaccination-item {% if vaccine.next_due_date %}{% if vaccine.next_due_date < today %}overdue{% elif (vaccine.next_due_date - today).days < 30 %}upcoming{% endif %}{% endif %}">
+                            <div class="vaccination-header">
+                                <div style="flex: 1;">
+                                    <div class="vaccination-name">{{ vaccine.vaccine_name }}</div>
+                                    <span class="type-badge" style="margin-top: 8px; display: inline-block;">{{ vaccine.vaccine_type|replace('_', ' ')|title }}</span>
+                                </div>
+                            </div>
+                            <div class="vaccination-dates">
+                                <span>📅 <strong>Given:</strong> {{ vaccine.date_administered.strftime('%b %d, %Y') }}</span>
+                                {% if vaccine.next_due_date %}
+                                <span>🔔 <strong>Next Due:</strong> {{ vaccine.next_due_date.strftime('%b %d, %Y') }}</span>
+                                {% endif %}
+                            </div>
+                            {% if vaccine.attachments %}
+                            <div class="attachment-list">
+                                {% for attachment in vaccine.attachments %}
+                                <a href="{{ attachment.attachment_url }}" target="_blank" class="attachment-badge" title="{{ attachment.file_name or 'Attachment ' ~ loop.index }}">
+                                    📎 {{ attachment.file_name or 'Attachment ' ~ loop.index }}
+                                </a>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Empty States -->
+            {% if not pet.allergies and not pet.medical_conditions and not pet.vaccination_records %}
+            <div class="medical-section">
+                <div class="empty-state">
+                    <div class="empty-state-icon">🏥</div>
+                    <div class="empty-state-text">No medical information on record</div>
+                </div>
+            </div>
+            {% endif %}
 
             <svg class="watermark" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C13.6569 2 15 3.34315 15 5C15 6.65685 13.6569 8 12 8C10.3431 8 9 6.65685 9 5C9 3.34315 10.3431 2 12 2ZM6.5 6C8.433 6 10 7.567 10 9.5C10 11.433 8.433 13 6.5 13C4.567 13 3 11.433 3 9.5C3 7.567 4.567 6 6.5 6ZM17.5 6C19.433 6 21 7.567 21 9.5C21 11.433 19.433 13 17.5 13C15.567 13 14 11.433 14 9.5C14 7.567 15.567 6 17.5 6ZM12 10C15.3137 10 18 12.6863 18 16V18H6V16C6 12.6863 8.68629 10 12 10Z"/>
@@ -159,6 +1332,7 @@
     </div>
 
     <script>
+        // Photo Carousel
         let currentPhotoIndex = 0;
         const photos = document.querySelectorAll('#photoCarousel img');
         const totalPhotos = photos.length;
@@ -219,9 +1393,58 @@
 
         let autoPlayInterval = setInterval(() => changePhoto(1), 4000);
         const wrapper = document.querySelector('.main-photo-wrapper');
-        wrapper.addEventListener('mouseenter', () => clearInterval(autoPlayInterval));
-        wrapper.addEventListener('mouseleave', () => { autoPlayInterval = setInterval(() => changePhoto(1), 4000); });
-        initCarousel();
+        if (wrapper) {
+            wrapper.addEventListener('mouseenter', () => clearInterval(autoPlayInterval));
+            wrapper.addEventListener('mouseleave', () => {
+                autoPlayInterval = setInterval(() => changePhoto(1), 4000);
+            });
+        }
+
+        if (totalPhotos > 0) {
+            initCarousel();
+        }
+
+        // Collapsible Sections
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                section.classList.toggle('collapsed');
+            }
+        }
+
+        // Prevent button click from bubbling to section header
+        document.querySelectorAll('.collapse-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                const section = button.closest('.medical-section');
+                if (section && section.id) {
+                    toggleSection(section.id);
+                }
+            });
+        });
+
+        // Owner contact reveal - FIXED
+        const revealBtn = document.getElementById('revealOwnerBtn');
+        const ownerContent = document.getElementById('ownerContent');
+        const btnText = document.getElementById('revealOwnerBtnText');
+
+        if (revealBtn && ownerContent && btnText) {
+            revealBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const isVisible = ownerContent.classList.contains('owner-visible');
+
+                if (isVisible) {
+                    ownerContent.classList.remove('owner-visible');
+                    btnText.textContent = 'Show';
+                } else {
+                    ownerContent.classList.add('owner-visible');
+                    btnText.textContent = 'Hide';
+                }
+            });
+        }
     </script>
 </body>
 </html>

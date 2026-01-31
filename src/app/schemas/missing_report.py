@@ -116,9 +116,9 @@ class MissingReportRead(BaseModel):
     last_seen_datetime: datetime
     contact_name: str
     contact_number: str
+    status: str
     contact_address: str | None
     description: str | None
-    status: str
 
 
 class MissingReportCreate(MissingReportBase):

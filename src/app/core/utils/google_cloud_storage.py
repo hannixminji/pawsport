@@ -1,7 +1,7 @@
 import io
 from collections.abc import Mapping
 from datetime import timedelta
-from typing import cast
+from typing import Any, cast
 
 from google.api_core.exceptions import NotFound
 from google.cloud import storage
@@ -77,6 +77,42 @@ def generate_upload_signed_url(
         content_type=content_type,
         headers=headers,
     )
+
+
+def generate_upload_signed_post_policy(
+    blob_name: str,
+    content_type: ImageMimeType | str,
+    max_size_bytes: int,
+    metadata: Mapping[str, str] | None = None,
+    bucket_name: str | None = None,
+) -> dict[str, Any]:
+    bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+
+    fields: dict[str, str] = {
+        "Content-Type": str(content_type),
+    }
+
+    conditions: list[Any] = [
+        ["content-length-range", 0, max_size_bytes],
+        ["eq", "$Content-Type", str(content_type)],
+    ]
+
+    if metadata:
+        for key, value in metadata.items():
+            meta_key = f"x-goog-meta-{key.lower()}"
+            fields[meta_key] = value
+            conditions.append(["eq", f"${meta_key}", value])
+
+    url, signed_fields = storage_client.generate_signed_post_policy_v4(
+        bucket_name=bucket_name,
+        blob_name=blob_name,
+        expiration=timedelta(minutes=settings.GCS_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES),
+        fields=fields,
+        conditions=conditions,
+        scheme="https",
+    )
+
+    return {"url": url, "fields": signed_fields}
 
 
 def generate_resumable_upload_signed_url(blob_name: str, content_type: ImageMimeType) -> str:

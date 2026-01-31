@@ -146,7 +146,7 @@ async def write_sighting_report(
     return SightingReportRead.model_validate(sighting_report_model)
 
 
-@router.post("get_nearby_sighting_and_missing_report")
+@router.post("/get_nearby_sighting_and_missing_report")
 async def get_combined_reports_by_viewport(
     db: Annotated[AsyncSession, Depends(async_get_db)],
     viewport: Annotated[MapViewport, Body(...)],
@@ -200,25 +200,57 @@ async def get_combined_reports_by_viewport(
     )
 
     combined_query = union_all(sighting_query, missing_query).order_by("distance")
-
     results = (await db.execute(combined_query)).all()
+
+    sighting_ids = [row.id for row in results if row.type == "sighting"]
+    missing_ids = [row.id for row in results if row.type == "missing"]
+
+    sightings_by_id: dict[int, SightingReport] = {}
+    if sighting_ids:
+        sighting_rows = await db.execute(
+            select(SightingReport)
+            .options(
+                selectinload(SightingReport.pet).selectinload(Pet.profile_images),
+            )
+            .where(SightingReport.id.in_(sighting_ids), ~SightingReport.is_deleted)
+        )
+        sightings_by_id = {r.id: r for r in sighting_rows.scalars().all()}
+
+    missing_by_id: dict[int, MissingReport] = {}
+    if missing_ids:
+        missing_rows = await db.execute(
+            select(MissingReport)
+            .options(
+                selectinload(MissingReport.pet).selectinload(Pet.profile_images),
+            )
+            .where(MissingReport.id.in_(missing_ids), ~MissingReport.is_deleted)
+        )
+        missing_by_id = {r.id: r for r in missing_rows.scalars().all()}
 
     combined = []
     for row in results:
         if row.type == "sighting":
-            report = await db.get(SightingReport, row.id)
-            combined.append({
-                "type": "sighting",
-                "distance": float(row.distance),
-                "data": SightingReportRead.model_validate(report)
-            })
+            report = sightings_by_id.get(row.id)
+            if report is None:
+                continue
+            combined.append(
+                {
+                    "type": "sighting",
+                    "distance": float(row.distance),
+                    "data": SightingReportRead.model_validate(report, from_attributes=True),
+                }
+            )
         else:
-            report = await db.get(MissingReport, row.id)
-            combined.append({
-                "type": "missing",
-                "distance": float(row.distance),
-                "data": MissingReportRead.model_validate(report)
-            })
+            report = missing_by_id.get(row.id)
+            if report is None:
+                continue
+            combined.append(
+                {
+                    "type": "missing",
+                    "distance": float(row.distance),
+                    "data": MissingReportRead.model_validate(report, from_attributes=True),
+                }
+            )
 
     return combined
 

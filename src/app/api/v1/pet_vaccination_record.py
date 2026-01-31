@@ -277,7 +277,6 @@ async def write_pet_vaccination_record(
                 file_type=file_type_enum
             )
             db.add(attachment_model)
-            pet_vaccination_record_model.attachments.append(attachment_model)
 
     try:
         await db.commit()

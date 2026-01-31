@@ -1,13 +1,13 @@
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastcrud import PaginatedListResponse, compute_offset, paginated_response
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
@@ -32,7 +32,7 @@ from ...core.utils.qr_code import generate_qr_and_upload_gcs
 from ...models.pet import Pet
 from ...models.pet_profile_image import PetProfileImage
 from ...models.user import User
-from ...schemas.pet import PetCreateWithProfileImages, PetRead, PetSearch, PetUpdateWithProfileImages
+from ...schemas.pet import PetCreateWithProfileImages, PetRead, PetReadByQr, PetSearch, PetUpdateWithProfileImages
 from ...schemas.user import UserRead
 
 LOGGER = logging.getLogger(__name__)
@@ -143,7 +143,8 @@ async def search_pets(
     request: Request,
     db: Annotated[AsyncSession, Depends(async_get_db)],
     file: UploadFile = File(...),
-    is_search_by_missing: bool | None = None
+    species: Literal["cat", "dog"] = Form(...),
+    is_search_by_missing: bool | None = None,
 ) -> list[PetSearch]:
     allowed_types = {"image/jpeg", "image/png"}
 
@@ -164,7 +165,7 @@ async def search_pets(
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
             files = {"file": (file.filename, await file.read(), file.content_type)}
-            response = await client.post(ml_url, files=files)
+            response = await client.post(ml_url, files=files, data={"species": species})
             response.raise_for_status()
             ml_response = response.json()
         except httpx.ReadTimeout:
@@ -184,14 +185,14 @@ async def search_pets(
     if not embedding or not isinstance(embedding, list):
         raise BadRequestException(ml_response.get("message", "Failed to detect a valid pet in the image."))
 
-    species_query = normalize_species(ml_response.get("species"))
+    species_query = normalize_species(species)
     if not species_query:
-        raise BadRequestException(ml_response.get("message", "Failed to detect a valid pet in the image."))
+        raise BadRequestException("Invalid species. Must be 'cat' or 'dog'.")
 
     query_conditions = [
         FieldCondition(
             key="species",
-            match=MatchValue(value=species_query)
+            match=MatchValue(value=species_query),
         )
     ]
 
@@ -199,7 +200,7 @@ async def search_pets(
         query_conditions.append(
             FieldCondition(
                 key="is_missing",
-                match=MatchValue(value=is_search_by_missing)
+                match=MatchValue(value=is_search_by_missing),
             )
         )
 
@@ -217,7 +218,7 @@ async def search_pets(
     if not search_results:
         return []
 
-    pet_scores = {}
+    pet_scores: dict[int, float] = {}
     for hit in search_results:
         pet_id = hit["payload"]["pet_id"]
         score = hit["score"]
@@ -379,22 +380,38 @@ async def read_pet_by_qr(
     db_pet = (
         await db.execute(
             select(Pet)
-            .options(selectinload(Pet.profile_images))
+            .options(
+                selectinload(Pet.owner),
+                selectinload(Pet.profile_images),
+                selectinload(Pet.allergies),
+                selectinload(Pet.medical_conditions),
+                selectinload(Pet.vaccination_records),
+            )
             .where(
                 Pet.uuid == uuid,
-                ~Pet.is_deleted
+                ~Pet.is_deleted,
             )
         )
     ).scalar_one_or_none()
+
     if not db_pet:
         raise NotFoundException("Pet not found")
+
+    pet_payload = PetReadByQr.model_validate(db_pet)
 
     accept = (request.headers.get("accept") or "").lower()
 
     if "application/json" in accept:
-        return PetRead.model_validate(db_pet)
+        return JSONResponse(content=pet_payload.model_dump(mode="json"))
 
-    return templates.TemplateResponse("pet_qr.html", {"request": request, "pet": db_pet})
+    return templates.TemplateResponse(
+        "pet_qr.html",
+        {
+            "request": request,
+            "pet": pet_payload.model_dump(mode="python"),
+            "today": date.today(),
+        },
+    )
 
 
 @router.patch("/{username}/pet/{id}")

@@ -23,6 +23,7 @@ from .config import (
     DatabaseSettings,
     EnvironmentOption,
     EnvironmentSettings,
+    RedisAdminSessionSettings,
     RedisCacheSettings,
     RedisQueueSettings,
     RedisRateLimiterSettings,
@@ -30,7 +31,7 @@ from .config import (
 )
 from .db.database import Base
 from .db.database import async_engine as engine
-from .utils import cache, queue
+from .utils import admin_session_store, cache, queue
 
 
 # -------------- database --------------
@@ -48,6 +49,17 @@ async def create_redis_cache_pool() -> None:
 async def close_redis_cache_pool() -> None:
     if cache.client is not None:
         await cache.client.aclose()  # type: ignore
+
+
+# -------------- admin session --------------
+async def create_redis_admin_session_pool() -> None:
+    admin_session_store.pool = redis.ConnectionPool.from_url(settings.REDIS_ADMIN_SESSION_URL)
+    admin_session_store.client = redis.Redis.from_pool(admin_session_store.pool)  # type: ignore
+
+
+async def close_redis_admin_session_pool() -> None:
+    if admin_session_store.client is not None:
+        await admin_session_store.client.aclose()  # type: ignore
 
 
 # -------------- queue --------------
@@ -80,6 +92,7 @@ def lifespan_factory(
     settings: (
         DatabaseSettings
         | RedisCacheSettings
+        | RedisAdminSessionSettings
         | AppSettings
         | ClientSideCacheSettings
         | CORSSettings
@@ -104,6 +117,9 @@ def lifespan_factory(
             if isinstance(settings, RedisCacheSettings):
                 await create_redis_cache_pool()
 
+            if isinstance(settings, RedisAdminSessionSettings):
+                await create_redis_admin_session_pool()
+
             if isinstance(settings, RedisQueueSettings):
                 await create_redis_queue_pool()
 
@@ -121,6 +137,9 @@ def lifespan_factory(
             if isinstance(settings, RedisCacheSettings):
                 await close_redis_cache_pool()
 
+            if isinstance(settings, RedisAdminSessionSettings):
+                await close_redis_admin_session_pool()
+
             if isinstance(settings, RedisQueueSettings):
                 await close_redis_queue_pool()
 
@@ -136,6 +155,7 @@ def create_application(
     settings: (
         DatabaseSettings
         | RedisCacheSettings
+        | RedisAdminSessionSettings
         | AppSettings
         | ClientSideCacheSettings
         | CORSSettings

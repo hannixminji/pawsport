@@ -6,7 +6,7 @@ import numpy as np
 from ai.detect import crop_objects, detect
 from ai.extract_features import extract_features
 from ai.pose import align_eyes, detect_pose
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from google_cloud_storage import load_images
 
 app = FastAPI()
@@ -16,20 +16,25 @@ app = FastAPI()
 async def create_embedding(
     species: str = Form(...),
     image_object_keys: str | None = Form(None),
-    files: list[UploadFile] | None = File(None)
+    files: list[UploadFile] | None = File(None),
 ) -> list[dict[str, Any]]:
-    images: dict[str, np.ndarray] = {}
-
     species = species.lower().strip()
     if species not in {"cat", "dog"}:
-        raise ValueError("species must be 'cat' or 'dog'")
+        raise HTTPException(status_code=400, detail="species must be 'cat' or 'dog'")
 
-    if image_object_keys:
+    if (image_object_keys is None and not files) or (image_object_keys is not None and files):
+        raise HTTPException(
+            status_code=400,
+            detail="Provide exactly one: image_object_keys or files",
+        )
+
+    images: dict[str, np.ndarray] = {}
+
+    if image_object_keys is not None:
         items = {str(item["id"]): item["image_object_key"] for item in json.loads(image_object_keys)}
         images.update(load_images("pawsport", items))
-
-    elif files:
-        for index, file in enumerate(files):
+    else:
+        for index, file in enumerate(files or []):
             content = await file.read()
             np_arr = np.frombuffer(content, np.uint8)
             img_bgr = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
@@ -59,11 +64,7 @@ async def create_embedding(
     aligned_processed: dict[str, np.ndarray] = {}
     for image_id, keypoints in pose_results.items():
         if keypoints.size > 0:
-            aligned_image = align_eyes(
-                detect_processed[image_id],
-                keypoints,
-                species=species
-            )
+            aligned_image = align_eyes(detect_processed[image_id], keypoints, species=species)
             aligned_processed[image_id] = aligned_image
 
     if not aligned_processed:
@@ -80,7 +81,14 @@ async def create_embedding(
 
 
 @app.post("/search_pet")
-async def search_pet(file: UploadFile) -> dict[str, Any]:
+async def search_pet(
+    file: UploadFile = File(...),
+    species: str = Form(...),
+) -> dict[str, Any]:
+    species = species.lower().strip()
+    if species not in {"cat", "dog"}:
+        return {"message": "species must be 'cat' or 'dog'."}
+
     content = await file.read()
     np_arr = np.frombuffer(content, np.uint8)
     img_bgr = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
@@ -91,26 +99,14 @@ async def search_pet(file: UploadFile) -> dict[str, Any]:
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     images = {"0": img_rgb}
 
-    cat_results = detect(images, species="cat")
-    dog_results = detect(images, species="dog")
+    detection_results = detect(images, species=species)
 
-    cat_boxes = cat_results.get("0", {}).get("boxes", [])
-    dog_boxes = dog_results.get("0", {}).get("boxes", [])
+    boxes = detection_results.get("0", {}).get("boxes", [])
+    scores = detection_results.get("0", {}).get("scores", [])
+    confidence = float(scores[0]) if len(boxes) > 0 and len(scores) > 0 else 0.0
 
-    cat_confidence = cat_results.get("0", {}).get("scores", [0])[0] if len(cat_boxes) > 0 else 0
-    dog_confidence = dog_results.get("0", {}).get("scores", [0])[0] if len(dog_boxes) > 0 else 0
-
-    if cat_confidence <= 0.5 and dog_confidence <= 0.5:
-        return {"message": "No cat or dog detected in the image - try another one?"}
-
-    if cat_confidence >= dog_confidence:
-        detection_results = cat_results
-        detected_species = "cat"
-        confidence = cat_confidence
-    else:
-        detection_results = dog_results
-        detected_species = "dog"
-        confidence = dog_confidence
+    if confidence <= 0.5:
+        return {"message": f"No {species} detected in the image - try another one?"}
 
     detect_processed: dict[str, np.ndarray] = {}
     for image_id, detection_result in detection_results.items():
@@ -118,10 +114,10 @@ async def search_pet(file: UploadFile) -> dict[str, Any]:
         boxes = detection_result["boxes"]
 
         if len(boxes) == 0:
-            return {"message": f"No {detected_species} detected in the image - try another one?"}
+            return {"message": f"No {species} detected in the image - try another one?"}
 
         if len(boxes) > 1:
-            return {"message": f"Multiple {detected_species}s detected! Please upload one pet at a time."}
+            return {"message": f"Multiple {species}s detected! Please upload one pet at a time."}
 
         cropped_image = crop_objects(image, boxes)[0]
         detect_processed[image_id] = cropped_image
@@ -129,24 +125,23 @@ async def search_pet(file: UploadFile) -> dict[str, Any]:
     if not detect_processed:
         return {"message": "No valid detection found."}
 
-    pose_results = detect_pose(detect_processed, species=detected_species)
+    pose_results = detect_pose(detect_processed, species=species)
 
     aligned_processed: dict[str, np.ndarray] = {}
     for image_id, keypoints in pose_results.items():
         if keypoints.size > 0:
-            aligned_image = align_eyes(detect_processed[image_id], keypoints)
+            aligned_image = align_eyes(detect_processed[image_id], keypoints, species=species)
             aligned_processed[image_id] = aligned_image
 
     if not aligned_processed:
-        return {"message": f"Couldn't align the {detected_species}'s face properly."}
+        return {"message": f"Couldn't align the {species}'s face properly."}
 
     embeddings = extract_features(aligned_processed)
-
     embedding = list(embeddings.values())[0].tolist()
 
     return {
-        "message": f"{detected_species.capitalize()} detected successfully!",
+        "message": f"{species.capitalize()} detected successfully!",
         "embedding": embedding,
-        "species": detected_species,
+        "species": species,
         "confidence": float(confidence),
     }

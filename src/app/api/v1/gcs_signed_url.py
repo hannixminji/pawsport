@@ -1,10 +1,10 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
 from uuid6 import uuid7
 
 from ...core.exceptions.http_exceptions import BadRequestException
-from ...core.utils.google_cloud_storage import generate_upload_signed_url
+from ...core.utils.google_cloud_storage import generate_upload_signed_post_policy
 
 router = APIRouter(tags=["uploads"])
 
@@ -15,9 +15,9 @@ SUPPORTED_FILE_TYPES = {
     "gif": "image/gif",
 
     "pdf": "application/pdf",
-
-    "mp4": "video/mp4",
 }
+
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024 # 20MB
 
 
 def validate_and_get_file_info(filename: str) -> tuple[str, str]:
@@ -40,8 +40,8 @@ def validate_and_get_file_info(filename: str) -> tuple[str, str]:
 @router.post("/upload/signed-url")
 async def create_upload_signed_urls(
     filenames: Annotated[list[str], Query(min_length=1, max_length=10)]
-) -> dict[str, list[dict[str, str]]]:
-    uploads: list[dict[str, str]] = []
+) -> dict[str, list[dict[str, Any]]]:
+    uploads: list[dict[str, Any]] = []
 
     for filename in filenames:
         extension, content_type = validate_and_get_file_info(filename)
@@ -53,9 +53,10 @@ async def create_upload_signed_urls(
             "file_type": extension,
         }
 
-        upload_url = generate_upload_signed_url(
+        post_policy = generate_upload_signed_post_policy(
             blob_name=object_key,
             content_type=content_type,
+            max_size_bytes=MAX_UPLOAD_BYTES,
             metadata=metadata,
         )
 
@@ -63,8 +64,9 @@ async def create_upload_signed_urls(
             {
                 "original_filename": filename,
                 "object_key": object_key,
-                "upload_url": upload_url,
+                "upload": post_policy,
                 "content_type": content_type,
+                "max_size_bytes": MAX_UPLOAD_BYTES,
             }
         )
 

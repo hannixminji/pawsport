@@ -19,7 +19,6 @@ from ...core.exceptions.http_exceptions import (
 from ...core.utils.cache import cache
 from ...models.article import Article, ArticleCategory, ArticlePetType
 from ...schemas.article import ArticleCreate, ArticleRead, ArticleUpdate
-from ...schemas.user import UserRead
 
 LOGGER = logging.getLogger(__name__)
 
@@ -207,7 +206,6 @@ def build_where(node: WhereNode, filter_columns: dict[ArticleFilterField, Any]):
 async def write_article(
     request: Request,
     article: ArticleCreate,
-    current_user: Annotated[UserRead, Depends(get_authenticated_superuser)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> ArticleRead:
     article_model = Article(**article.model_dump())
@@ -241,7 +239,6 @@ async def write_article(
 async def search_articles(
     request: Request,
     values: ArticleSearchRequest,
-    current_user: Annotated[UserRead, Depends(get_authenticated_superuser)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, Any]:
     filter_columns = {
@@ -309,7 +306,6 @@ async def search_articles(
 )
 async def read_articles(
     request: Request,
-    current_user: Annotated[UserRead, Depends(get_authenticated_superuser)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
     page: int = 1,
     items_per_page: int = 10,
@@ -353,7 +349,6 @@ async def read_articles(
 async def read_article(
     request: Request,
     id: int,
-    current_user: Annotated[UserRead, Depends(get_authenticated_superuser)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> ArticleRead:
     db_article = (
@@ -381,7 +376,6 @@ async def patch_article(
     request: Request,
     id: int,
     values: ArticleUpdate,
-    current_user: Annotated[UserRead, Depends(get_authenticated_superuser)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, str]:
     db_article = (
@@ -432,7 +426,6 @@ async def patch_article(
 async def erase_article(
     request: Request,
     id: int,
-    current_user: Annotated[UserRead, Depends(get_authenticated_superuser)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, str]:
     db_article = (
@@ -478,15 +471,12 @@ async def erase_article(
 async def erase_db_article(
     request: Request,
     id: int,
-    current_user: Annotated[UserRead, Depends(get_authenticated_superuser)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, str]:
     db_article = (
         await db.execute(
             select(Article)
-            .where(
-                Article.id == id
-            )
+            .where(Article.id == id)
         )
     ).scalar_one_or_none()
     if not db_article:

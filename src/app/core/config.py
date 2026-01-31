@@ -88,6 +88,17 @@ class RedisCacheSettings(BaseSettings):
         return f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}"
 
 
+class RedisAdminSessionSettings(BaseSettings):
+    REDIS_ADMIN_SESSION_HOST: str = "localhost"
+    REDIS_ADMIN_SESSION_PORT: int = 6379
+    REDIS_ADMIN_SESSION_DB: int = 1
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def REDIS_ADMIN_SESSION_URL(self) -> str:
+        return f"redis://{self.REDIS_ADMIN_SESSION_HOST}:{self.REDIS_ADMIN_SESSION_PORT}/{self.REDIS_ADMIN_SESSION_DB}"
+
+
 class ClientSideCacheSettings(BaseSettings):
     CLIENT_CACHE_MAX_AGE: int = 60
 
@@ -133,6 +144,10 @@ class CRUDAdminSettings(BaseSettings):
     CRUD_ADMIN_REDIS_SSL: bool = False
 
 
+class AdminSessionSettings(BaseSettings):
+    ADMIN_SESSION_TTL_SECONDS: int = 28800
+
+
 class EnvironmentOption(str, Enum):
     LOCAL = "local"
     STAGING = "staging"
@@ -171,11 +186,13 @@ class Settings(
     FirstUserSettings,
     TestSettings,
     RedisCacheSettings,
+    RedisAdminSessionSettings,
     ClientSideCacheSettings,
     RedisQueueSettings,
     RedisRateLimiterSettings,
     DefaultRateLimitSettings,
     CRUDAdminSettings,
+    AdminSessionSettings,
     EnvironmentSettings,
     CORSSettings,
 

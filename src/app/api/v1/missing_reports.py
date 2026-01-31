@@ -24,6 +24,7 @@ from ...core.utils.cache import cache
 from ...core.utils.qdrant_cloud import update_payload
 from ...models.missing_report import MissingReport, MissingReportStatus
 from ...models.pet import Pet
+from ...models.pet_profile_image import PetProfileImage
 from ...models.user import User
 from ...schemas.missing_report import MissingReportCreate, MissingReportRead, MissingReportUpdate
 from ...schemas.user import UserRead
@@ -259,40 +260,18 @@ async def write_report_missing(
     if current_user.id != db_user_id:
         raise ForbiddenException()
 
-    db_pet = (
+    db_pet_id = (
         await db.execute(
-            select(Pet)
-            .options(selectinload(Pet.profile_images))
+            select(Pet.id)
             .where(
                 Pet.id == pet_id,
                 Pet.owner_id == db_user_id,
-                ~Pet.is_deleted
+                ~Pet.is_deleted,
             )
         )
     ).scalar_one_or_none()
-    if not db_pet:
+    if not db_pet_id:
         raise NotFoundException("Pet not found")
-
-    profile_image_ids = [str(profile_image.uuid) for profile_image in db_pet.profile_images]
-
-    try:
-        result = update_payload(
-            collection_name="pet_profile_images",
-            point_ids=profile_image_ids,
-            payload={"is_missing": True}
-        )
-
-        if result.status != UpdateStatus.COMPLETED:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="An unexpected error occurred while creating the missing report. Please try again later."
-            )
-
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred while creating the missing report. Please try again later."
-        )
 
     geo_point = missing_report.last_seen_location
     wkb_location = from_shape(Point(geo_point.longitude, geo_point.latitude), srid=4326)
@@ -306,18 +285,54 @@ async def write_report_missing(
 
     try:
         await db.commit()
-        await db.refresh(missing_report_model)
 
     except SQLAlchemyError as error:
         await db.rollback()
 
         if isinstance(error, IntegrityError) and "uq_active_missing_report_per_pet" in str(error.orig):
-            raise BadRequestException("Failed to create missing report due to integrity constraint.")
+            raise BadRequestException("A missing report for this pet already exists.")
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while creating the missing report. Please try again later."
         )
+
+    profile_image_uuids = (
+        await db.execute(
+            select(PetProfileImage.uuid)
+            .where(
+                PetProfileImage.pet_id == pet_id,
+                ~PetProfileImage.is_deleted,
+            ).order_by(
+                PetProfileImage.sort_order.asc(),
+                PetProfileImage.created_at.desc(),
+            )
+        )
+    ).scalars().all()
+
+    profile_image_uuids = [str(uuid) for uuid in profile_image_uuids]
+
+    try:
+        if profile_image_uuids:
+            result = update_payload(
+                collection_name="pet_profile_images",
+                point_ids=profile_image_uuids,
+                payload={"is_missing": True}
+            )
+
+            if result.status != UpdateStatus.COMPLETED:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="An unexpected error occurred while creating the missing report. Please try again later."
+                )
+
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while creating the missing report. Please try again later."
+        )
+
+    await db.refresh(missing_report_model)
 
     return MissingReportRead.model_validate(missing_report_model)
 

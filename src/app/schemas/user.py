@@ -127,6 +127,20 @@ class UserRead(BaseModel):
     state_province_region: str | None
     postal_code: str | None
 
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def normalize_phone_number(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return None
+            if s.lower().startswith("tel:"):
+                s = s[4:].strip()
+            return s or None
+        return v
+
 
 class UserCreate(UserBase):
     model_config = ConfigDict(extra="forbid")
