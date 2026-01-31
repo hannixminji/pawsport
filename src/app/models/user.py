@@ -80,7 +80,7 @@ class User(Base):
     postal_code: Mapped[str | None] = mapped_column(String(16), default=None)
 
     alert_center_geog: Mapped[WKBElement | None] = mapped_column(
-        Geography(geometry_type="POINT", srid=4326),
+        Geography(geometry_type="POINT", srid=4326, spatial_index=False),
         default=None,
     )
     alert_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
