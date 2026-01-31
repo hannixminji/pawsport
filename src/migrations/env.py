@@ -34,6 +34,18 @@ import_models("app.models")
 target_metadata = Base.metadata
 
 
+def include_name(name, type_, parent_names):
+    if type_ == "schema":
+        return name not in {"tiger", "topology"}
+
+    if type_ == "table":
+        schema = parent_names.get("schema_name")
+        key = f"{schema}.{name}" if schema else name
+        return key in target_metadata.tables
+
+    return True
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -48,6 +60,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_schemas=True,
+        include_name=include_name,
     )
 
     with context.begin_transaction():
@@ -55,7 +69,12 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_schemas=True,
+        include_name=include_name,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
