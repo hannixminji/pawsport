@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
+from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
 class InventoryImageFileType(str, Enum):
@@ -45,7 +45,7 @@ class PetInventoryImageBase(BaseModel):
         return v
 
 
-class PetInventoryImage(TimestampSchema, PetInventoryImageBase, UUIDSchema, PersistentDeletion):
+class PetInventoryImage(TimestampSchema, PetInventoryImageBase, PersistentDeletion):
     inventory_id: int
     file_type: InventoryImageFileType | None
 

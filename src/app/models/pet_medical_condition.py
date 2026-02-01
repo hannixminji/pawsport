@@ -28,7 +28,7 @@ class PetMedicalCondition(Base):
     __tablename__ = "pet_medical_condition"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id"), nullable=False, index=True)
+    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id", ondelete="CASCADE"), nullable=False, index=True)
 
     condition_name: Mapped[str] = mapped_column(String(255), nullable=False)
     severity_level: Mapped[MedicalConditionSeverity] = mapped_column(
@@ -53,7 +53,7 @@ class PetMedicalCondition(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
 
-    __tableargs__ = (
+    __table_args__ = (
         Index(
             "uq_pet_medical_condition_pet_id_condition_name_active",
             "pet_id",

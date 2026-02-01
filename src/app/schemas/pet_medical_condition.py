@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
+from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
 class MedicalConditionSeverity(str, Enum):
@@ -47,7 +47,7 @@ class PetMedicalConditionBase(BaseModel):
         return v
 
 
-class PetMedicalCondition(TimestampSchema, PetMedicalConditionBase, UUIDSchema, PersistentDeletion):
+class PetMedicalCondition(TimestampSchema, PetMedicalConditionBase, PersistentDeletion):
     pet_id: int
 
 

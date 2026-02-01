@@ -25,7 +25,7 @@ class Pet(Base):
     __tablename__ = "pet"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    owner_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True)
 
     name: Mapped[str] = mapped_column(String(25), nullable=False)
     type: Mapped[str] = mapped_column(String(3), nullable=False, index=True)
@@ -40,6 +40,7 @@ class Pet(Base):
         order_by="(PetProfileImage.sort_order.asc(), PetProfileImage.created_at.desc())",
         back_populates="pet",
         cascade="delete, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
@@ -48,6 +49,7 @@ class Pet(Base):
         primaryjoin="and_(Pet.id == PetVaccinationRecord.pet_id, ~PetVaccinationRecord.is_deleted)",
         back_populates="pet",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
@@ -56,6 +58,7 @@ class Pet(Base):
         primaryjoin="and_(Pet.id == PetAllergy.pet_id, ~PetAllergy.is_deleted)",
         back_populates="pet",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
@@ -64,6 +67,7 @@ class Pet(Base):
         primaryjoin="and_(Pet.id == PetMedication.pet_id, ~PetMedication.is_deleted)",
         back_populates="pet",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False,
     )
@@ -72,6 +76,7 @@ class Pet(Base):
         primaryjoin="and_(Pet.id == PetMedicalCondition.pet_id, ~PetMedicalCondition.is_deleted)",
         back_populates="pet",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
@@ -80,6 +85,7 @@ class Pet(Base):
         primaryjoin="and_(Pet.id == PetSchedule.pet_id, ~PetSchedule.is_deleted)",
         back_populates="pet",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
@@ -88,6 +94,7 @@ class Pet(Base):
         primaryjoin="and_(Pet.id == MissingReport.pet_id, ~MissingReport.is_deleted)",
         back_populates="pet",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )

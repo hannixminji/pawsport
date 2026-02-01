@@ -25,7 +25,9 @@ class PetVaccinationRecordAttachment(Base):
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
     vaccination_record_id: Mapped[int] = mapped_column(
-        ForeignKey("pet_vaccination_record.id"), nullable=False, index=True
+        ForeignKey("pet_vaccination_record.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
     )
 
     object_key: Mapped[str] = mapped_column(String(1024), nullable=False)

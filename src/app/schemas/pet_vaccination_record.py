@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
+from ..core.schemas import PersistentDeletion, TimestampSchema
 from .pet_vaccination_record_attachment import (
     PetVaccinationRecordAttachmentCreate,
     PetVaccinationRecordAttachmentRead,
@@ -52,7 +52,7 @@ class PetVaccinationRecordBase(BaseModel):
         return self
 
 
-class PetVaccinationRecord(TimestampSchema, PetVaccinationRecordBase, UUIDSchema, PersistentDeletion):
+class PetVaccinationRecord(TimestampSchema, PetVaccinationRecordBase, PersistentDeletion):
     pet_id: int
 
 

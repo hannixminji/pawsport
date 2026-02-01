@@ -17,7 +17,7 @@ class SightingReportImage(Base):
     __tablename__ = "sighting_report_image"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    sighting_report_id: Mapped[int] = mapped_column(ForeignKey("sighting_report.id"), index=True)
+    sighting_report_id: Mapped[int] = mapped_column(ForeignKey("sighting_report.id", ondelete="CASCADE"), index=True)
     image_object_key: Mapped[str] = mapped_column(String(1024))
     sort_order: Mapped[int] = mapped_column(Integer)
     sighting_report: Mapped["SightingReport"] = relationship(

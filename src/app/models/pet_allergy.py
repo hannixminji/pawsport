@@ -29,7 +29,7 @@ class PetAllergy(Base):
     __tablename__ = "pet_allergy"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id"), nullable=False, index=True)
+    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id", ondelete="CASCADE"), nullable=False, index=True)
 
     allergen: Mapped[str] = mapped_column(String(255), nullable=False)
     allergen_type: Mapped[AllergenType] = mapped_column(

@@ -28,7 +28,7 @@ class MissingReport(Base):
     __tablename__ = "missing_report"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id"), index=True)
+    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id", ondelete="CASCADE"), index=True)
     last_seen_location: Mapped[WKBElement] = mapped_column(Geography(geometry_type="POINT", srid=4326))
     last_seen_address: Mapped[str] = mapped_column(String(512))
     last_seen_datetime: Mapped[datetime] = mapped_column(DateTime(timezone=True))

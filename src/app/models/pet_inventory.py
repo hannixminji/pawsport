@@ -32,7 +32,7 @@ class PetInventory(Base):
     __tablename__ = "pet_inventory"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    owner_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True)
 
     item_name: Mapped[str] = mapped_column(String(255), nullable=False)
     inventory_type: Mapped[InventoryType] = mapped_column(
@@ -54,6 +54,7 @@ class PetInventory(Base):
         order_by="PetInventoryImage.sort_order.asc()",
         back_populates="inventory",
         cascade="delete, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )

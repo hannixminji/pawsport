@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from geoalchemy2 import Geography
 from geoalchemy2.elements import WKBElement
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, and_
+from sqlalchemy import DateTime, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from uuid6 import uuid7
@@ -31,6 +31,7 @@ class User(Base):
         primaryjoin="and_(User.id == UserLinkedAccount.user_id, ~UserLinkedAccount.is_deleted)",
         back_populates="user",
         cascade="delete, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
@@ -39,6 +40,7 @@ class User(Base):
         primaryjoin="and_(User.id == PetInventory.owner_id, ~PetInventory.is_deleted)",
         back_populates="owner",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
@@ -47,22 +49,23 @@ class User(Base):
         primaryjoin="and_(User.id == Pet.owner_id, ~Pet.is_deleted)",
         back_populates="owner",
         cascade="delete, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
     push_tokens: Mapped[list["PushToken"]] = relationship(
         "PushToken",
-        primaryjoin="and_(User.id == PushToken.user_id, ~PushToken.is_deleted)",
         back_populates="user",
         cascade="delete, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
     notification_preferences: Mapped[list["NotificationPreference"]] = relationship(
         "NotificationPreference",
-        primaryjoin="and_(User.id == NotificationPreference.user_id, ~NotificationPreference.is_deleted)",
         back_populates="user",
         cascade="delete, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
@@ -83,7 +86,6 @@ class User(Base):
         Geography(geometry_type="POINT", srid=4326, spatial_index=False),
         default=None,
     )
-    alert_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
 
     uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), default_factory=uuid7, nullable=False, unique=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -110,6 +112,6 @@ class User(Base):
             "idx_user_alert_center_geog",
             "alert_center_geog",
             postgresql_using="gist",
-            postgresql_where=and_(~is_deleted, alert_enabled),
+            postgresql_where=~is_deleted,
         ),
     )

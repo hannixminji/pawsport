@@ -19,7 +19,7 @@ class SightingReport(Base):
     __tablename__ = "sighting_report"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), index=True)
     pet_type: Mapped[str] = mapped_column(String(3), index=True)
     sighted_at_datetime: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     sighting_location: Mapped[WKBElement] = mapped_column(Geography(geometry_type="POINT", srid=4326))
@@ -31,6 +31,7 @@ class SightingReport(Base):
         order_by="(SightingReportImage.sort_order.asc(), SightingReportImage.created_at.desc())",
         back_populates="sighting_report",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False,
     )

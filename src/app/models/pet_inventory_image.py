@@ -23,7 +23,11 @@ class PetInventoryImage(Base):
     __tablename__ = "pet_inventory_image"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    inventory_id: Mapped[int] = mapped_column(ForeignKey("pet_inventory.id"), nullable=False, index=True)
+    inventory_id: Mapped[int] = mapped_column(
+        ForeignKey("pet_inventory.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
 
     object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -7,6 +7,11 @@ from pydantic_extra_types.phone_numbers import PhoneNumber
 from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
 
 
+class GeoPoint(BaseModel):
+    latitude: Annotated[float, Field(ge=-90, le=90, examples=[37.7749])]
+    longitude: Annotated[float, Field(ge=-180, le=180, examples=[-122.4194])]
+
+
 class UserBase(BaseModel):
     username: Annotated[str, Field(min_length=3, max_length=20, pattern=r"^[a-z0-9]+$", examples=["userson"])]
     email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
@@ -195,6 +200,7 @@ class UserUpdate(BaseModel):
     city: Annotated[str | None, Field(max_length=100, default=None)]
     state_province_region: Annotated[str | None, Field(max_length=100, default=None)]
     postal_code: Annotated[str | None, Field(max_length=16, default=None)]
+    alert_center_geog: Annotated[GeoPoint | None, Field()]
 
     @field_validator(
         "first_name",

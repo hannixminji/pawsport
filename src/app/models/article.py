@@ -38,8 +38,7 @@ class Article(Base):
     )
     pet_type: Mapped[ArticlePetType] = mapped_column(
         SQLEnum(ArticlePetType, name="article_pet_type_enum"),
-        nullable=False,
-        index=True,
+        nullable=False
     )
 
     created_at: Mapped[datetime] = mapped_column(

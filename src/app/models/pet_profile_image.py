@@ -17,7 +17,7 @@ class PetProfileImage(Base):
     __tablename__ = "pet_profile_image"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id"), nullable=False, index=True)
+    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id", ondelete="CASCADE"), nullable=False, index=True)
     image_object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False)
     pet: Mapped["Pet"] = relationship("Pet", back_populates="profile_images", lazy="selectin", init=False)

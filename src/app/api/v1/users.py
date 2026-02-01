@@ -5,6 +5,8 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastcrud import PaginatedListResponse, compute_offset, paginated_response
+from geoalchemy2.shape import from_shape
+from shapely.geometry import Point
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,7 +114,18 @@ async def patch_user(
     if current_user.id != db_user.id:
         raise ForbiddenException()
 
-    for field, value in values.model_dump(exclude_unset=True).items():
+    payload = values.model_dump(exclude_unset=True)
+
+    if "alert_center_geog" in payload:
+        geo_point = payload.pop("alert_center_geog")
+
+        if geo_point is None:
+            db_user.alert_center_geog = None
+        else:
+            point = Point(geo_point.longitude, geo_point.latitude)
+            db_user.alert_center_geog = from_shape(point, srid=4326)
+
+    for field, value in payload.items():
         setattr(db_user, field, value)
 
     try:

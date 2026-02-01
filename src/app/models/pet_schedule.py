@@ -27,7 +27,7 @@ class PetSchedule(Base):
     __tablename__ = "pet_schedule"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id"), nullable=False, index=True)
+    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id", ondelete="CASCADE"), nullable=False, index=True)
 
     type: Mapped[PetScheduleType] = mapped_column(
         SQLEnum(PetScheduleType, name="pet_schedule_type_enum"),
@@ -51,7 +51,7 @@ class PetSchedule(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
 
-    __tableargs__ = (
+    __table_args__ = (
         Index(
             "uq_pet_schedule_pet_id_title_active",
             "pet_id",

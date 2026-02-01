@@ -5,7 +5,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
+from ..core.schemas import PersistentDeletion, TimestampSchema
 from .pet_inventory_image import PetInventoryImageCreate, PetInventoryImageRead, PetInventoryImageUpdate
 
 
@@ -76,7 +76,7 @@ class PetInventoryBase(BaseModel):
         return self
 
 
-class PetInventory(TimestampSchema, PetInventoryBase, UUIDSchema, PersistentDeletion):
+class PetInventory(TimestampSchema, PetInventoryBase, PersistentDeletion):
     owner_id: int
 
 

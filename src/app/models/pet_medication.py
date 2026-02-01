@@ -35,7 +35,7 @@ class PetMedication(Base):
     __tablename__ = "pet_medication"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id"), nullable=False, index=True)
+    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id", ondelete="CASCADE"), nullable=False, index=True)
 
     medication: Mapped[str] = mapped_column(String(255), nullable=False)
     dosage: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -63,7 +63,7 @@ class PetMedication(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
 
-    __tableargs__ = (
+    __table_args__ = (
         Index(
             "uq_pet_medication_pet_id_medication_name_active",
             "pet_id",

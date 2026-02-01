@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
+from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
 class AttachmentFileType(str, Enum):
@@ -45,9 +45,7 @@ class PetVaccinationRecordAttachmentBase(BaseModel):
         return v
 
 
-class PetVaccinationRecordAttachment(
-    TimestampSchema, PetVaccinationRecordAttachmentBase, UUIDSchema, PersistentDeletion
-):
+class PetVaccinationRecordAttachment(TimestampSchema, PetVaccinationRecordAttachmentBase, PersistentDeletion):
     vaccination_record_id: int
     file_name: str | None
     file_type: AttachmentFileType | None

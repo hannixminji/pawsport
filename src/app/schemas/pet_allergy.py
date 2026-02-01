@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
+from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
 class AllergenType(str, Enum):
@@ -50,7 +50,7 @@ class PetAllergyBase(BaseModel):
         return v
 
 
-class PetAllergy(TimestampSchema, PetAllergyBase, UUIDSchema, PersistentDeletion):
+class PetAllergy(TimestampSchema, PetAllergyBase, PersistentDeletion):
     pet_id: int
 
 

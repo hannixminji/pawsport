@@ -3,7 +3,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
+from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
 class UserLinkedAccountBase(BaseModel):
@@ -11,7 +11,7 @@ class UserLinkedAccountBase(BaseModel):
     provider_user_id: Annotated[str, Field(min_length=1, max_length=255, examples=["1234567890abcdef"])]
 
 
-class UserLinkedAccount(TimestampSchema, UserLinkedAccountBase, UUIDSchema, PersistentDeletion):
+class UserLinkedAccount(TimestampSchema, UserLinkedAccountBase, PersistentDeletion):
     user_id: int
 
 

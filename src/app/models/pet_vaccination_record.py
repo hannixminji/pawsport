@@ -22,7 +22,7 @@ class PetVaccinationRecord(Base):
     __tablename__ = "pet_vaccination_record"
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id"), nullable=False, index=True)
+    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id", ondelete="CASCADE"), nullable=False, index=True)
 
     vaccine_name: Mapped[str] = mapped_column(String(255), nullable=False)
     vaccine_type: Mapped[VaccineType] = mapped_column(
@@ -45,6 +45,7 @@ class PetVaccinationRecord(Base):
         order_by="PetVaccinationRecordAttachment.created_at.asc()",
         back_populates="vaccination_record",
         cascade="all, delete-orphan",
+        passive_deletes=True,
         lazy="selectin",
         init=False
     )
@@ -58,7 +59,7 @@ class PetVaccinationRecord(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
 
-    __tableargs__ = (
+    __table_args__ = (
         Index(
             "uq_pet_vaccination_record_pet_id_vaccine_name_active",
             "pet_id",

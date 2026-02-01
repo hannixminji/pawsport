@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
+from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
 class MedicationFrequency(str, Enum):
@@ -55,7 +55,7 @@ class PetMedicationBase(BaseModel):
         return self
 
 
-class PetMedication(TimestampSchema, PetMedicationBase, UUIDSchema, PersistentDeletion):
+class PetMedication(TimestampSchema, PetMedicationBase, PersistentDeletion):
     pet_id: int
 
 

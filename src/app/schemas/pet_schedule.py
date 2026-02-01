@@ -6,7 +6,7 @@ from typing import Annotated
 from dateutil.rrule import rrulestr
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
+from ..core.schemas import PersistentDeletion, TimestampSchema
 
 _ALLOWED_KEYS = {
     "FREQ",
@@ -357,7 +357,7 @@ class PetScheduleBase(BaseModel):
         return self
 
 
-class PetSchedule(TimestampSchema, PetScheduleBase, UUIDSchema, PersistentDeletion):
+class PetSchedule(TimestampSchema, PetScheduleBase, PersistentDeletion):
     pet_id: int
     next_scheduled_at: datetime | None
 
