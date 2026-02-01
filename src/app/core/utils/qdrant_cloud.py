@@ -89,17 +89,18 @@ def search_pet(
     for scored_point in scored_points:
         payload = scored_point.payload or {}
         pet_id = payload.get("pet_id")
-        if pet_id is None:
-            continue
 
-        prev = best_per_pet.get(pet_id)
-        if prev is None or scored_point.score > prev["score"]:
-            best_per_pet[pet_id] = {
-                "id": scored_point.id,
-                "pet_id": pet_id,
-                "score": scored_point.score,
-                "payload": payload,
-            }
+        if pet_id is not None:
+            pet_id = str(pet_id)
+
+            prev = best_per_pet.get(pet_id)
+            if prev is None or scored_point.score > prev["score"]:
+                best_per_pet[pet_id] = {
+                    "id": scored_point.id,
+                    "pet_id": pet_id,
+                    "score": scored_point.score,
+                    "payload": payload,
+                }
 
     return sorted(best_per_pet.values(), key=lambda x: x["score"], reverse=True)[:limit]
 

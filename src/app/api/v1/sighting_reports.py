@@ -2,6 +2,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Annotated, Any
+from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from fastcrud import PaginatedListResponse, compute_offset, paginated_response
@@ -116,7 +117,7 @@ async def write_sighting_report(
             "id": str(image.uuid),
             "image_object_key": image.image_object_key,
             "payload": {
-                "sighting_report_id": sighting_report_model.id,
+                "sighting_report_id": str(sighting_report_model.uuid),
                 "species": species_value,
             },
         }
@@ -432,19 +433,20 @@ async def read_sighting_report(
 
     pet_ids = [m["matched_pet_id"] for m in unique_pets.values()]
     if pet_ids:
+        pet_uuids = [UUID(str(x)) for x in pet_ids]
         pets_with_profile_images = (
             await db.execute(
                 select(Pet)
                 .options(selectinload(Pet.profile_images))
-                .where(Pet.id.in_(pet_ids), ~Pet.is_deleted)
+                .where(Pet.uuid.in_(pet_uuids), ~Pet.is_deleted)
             )
         ).scalars().all()
     else:
         pets_with_profile_images = []
 
-    pets_map = {p.id: p for p in pets_with_profile_images}
+    pets_map = {str(p.uuid): p for p in pets_with_profile_images}
     for match in unique_pets.values():
-        pet = pets_map.get(match["matched_pet_id"])
+        pet = pets_map.get(str(match["matched_pet_id"]))
         if pet:
             match["pet"] = PetRead.model_validate(pet).model_dump()
 
@@ -563,7 +565,7 @@ async def patch_sighting_report(
                     "id": str(image.uuid),
                     "image_object_key": image.image_object_key,
                     "payload": {
-                        "sighting_report_id": db_sighting_report.id,
+                        "sighting_report_id": str(db_sighting_report.uuid),
                         "species": species_value,
                     },
                 }

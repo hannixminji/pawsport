@@ -107,7 +107,7 @@ async def write_pet(
             "id": str(profile_image.uuid),
             "image_object_key": profile_image.image_object_key,
             "payload": {
-                "pet_id": pet_model.id,
+                "pet_id": str(pet_model.uuid),
                 "species": species_value,
                 "is_missing": False
             }
@@ -218,14 +218,14 @@ async def search_pets(
     if not search_results:
         return []
 
-    pet_scores: dict[int, float] = {}
+    pet_scores: dict[UUID, float] = {}
     for hit in search_results:
-        pet_id = hit["payload"]["pet_id"]
+        pet_id = UUID(str(hit["payload"]["pet_id"]))
         score = hit["score"]
         pet_scores[pet_id] = max(pet_scores.get(pet_id, 0), score)
 
     query = select(Pet).options(selectinload(Pet.profile_images)).where(
-        Pet.id.in_(pet_scores.keys()),
+        Pet.uuid.in_(pet_scores.keys()),
         ~Pet.is_deleted,
     )
 
@@ -234,7 +234,7 @@ async def search_pets(
     data = sorted(
         (
             PetSearch.model_validate(
-                {**PetRead.model_validate(pet).model_dump(), "score": pet_scores.get(pet.id, 0)}
+                {**PetRead.model_validate(pet).model_dump(), "score": pet_scores.get(pet.uuid, 0)}
             )
             for pet in pets
         ),
@@ -524,7 +524,7 @@ async def patch_pet(
                 "id": str(profile_image.uuid),
                 "image_object_key": profile_image.image_object_key,
                 "payload": {
-                    "pet_id": db_pet.id,
+                    "pet_id": str(db_pet.uuid),
                     "species": species_value,
                     "is_missing": False
                 }
