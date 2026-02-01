@@ -2,14 +2,15 @@ import cv2
 import numpy as np
 import onnxruntime as ort
 
-_CAT_MODEL = "ai/models/yolov8sbboxcat640.onnx"
-_DOG_MODEL = "ai/models/yolov8sbboxdog640.onnx"
+_MODEL = "ai/models/yolov8s_cat_dog_bbox.onnx"
 
-_CAT_SESSION = ort.InferenceSession(_CAT_MODEL, providers=["CPUExecutionProvider"])
-_DOG_SESSION = ort.InferenceSession(_DOG_MODEL, providers=["CPUExecutionProvider"])
+_SESSION = ort.InferenceSession(_MODEL, providers=["CPUExecutionProvider"])
+_INPUT = _SESSION.get_inputs()[0].name
 
-_CAT_INPUT = _CAT_SESSION.get_inputs()[0].name
-_DOG_INPUT = _DOG_SESSION.get_inputs()[0].name
+CLASS_ID_BY_SPECIES = {
+    "dog": 0,
+    "cat": 1,
+}
 
 
 def detect(
@@ -23,19 +24,26 @@ def detect(
     if species not in {"cat", "dog"}:
         raise ValueError("species must be 'cat' or 'dog'")
 
-    session = _CAT_SESSION if species == "cat" else _DOG_SESSION
-    input_name = _CAT_INPUT if species == "cat" else _DOG_INPUT
+    wanted_class_id = CLASS_ID_BY_SPECIES[species]
 
     results: dict[str, dict[str, np.ndarray]] = {}
     for image_id, img in images.items():
         img_height, img_width = img.shape[:2]
         input_tensor, scale, pad_w, pad_h = preprocess_image(img, input_size)
-        outputs = session.run(None, {input_name: input_tensor})[0]
-        detections = postprocess_boxes(
-            outputs, img_width, img_height, scale, pad_w, pad_h,
-            conf_threshold, iou_threshold
+        outputs = _SESSION.run(None, {_INPUT: input_tensor})[0]
+        detections = postprocess_boxes_multiclass(
+            outputs,
+            img_width,
+            img_height,
+            scale,
+            pad_w,
+            pad_h,
+            conf_threshold,
+            iou_threshold,
+            wanted_class_id=wanted_class_id,
         )
         results[image_id] = detections
+
     return results
 
 
@@ -55,7 +63,7 @@ def preprocess_image(img: np.ndarray, input_size: tuple[int, int]) -> tuple[np.n
     return input_tensor, scale, pad_w, pad_h
 
 
-def postprocess_boxes(
+def postprocess_boxes_multiclass(
     outputs: np.ndarray,
     img_width: int,
     img_height: int,
@@ -64,22 +72,29 @@ def postprocess_boxes(
     pad_h: int,
     conf_threshold: float,
     iou_threshold: float,
-) -> dict:
+    wanted_class_id: int,
+) -> dict[str, np.ndarray]:
     preds = outputs
     if preds.ndim == 3:
         preds = preds[0]
-    if preds.shape[0] == 5:
+    if preds.shape[0] < preds.shape[1]:
         preds = preds.transpose(1, 0)
 
-    boxes = preds[:, :4]
-    scores = preds[:, 4]
+    if preds.shape[1] < 6:
+        return {"boxes": np.array([]), "scores": np.array([])}
 
-    mask = scores > conf_threshold
+    boxes = preds[:, :4]
+    cls_probs = preds[:, 4:]
+
+    class_ids = np.argmax(cls_probs, axis=1).astype(np.int64)
+    scores = np.max(cls_probs, axis=1).astype(np.float32)
+
+    mask = (scores > conf_threshold) & (class_ids == wanted_class_id)
     boxes = boxes[mask]
     scores = scores[mask]
 
     if len(boxes) == 0:
-        return {'boxes': np.array([]), 'scores': np.array([])}
+        return {"boxes": np.array([]), "scores": np.array([])}
 
     boxes_xyxy = np.column_stack(
         [
@@ -88,7 +103,7 @@ def postprocess_boxes(
             boxes[:, 0] + boxes[:, 2] / 2,
             boxes[:, 1] + boxes[:, 3] / 2,
         ]
-    )
+    ).astype(np.float32)
 
     keep_indices = nms(boxes_xyxy, scores, iou_threshold)
     boxes_xyxy = boxes_xyxy[keep_indices]
@@ -100,7 +115,7 @@ def postprocess_boxes(
     boxes_xyxy[:, [0, 2]] = np.clip(boxes_xyxy[:, [0, 2]], 0, img_width)
     boxes_xyxy[:, [1, 3]] = np.clip(boxes_xyxy[:, [1, 3]], 0, img_height)
 
-    return {'boxes': boxes_xyxy, 'scores': scores}
+    return {"boxes": boxes_xyxy, "scores": scores}
 
 
 def nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> list[int]:
