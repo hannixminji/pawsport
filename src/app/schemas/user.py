@@ -200,7 +200,7 @@ class UserUpdate(BaseModel):
     city: Annotated[str | None, Field(max_length=100, default=None)]
     state_province_region: Annotated[str | None, Field(max_length=100, default=None)]
     postal_code: Annotated[str | None, Field(max_length=16, default=None)]
-    alert_center_geog: Annotated[GeoPoint | None, Field()]
+    alert_center_geog: Annotated[GeoPoint | None, Field(default=None)]
 
     @field_validator(
         "first_name",

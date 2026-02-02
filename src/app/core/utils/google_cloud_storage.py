@@ -103,7 +103,7 @@ def generate_upload_signed_post_policy(
             required_fields[meta_key] = value
             conditions.append(["eq", f"${meta_key}", value])
 
-    url, post_fields = storage_client.generate_signed_post_policy_v4(
+    policy = storage_client.generate_signed_post_policy_v4(
         bucket_name=bucket_name,
         blob_name=blob_name,
         expiration=timedelta(minutes=settings.GCS_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES),
@@ -112,7 +112,7 @@ def generate_upload_signed_post_policy(
         scheme="https",
     )
 
-    return {"url": url, "fields": post_fields}
+    return policy
 
 
 def generate_resumable_upload_signed_url(blob_name: str, content_type: ImageMimeType) -> str:
