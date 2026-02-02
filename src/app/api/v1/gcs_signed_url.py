@@ -1,6 +1,7 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
+from pydantic import Field
 from uuid6 import uuid7
 
 from ...api.dependencies import get_authenticated_user
@@ -24,36 +25,32 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024 # 20MB
 
 def validate_and_get_file_info(filename: str) -> tuple[str, str]:
     if "." not in filename:
-        raise BadRequestException(
-            f"Filename '{filename}' must have a valid extension"
-        )
+        raise BadRequestException(f"Filename '{filename}' must have a valid extension")
 
     extension = filename.rsplit(".", 1)[-1].lower()
 
     if extension not in SUPPORTED_FILE_TYPES:
         supported = ", ".join(SUPPORTED_FILE_TYPES.keys()).upper()
-        raise BadRequestException(
-            f"Filename '{filename}' must be one of: {supported}"
-        )
+        raise BadRequestException(f"Filename '{filename}' must be one of: {supported}")
 
     return extension, SUPPORTED_FILE_TYPES[extension]
 
 
-@router.post("/upload/signed-url")
-async def create_upload_signed_urls(
-    filenames: Annotated[list[str], Query(min_length=1, max_length=10)],
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)]
+@router.post("/upload/signed-post-policy")
+async def create_upload_signed_post_policies(
+    filenames: Annotated[list[str], Field(min_length=1, max_length=10)],
+    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
 ) -> dict[str, list[dict[str, Any]]]:
     uploads: list[dict[str, Any]] = []
 
     for filename in filenames:
         extension, content_type = validate_and_get_file_info(filename)
-
         object_key = f"{uuid7()}.{extension}"
 
         metadata = {
             "original_filename": filename,
             "file_type": extension,
+            "uploader_user_id": str(current_user.id),
         }
 
         post_policy = generate_upload_signed_post_policy(

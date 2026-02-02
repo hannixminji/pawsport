@@ -74,7 +74,7 @@ def generate_upload_signed_url(
         blob_name=blob_name,
         expiration_minutes=settings.GCS_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES,
         method="PUT",
-        content_type=content_type,
+        content_type=str(content_type),
         headers=headers,
     )
 
@@ -88,7 +88,7 @@ def generate_upload_signed_post_policy(
 ) -> dict[str, Any]:
     bucket_name = bucket_name or settings.GCS_BUCKET_NAME
 
-    fields: dict[str, str] = {
+    required_fields: dict[str, str] = {
         "Content-Type": str(content_type),
     }
 
@@ -100,19 +100,19 @@ def generate_upload_signed_post_policy(
     if metadata:
         for key, value in metadata.items():
             meta_key = f"x-goog-meta-{key.lower()}"
-            fields[meta_key] = value
+            required_fields[meta_key] = value
             conditions.append(["eq", f"${meta_key}", value])
 
-    url, signed_fields = storage_client.generate_signed_post_policy_v4(
+    url, post_fields = storage_client.generate_signed_post_policy_v4(
         bucket_name=bucket_name,
         blob_name=blob_name,
         expiration=timedelta(minutes=settings.GCS_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES),
-        fields=fields,
+        fields=required_fields,
         conditions=conditions,
         scheme="https",
     )
 
-    return {"url": url, "fields": signed_fields}
+    return {"url": url, "fields": post_fields}
 
 
 def generate_resumable_upload_signed_url(blob_name: str, content_type: ImageMimeType) -> str:
@@ -120,7 +120,7 @@ def generate_resumable_upload_signed_url(blob_name: str, content_type: ImageMime
         blob_name=blob_name,
         expiration_minutes=settings.GCS_RESUMABLE_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES,
         method="POST",
-        content_type=content_type,
+        content_type=str(content_type),
         headers={"x-goog-resumable": "start"}
     )
 
@@ -128,11 +128,10 @@ def generate_resumable_upload_signed_url(blob_name: str, content_type: ImageMime
 def load_images(blob_names: list[str], bucket_name: str | None = None) -> dict[str, Image.Image]:
     bucket_name = bucket_name or settings.GCS_BUCKET_NAME
     bucket = storage_client.bucket(bucket_name)
-    images = {}
+    images: dict[str, Image.Image] = {}
 
     for blob_name in blob_names:
         blob = bucket.blob(blob_name)
-
         if blob.exists():
             image_bytes = blob.download_as_bytes()
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -144,7 +143,7 @@ def load_images(blob_names: list[str], bucket_name: str | None = None) -> dict[s
 def is_objects_exist(blob_names: list[str], bucket_name: str | None = None) -> dict[str, bool]:
     bucket_name = bucket_name or settings.GCS_BUCKET_NAME
     bucket = storage_client.bucket(bucket_name)
-    results = {}
+    results: dict[str, bool] = {}
 
     for blob_name in blob_names:
         blob = bucket.blob(blob_name)
