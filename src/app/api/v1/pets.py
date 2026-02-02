@@ -55,7 +55,6 @@ async def write_pet(
     request: Request,
     username: str,
     pet: PetCreateWithProfileImages,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> PetRead:
     db_user_id = (
@@ -69,9 +68,6 @@ async def write_pet(
     ).scalar_one_or_none()
     if not db_user_id:
         raise NotFoundException("User not found")
-
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
 
     object_keys = [profile_image.image_object_key for profile_image in pet.profile_images] if pet.profile_images else []
     exists_map = await asyncio.to_thread(is_objects_exist, object_keys)

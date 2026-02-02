@@ -101,6 +101,10 @@ class PetRead(BaseModel):
     is_sterilized: bool
     date_of_birth: date
     profile_images: list[PetProfileImageRead]
+    qr_show_owner_name: bool
+    qr_show_email: bool
+    qr_show_phone_number: bool
+    qr_show_address: bool
     weight_kg: float | None
     color: str | None
     markings: str | None

@@ -1,10 +1,12 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from uuid6 import uuid7
 
+from ...api.dependencies import get_authenticated_user
 from ...core.exceptions.http_exceptions import BadRequestException
 from ...core.utils.google_cloud_storage import generate_upload_signed_post_policy
+from ...schemas.user import UserRead
 
 router = APIRouter(tags=["uploads"])
 
@@ -39,7 +41,8 @@ def validate_and_get_file_info(filename: str) -> tuple[str, str]:
 
 @router.post("/upload/signed-url")
 async def create_upload_signed_urls(
-    filenames: Annotated[list[str], Query(min_length=1, max_length=10)]
+    filenames: Annotated[list[str], Query(min_length=1, max_length=10)],
+    current_user: Annotated[UserRead, Depends(get_authenticated_user)]
 ) -> dict[str, list[dict[str, Any]]]:
     uploads: list[dict[str, Any]] = []
 
