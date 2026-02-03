@@ -3,11 +3,16 @@ import hashlib
 import json
 import logging
 
+import firebase_admin
 import httpx
 import uvloop
 from arq.worker import Worker
 from qdrant_client.http.models import PointStruct
 
+from app.schemas.notification_preference import NotificationFeature
+
+from ...core.db.database import async_engine, local_session
+from ...core.notifications.service import notify_users_near_event_using_alert_center_radius
 from ...core.utils.qdrant_cloud import upsert_embedding
 
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
@@ -83,10 +88,70 @@ async def extract_features_task(ctx, data: list[dict], collection_name: str = "p
             logging.error(f"❌ Unexpected error during feature extraction: {error}")
 
 
-# -------- base functions --------
+async def notify_nearby_alert_center_task(
+    worker_context: Worker,
+    *,
+    event_longitude: float,
+    event_latitude: float,
+    notification_title: str,
+    notification_body: str,
+    notification_data: dict[str, str],
+    notification_feature: NotificationFeature = NotificationFeature.NEARBY_REPORT_ALERTS,
+    radius_in_meters: int = 3_000,
+    excluded_user_id: int | None = None,
+) -> None:
+    database_sessionmaker = worker_context["database_sessionmaker"]
+
+    if isinstance(notification_feature, str):
+        notification_feature = NotificationFeature(notification_feature)
+
+    try:
+        logging.info(
+            "Starting notify_nearby_alert_center_task "
+            f"(event_longitude={event_longitude}, event_latitude={event_latitude}, "
+            f"notification_feature={notification_feature.value}, radius_in_meters={radius_in_meters}, "
+            f"excluded_user_id={excluded_user_id})"
+        )
+
+        async with database_sessionmaker() as database_session:
+            await notify_users_near_event_using_alert_center_radius(
+                database_session,
+                event_longitude=event_longitude,
+                event_latitude=event_latitude,
+                notification_title=notification_title,
+                notification_body=notification_body,
+                notification_data=notification_data,
+                notification_feature=notification_feature,
+                radius_in_meters=radius_in_meters,
+                excluded_user_id=excluded_user_id,
+            )
+            await database_session.commit()
+
+        logging.info(
+            "Finished notify_nearby_alert_center_task "
+            f"(event_longitude={event_longitude}, event_latitude={event_latitude}, "
+            f"notification_feature={notification_feature.value}, radius_in_meters={radius_in_meters}, "
+            f"excluded_user_id={excluded_user_id})"
+        )
+
+    except Exception as error:
+        logging.exception(f"notify_nearby_alert_center_task failed: {error}")
+        raise
+
+
 async def startup(ctx: Worker) -> None:
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app()
+
+    ctx["database_engine"] = async_engine
+    ctx["database_sessionmaker"] = local_session
+
     logging.info("Worker Started")
 
 
 async def shutdown(ctx: Worker) -> None:
+    database_engine = ctx.get("database_engine")
+    if database_engine is not None:
+        await database_engine.dispose()
+
     logging.info("Worker end")

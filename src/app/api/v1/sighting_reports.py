@@ -210,9 +210,6 @@ async def get_combined_reports_by_viewport(
     if sighting_ids:
         sighting_rows = await db.execute(
             select(SightingReport)
-            .options(
-                selectinload(SightingReport.pet).selectinload(Pet.profile_images),
-            )
             .where(SightingReport.id.in_(sighting_ids), ~SightingReport.is_deleted)
         )
         sightings_by_id = {r.id: r for r in sighting_rows.scalars().all()}

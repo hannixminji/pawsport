@@ -3,7 +3,11 @@ import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from geoalchemy2.shape import from_shape
+from pydantic import BaseModel, Field
+from shapely.geometry import Point
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +21,7 @@ from ...core.security import get_password_hash
 from ...core.utils import queue
 from ...core.utils.google_cloud_storage import is_objects_exist
 from ...core.utils.qr_code import generate_qr_and_upload_gcs
+from ...models.notification_preference import NotificationPreference
 from ...models.pet import Pet
 from ...models.pet_allergy import PetAllergy
 from ...models.pet_medical_condition import PetMedicalCondition
@@ -34,6 +39,7 @@ LOGGER = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/test", tags=["tests"])
 
+
 def normalize_species(value: Any) -> str:
     if value is None:
         return ""
@@ -42,10 +48,82 @@ def normalize_species(value: Any) -> str:
     return str(value).lower().strip()
 
 
+class NotificationPreferenceUpsert(BaseModel):
+    feature: str = Field(..., max_length=64)
+    is_enabled: bool
+
+
+@router.post("/user/{username}/notification_preference/upsert")
+async def upsert_notification_preference(
+    username: str,
+    payload: NotificationPreferenceUpsert,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> dict[str, Any]:
+    user_id = (
+        await db.execute(
+            select(User.id).where(
+                User.username == username,
+                ~User.is_deleted,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if not user_id:
+        raise NotFoundException("User not found")
+
+    now = func.now()
+
+    stmt = (
+        insert(NotificationPreference)
+        .values(
+            user_id=user_id,
+            feature=payload.feature,
+            is_enabled=payload.is_enabled,
+            created_at=now,
+            updated_at=now,
+        )
+        .on_conflict_do_update(
+            index_elements=[
+                NotificationPreference.user_id,
+                NotificationPreference.feature,
+            ],
+            set_={
+                "is_enabled": payload.is_enabled,
+                "updated_at": now,
+            },
+        )
+        .returning(
+            NotificationPreference.id,
+            NotificationPreference.user_id,
+            NotificationPreference.feature,
+            NotificationPreference.is_enabled,
+            NotificationPreference.created_at,
+            NotificationPreference.updated_at,
+        )
+    )
+
+    try:
+        row = (await db.execute(stmt)).mappings().one()
+        await db.commit()
+    except IntegrityError as e:
+        await db.rollback()
+        raise BadRequestException(
+            f"Upsert failed (maybe missing UNIQUE(user_id, feature)?): {str(getattr(e, 'orig', e))}"
+        )
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error while upserting notification preference.",
+        )
+
+    return {"ok": True, "preference": dict(row)}
+
+
 @router.post("/user", response_model=UserRead)
 async def create_test_user(
     user: UserCreate,
-    db: Annotated[AsyncSession, Depends(async_get_db)]
+    db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> UserRead:
     user_data = user.model_dump()
     password = user_data.pop("password", None)
@@ -53,16 +131,34 @@ async def create_test_user(
         user_data["hashed_password"] = get_password_hash(password)
 
     new_user = User(**user_data)
+
+    internal_alert_center_longitude = 121.0244
+    internal_alert_center_latitude = 14.5547
+    new_user.alert_center_geog = from_shape(
+        Point(internal_alert_center_longitude, internal_alert_center_latitude),
+        srid=4326,
+    )
+
     db.add(new_user)
 
     try:
+        await db.flush()
+
+        db.add(
+            NotificationPreference(
+                user_id=new_user.id,
+                feature="nearby_report_alerts",
+                is_enabled=True,
+            )
+        )
+
         await db.commit()
         await db.refresh(new_user)
 
     except IntegrityError as error:
         await db.rollback()
 
-        detail = str(error.orig)
+        detail = str(getattr(error, "orig", error))
         if "uq_user_email_not_deleted" in detail:
             field = "email"
         elif "uq_user_username_not_deleted" in detail:

@@ -11,8 +11,10 @@ from .pet_medication import router as pet_medication_router
 from .pet_schedule import router as pet_schedule_router
 from .pet_vaccination_record import router as pet_vaccination_record_router
 from .pets import router as pets_router
+from .push_tokens import router as push_tokens_router
 from .sighting_reports import router as sighting_reports_router
 from .test import router as test_router
+from .test1 import router as test1_router
 from .users import router as users_router
 
 router = APIRouter(prefix="/v1")
@@ -27,7 +29,9 @@ router.include_router(pet_medication_router)
 router.include_router(pet_schedule_router)
 router.include_router(pet_vaccination_record_router)
 router.include_router(pets_router)
+router.include_router(push_tokens_router)
 router.include_router(sighting_reports_router)
 router.include_router(users_router)
 
 router.include_router(test_router)
+router.include_router(test1_router)

@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -11,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from ...core.db.database import async_get_db
 from ...core.exceptions.http_exceptions import DuplicateValueException, UnauthorizedException
 from ...core.security import security, verify_firebase_token
+from ...models.notification_preference import NotificationPreference as NotificationPreferenceModel
 from ...models.user import User
 from ...models.user_linked_account import UserLinkedAccount
 from ...schemas.user import UserRead
@@ -107,6 +109,17 @@ async def login_or_signup(
 
     db.add(user)
     await db.flush()
+
+    now = datetime.now(UTC)
+
+    notification_preference_model = NotificationPreferenceModel(
+        user_id=user.id,
+        feature="nearby_report_alerts",
+        is_enabled=True,
+        created_at=now,
+        updated_at=now
+    )
+    db.add(notification_preference_model)
 
     linked_account_model = UserLinkedAccount(
         user_id=user.id,
