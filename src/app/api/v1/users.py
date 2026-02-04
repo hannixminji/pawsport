@@ -115,14 +115,15 @@ async def patch_user(
         raise ForbiddenException()
 
     payload = values.model_dump(exclude_unset=True)
+    geo_point = values.alert_center_geog if "alert_center_geog" in payload else None
 
     if "alert_center_geog" in payload:
-        geo_point = payload.pop("alert_center_geog")
+        payload.pop("alert_center_geog")
 
         if geo_point is None:
             db_user.alert_center_geog = None
         else:
-            point = Point(geo_point.longitude, geo_point.latitude)
+            point = Point(float(geo_point.longitude), float(geo_point.latitude))
             db_user.alert_center_geog = from_shape(point, srid=4326)
 
     for field, value in payload.items():
