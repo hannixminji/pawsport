@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -9,7 +9,7 @@ from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
 from .pet import PetReadWithPrimaryProfilePicture
 
 
-class MissingReportStatus(str, Enum):
+class MissingReportStatus(StrEnum):
     MISSING = "missing"
     FOUND = "found"
     RETURNED = "returned"

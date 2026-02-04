@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ..core.schemas import TimestampSchema
 
 
-class NotificationFeature(str, Enum):
+class NotificationFeature(StrEnum):
     NEARBY_REPORT_ALERTS = "nearby_report_alerts"
 
 

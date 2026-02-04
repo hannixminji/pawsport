@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -55,25 +56,88 @@ async def write_pet(
     request: Request,
     username: str,
     pet: PetCreateWithProfileImages,
+    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> PetRead:
     db_user_id = (
         await db.execute(
-            select(User.id)
-            .where(
+            select(User.id).where(
                 User.username == username,
-                ~User.is_deleted
+                ~User.is_deleted,
             )
         )
     ).scalar_one_or_none()
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    object_keys = [profile_image.image_object_key for profile_image in pet.profile_images] if pet.profile_images else []
+    if current_user.id != db_user_id:
+        raise ForbiddenException()
+
+    object_keys = [pi.image_object_key for pi in (pet.profile_images or []) if pi.image_object_key]
     exists_map = await asyncio.to_thread(is_objects_exist, object_keys)
-    missing_object_keys = [object_key for object_key, exists in exists_map.items() if not exists]
+    missing_object_keys = [k for k, ok in exists_map.items() if not ok]
     if missing_object_keys:
         raise BadRequestException("Some image files might not have been uploaded. Please upload them and try again.")
+
+    species_value = normalize_species(pet.type)
+    if species_value not in {"cat", "dog"}:
+        raise BadRequestException("Invalid pet type. Must be 'cat' or 'dog'.")
+
+    validation_payload = [{"id": str(i), "image_object_key": k} for i, k in enumerate(object_keys)]
+
+    ml_url = "http://ml:9000/validate_detection"
+    timeout = httpx.Timeout(connect=20.0, write=30.0, read=60.0, pool=None)
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            resp = await client.post(
+                ml_url,
+                data={
+                    "species": species_value,
+                    "image_object_keys": json.dumps(validation_payload),
+                    "conf_threshold": "0.50",
+                },
+            )
+            resp.raise_for_status()
+            v = resp.json()
+
+        except httpx.ReadTimeout as e:
+            LOGGER.warning("validate_detection timeout: %s", e)
+            raise CustomException(503, "Please try again in a bit.")
+
+        except httpx.ConnectError as e:
+            LOGGER.warning("validate_detection connect error: %s", e)
+            raise CustomException(503, "Please try again in a bit.")
+
+        except httpx.HTTPStatusError as e:
+            LOGGER.warning("validate_detection HTTP %s: %s", e.response.status_code, e.response.text)
+            raise CustomException(503, "Please try again in a bit.")
+
+        except Exception as e:
+            LOGGER.exception("validate_detection unexpected error: %s", e)
+            raise CustomException(500, "Something went wrong. Please try again.")
+
+    results = v.get("results", [])
+    invalid = [r for r in results if not r.get("valid")]
+
+    if invalid:
+        reasons = {str(r.get("reason") or "") for r in invalid}
+        bad_ids = [str(r.get("id")) for r in invalid if r.get("id") is not None]
+        bad_ids_sorted = sorted(bad_ids, key=lambda x: int(x) if x.isdigit() else x)
+        bad_label = ", ".join(str(int(x) + 1) for x in bad_ids_sorted if x.isdigit())
+
+        if "wrong_species" in reasons:
+            base = f"One or more photos don’t look like a {species_value}. Please upload clear {species_value} photos."
+        elif "no_detection" in reasons:
+            base = f"We couldn’t find a {species_value} in one or more photos. Please upload clearer photos."
+        elif "multiple_found" in reasons:
+            base = "We detected more than one pet in one or more photos. Please upload photos with only one pet."
+        else:
+            base = "One or more photos can’t be used. Please upload clearer photos."
+
+        if bad_label:
+            raise BadRequestException(f"{base} (Problem photos: {bad_label})")
+        raise BadRequestException(base)
 
     pet_model = Pet(**pet.model_dump(exclude={"profile_images"}), owner_id=db_user_id)
     db.add(pet_model)
@@ -88,15 +152,13 @@ async def write_pet(
     )
     pet_model.qr_code_image_object_key = qr_object_key
 
-    profile_image_models = []
+    profile_image_models: list[PetProfileImage] = []
     for profile_image in pet.profile_images:
         profile_image_model = PetProfileImage(**profile_image.model_dump(), pet_id=pet_model.id)
         db.add(profile_image_model)
         profile_image_models.append(profile_image_model)
 
     await db.flush()
-
-    species_value = normalize_species(pet_model.type)
 
     new_profile_images = [
         {

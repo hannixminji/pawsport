@@ -1,6 +1,6 @@
 import math
 from datetime import date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 from urllib.parse import urlparse
 
@@ -13,12 +13,12 @@ from .pet_profile_image import PetProfileImageCreate, PetProfileImageRead
 from .pet_vaccination_record import PetVaccinationRecordRead
 
 
-class PetType(str, Enum):
+class PetType(StrEnum):
     CAT = "cat"
     DOG = "dog"
 
 
-class PetSex(str, Enum):
+class PetSex(StrEnum):
     MALE = "male"
     FEMALE = "female"
 

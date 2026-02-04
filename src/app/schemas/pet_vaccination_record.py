@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -12,7 +12,7 @@ from .pet_vaccination_record_attachment import (
 )
 
 
-class VaccineType(str, Enum):
+class VaccineType(StrEnum):
     CORE = "core"
     NON_CORE = "non_core"
 

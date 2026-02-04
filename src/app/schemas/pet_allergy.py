@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -7,14 +7,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
-class AllergenType(str, Enum):
+class AllergenType(StrEnum):
     FOOD = "food"
     MEDICATION = "medication"
     ENVIRONMENTAL = "environmental"
     OTHER = "other"
 
 
-class AllergySeverity(str, Enum):
+class AllergySeverity(StrEnum):
     MILD = "mild"
     MODERATE = "moderate"
     SEVERE = "severe"

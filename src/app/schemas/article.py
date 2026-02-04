@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
-class ArticleCategory(str, Enum):
+class ArticleCategory(StrEnum):
     HEALTH = "health"
     CARE = "care"
     VET_VISIT = "vet_visit"
@@ -14,7 +14,7 @@ class ArticleCategory(str, Enum):
     NUTRITION = "nutrition"
 
 
-class ArticlePetType(str, Enum):
+class ArticlePetType(StrEnum):
     DOG = "dog"
     CAT = "cat"
     BOTH = "both"

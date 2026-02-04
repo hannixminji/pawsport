@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy import DateTime, Index, String, Text
 from sqlalchemy import Enum as SQLEnum
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from ..core.db.database import Base
 
 
-class ArticleCategory(str, Enum):
+class ArticleCategory(StrEnum):
     HEALTH = "health"
     CARE = "care"
     VET_VISIT = "vet_visit"
@@ -16,7 +16,7 @@ class ArticleCategory(str, Enum):
     NUTRITION = "nutrition"
 
 
-class ArticlePetType(str, Enum):
+class ArticlePetType(StrEnum):
     DOG = "dog"
     CAT = "cat"
     BOTH = "both"

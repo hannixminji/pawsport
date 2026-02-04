@@ -12,6 +12,8 @@ CLASS_ID_BY_SPECIES = {
     "cat": 1,
 }
 
+SPECIES_BY_CLASS_ID = {v: k for k, v in CLASS_ID_BY_SPECIES.items()}
+
 
 def detect(
     images: dict[str, np.ndarray],
@@ -47,6 +49,32 @@ def detect(
     return results
 
 
+def detect_multiclass(
+    images: dict[str, np.ndarray],
+    conf_threshold: float = 0.50,
+    iou_threshold: float = 0.45,
+    input_size: tuple[int, int] = (640, 640),
+) -> dict[str, dict[str, np.ndarray]]:
+    results: dict[str, dict[str, np.ndarray]] = {}
+    for image_id, img in images.items():
+        img_height, img_width = img.shape[:2]
+        input_tensor, scale, pad_w, pad_h = preprocess_image(img, input_size)
+        outputs = _SESSION.run(None, {_INPUT: input_tensor})[0]
+        detections = postprocess_boxes_multiclass(
+            outputs,
+            img_width,
+            img_height,
+            scale,
+            pad_w,
+            pad_h,
+            conf_threshold,
+            iou_threshold,
+            wanted_class_id=None,
+        )
+        results[image_id] = detections
+    return results
+
+
 def preprocess_image(img: np.ndarray, input_size: tuple[int, int]) -> tuple[np.ndarray, float, int, int]:
     img_height, img_width = img.shape[:2]
     target_w, target_h = input_size
@@ -57,7 +85,7 @@ def preprocess_image(img: np.ndarray, input_size: tuple[int, int]) -> tuple[np.n
     pad_w = (target_w - new_w) // 2
     pad_h = (target_h - new_h) // 2
     padded = np.full((target_h, target_w, 3), 114, dtype=np.uint8)
-    padded[pad_h:pad_h + new_h, pad_w:pad_w + new_w] = resized
+    padded[pad_h : pad_h + new_h, pad_w : pad_w + new_w] = resized
     input_tensor = padded.transpose(2, 0, 1).astype(np.float32) / 255.0
     input_tensor = np.expand_dims(input_tensor, axis=0)
     return input_tensor, scale, pad_w, pad_h
@@ -72,7 +100,7 @@ def postprocess_boxes_multiclass(
     pad_h: int,
     conf_threshold: float,
     iou_threshold: float,
-    wanted_class_id: int,
+    wanted_class_id: int | None,
 ) -> dict[str, np.ndarray]:
     preds = outputs
     if preds.ndim == 3:
@@ -81,7 +109,7 @@ def postprocess_boxes_multiclass(
         preds = preds.transpose(1, 0)
 
     if preds.shape[1] < 6:
-        return {"boxes": np.array([]), "scores": np.array([])}
+        return {"boxes": np.array([]), "scores": np.array([]), "class_ids": np.array([])}
 
     boxes = preds[:, :4]
     cls_probs = preds[:, 4:]
@@ -89,12 +117,16 @@ def postprocess_boxes_multiclass(
     class_ids = np.argmax(cls_probs, axis=1).astype(np.int64)
     scores = np.max(cls_probs, axis=1).astype(np.float32)
 
-    mask = (scores > conf_threshold) & (class_ids == wanted_class_id)
+    mask = scores > conf_threshold
+    if wanted_class_id is not None:
+        mask = mask & (class_ids == wanted_class_id)
+
     boxes = boxes[mask]
     scores = scores[mask]
+    class_ids = class_ids[mask]
 
     if len(boxes) == 0:
-        return {"boxes": np.array([]), "scores": np.array([])}
+        return {"boxes": np.array([]), "scores": np.array([]), "class_ids": np.array([])}
 
     boxes_xyxy = np.column_stack(
         [
@@ -108,6 +140,7 @@ def postprocess_boxes_multiclass(
     keep_indices = nms(boxes_xyxy, scores, iou_threshold)
     boxes_xyxy = boxes_xyxy[keep_indices]
     scores = scores[keep_indices]
+    class_ids = class_ids[keep_indices]
 
     boxes_xyxy[:, [0, 2]] = (boxes_xyxy[:, [0, 2]] - pad_w) / scale
     boxes_xyxy[:, [1, 3]] = (boxes_xyxy[:, [1, 3]] - pad_h) / scale
@@ -115,7 +148,7 @@ def postprocess_boxes_multiclass(
     boxes_xyxy[:, [0, 2]] = np.clip(boxes_xyxy[:, [0, 2]], 0, img_width)
     boxes_xyxy[:, [1, 3]] = np.clip(boxes_xyxy[:, [1, 3]], 0, img_height)
 
-    return {"boxes": boxes_xyxy, "scores": scores}
+    return {"boxes": boxes_xyxy, "scores": scores, "class_ids": class_ids}
 
 
 def nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> list[int]:

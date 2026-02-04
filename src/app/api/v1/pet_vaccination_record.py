@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import UTC, date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -37,19 +37,19 @@ LOGGER = logging.getLogger(__name__)
 router = APIRouter(tags=["pet_vaccination_records"])
 
 
-class SortOrder(str, Enum):
+class SortOrder(StrEnum):
     ASC = "asc"
     DESC = "desc"
 
 
-class VaccinationRecordSortBy(str, Enum):
+class VaccinationRecordSortBy(StrEnum):
     VACCINE_NAME = "vaccine_name"
     DATE_ADMINISTERED = "date_administered"
     NEXT_DUE_DATE = "next_due_date"
     CREATED_AT = "created_at"
 
 
-class FilterOp(str, Enum):
+class FilterOp(StrEnum):
     EQ = "eq"
     ILIKE = "ilike"
     GTE = "gte"
@@ -57,7 +57,7 @@ class FilterOp(str, Enum):
     IN = "in"
 
 
-class VaccinationRecordFilterField(str, Enum):
+class VaccinationRecordFilterField(StrEnum):
     VACCINE_NAME = "vaccine_name"
     VACCINE_TYPE = "vaccine_type"
     DATE_ADMINISTERED = "date_administered"

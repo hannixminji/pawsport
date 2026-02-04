@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric, String
@@ -13,12 +13,12 @@ if TYPE_CHECKING:
     from .user import User
 
 
-class InventoryType(str, Enum):
+class InventoryType(StrEnum):
     FOOD = "food"
     MEDICINE = "medicine"
 
 
-class InventoryUnit(str, Enum):
+class InventoryUnit(StrEnum):
     KG = "kg"
     G = "g"
     LB = "lb"

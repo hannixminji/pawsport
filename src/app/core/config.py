@@ -1,5 +1,5 @@
 import os
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import SecretStr, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -145,10 +145,16 @@ class CRUDAdminSettings(BaseSettings):
 
 
 class AdminSessionSettings(BaseSettings):
-    ADMIN_SESSION_TTL_SECONDS: int = 28800
+    ADMIN_SESSION_TTL_SECONDS: int = 1800
+    ADMIN_SESSION_ABSOLUTE_TTL_SECONDS: int = 604800
+    ADMIN_SESSION_SIGNING_SECRET: SecretStr = SecretStr("")
+
+    ADMIN_SESSION_COOKIE_SECURE: bool = True
+    ADMIN_SESSION_COOKIE_SAMESITE: str = "lax"
+    ADMIN_SESSION_COOKIE_PATH: str = "/admin"
 
 
-class EnvironmentOption(str, Enum):
+class EnvironmentOption(StrEnum):
     LOCAL = "local"
     STAGING = "staging"
     PRODUCTION = "production"

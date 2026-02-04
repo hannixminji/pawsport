@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ..core.schemas import TimestampSchema
 
 
-class PushPlatform(str, Enum):
+class PushPlatform(StrEnum):
     ANDROID = "android"
     IOS = "ios"
 

@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, String
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .pet_vaccination_record_attachment import PetVaccinationRecordAttachment
 
 
-class VaccineType(str, Enum):
+class VaccineType(StrEnum):
     CORE = "core"
     NON_CORE = "non_core"
 

@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, String
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .pet_vaccination_record import PetVaccinationRecord
 
 
-class AttachmentFileType(str, Enum):
+class AttachmentFileType(StrEnum):
     PDF = "pdf"
     JPG = "jpg"
     JPEG = "jpeg"

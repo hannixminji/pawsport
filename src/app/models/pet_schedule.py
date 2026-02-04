@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from .pet import Pet
 
 
-class PetScheduleType(str, Enum):
+class PetScheduleType(StrEnum):
     VET_VISIT = "vet_visit"
     VACCINATION = "vaccination"
     GROOMING = "grooming"

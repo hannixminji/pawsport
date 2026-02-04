@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, String
@@ -12,13 +12,13 @@ if TYPE_CHECKING:
     from .pet import Pet
 
 
-class MedicalConditionSeverity(str, Enum):
+class MedicalConditionSeverity(StrEnum):
     MILD = "mild"
     MODERATE = "moderate"
     SEVERE = "severe"
 
 
-class MedicalConditionStatus(str, Enum):
+class MedicalConditionStatus(StrEnum):
     ACTIVE = "active"
     RESOLVED = "resolved"
     CHRONIC = "chronic"

@@ -1,6 +1,6 @@
 import logging
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -25,19 +25,19 @@ LOGGER = logging.getLogger(__name__)
 router = APIRouter(tags=["articles"])
 
 
-class SortOrder(str, Enum):
+class SortOrder(StrEnum):
     ASC = "asc"
     DESC = "desc"
 
 
-class ArticleSortBy(str, Enum):
+class ArticleSortBy(StrEnum):
     TITLE = "title"
     CATEGORY = "category"
     PET_TYPE = "pet_type"
     CREATED_AT = "created_at"
 
 
-class FilterOp(str, Enum):
+class FilterOp(StrEnum):
     EQ = "eq"
     ILIKE = "ilike"
     GTE = "gte"
@@ -45,7 +45,7 @@ class FilterOp(str, Enum):
     IN = "in"
 
 
-class ArticleFilterField(str, Enum):
+class ArticleFilterField(StrEnum):
     TITLE = "title"
     CATEGORY = "category"
     PET_TYPE = "pet_type"

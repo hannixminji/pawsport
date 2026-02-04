@@ -1,6 +1,6 @@
 import uuid as uuid_pkg
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from geoalchemy2 import Geography
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from .pet import Pet
 
 
-class MissingReportStatus(str, Enum):
+class MissingReportStatus(StrEnum):
     MISSING = "missing"
     FOUND = "found"
     RETURNED = "returned"

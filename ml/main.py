@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import json
 from typing import Any
 
 import cv2
 import numpy as np
-from ai.detect import crop_objects, detect
+from ai.detect import CLASS_ID_BY_SPECIES, SPECIES_BY_CLASS_ID, crop_objects, detect, detect_multiclass
 from ai.extract_features import extract_features
 from ai.pose import align_eyes, detect_pose
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -78,6 +80,113 @@ async def create_embedding(
     ]
 
     return results
+
+
+@app.post("/validate_detection")
+async def validate_detection(
+    species: str = Form(...),
+    image_object_keys: str | None = Form(None),
+    files: list[UploadFile] | None = File(None),
+    conf_threshold: float = Form(0.50),
+) -> dict[str, Any]:
+    species = species.lower().strip()
+    if species not in {"cat", "dog"}:
+        raise HTTPException(status_code=400, detail="species must be 'cat' or 'dog'")
+
+    if (image_object_keys is None and not files) or (image_object_keys is not None and files):
+        raise HTTPException(status_code=400, detail="Provide exactly one: image_object_keys or files")
+
+    images: dict[str, np.ndarray] = {}
+
+    if image_object_keys is not None:
+        try:
+            payload = json.loads(image_object_keys)
+            items = {str(item["id"]): item["image_object_key"] for item in payload}
+        except (ValueError, TypeError, KeyError):
+            raise HTTPException(
+                status_code=400,
+                detail="image_object_keys must be JSON list of {id, image_object_key}",
+            )
+
+        images.update(load_images("pawsport", items))
+    else:
+        for index, file in enumerate(files or []):
+            content = await file.read()
+            np_arr = np.frombuffer(content, np.uint8)
+            img_bgr = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            if img_bgr is not None:
+                images[str(index)] = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+
+    if not images:
+        return {"species": species, "results": []}
+
+    detection_results = detect_multiclass(images, conf_threshold=float(conf_threshold))
+    requested_class_id = CLASS_ID_BY_SPECIES[species]
+
+    results: list[dict[str, Any]] = []
+    for image_id, dr in detection_results.items():
+        boxes = dr.get("boxes", np.array([]))
+        scores = dr.get("scores", np.array([]))
+        class_ids = dr.get("class_ids", np.array([]))
+
+        num_detections = int(len(boxes))
+
+        if num_detections == 0:
+            results.append(
+                {
+                    "id": image_id,
+                    "valid": False,
+                    "detected_species": None,
+                    "confidence": 0.0,
+                    "num_detections": 0,
+                    "reason": "no_detection",
+                }
+            )
+            continue
+
+        if num_detections > 1:
+            top_class_id = int(class_ids[0])
+            results.append(
+                {
+                    "id": image_id,
+                    "valid": False,
+                    "detected_species": SPECIES_BY_CLASS_ID.get(top_class_id),
+                    "confidence": float(scores[0]),
+                    "num_detections": num_detections,
+                    "reason": "multiple_found",
+                }
+            )
+            continue
+
+        top_class_id = int(class_ids[0])
+        detected_species = SPECIES_BY_CLASS_ID.get(top_class_id)
+        confidence = float(scores[0])
+
+        if top_class_id != requested_class_id:
+            results.append(
+                {
+                    "id": image_id,
+                    "valid": False,
+                    "detected_species": detected_species,
+                    "confidence": confidence,
+                    "num_detections": 1,
+                    "reason": "wrong_species",
+                }
+            )
+            continue
+
+        results.append(
+            {
+                "id": image_id,
+                "valid": True,
+                "detected_species": detected_species,
+                "confidence": confidence,
+                "num_detections": 1,
+                "reason": "ok",
+            }
+        )
+
+    return {"species": species, "results": results}
 
 
 @app.post("/search_pet")

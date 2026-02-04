@@ -3,14 +3,16 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...api.dependencies import get_authenticated_user
 from ...core.db.database import async_get_db
-from ...core.exceptions.http_exceptions import BadRequestException, NotFoundException
+from ...core.exceptions.http_exceptions import BadRequestException, ForbiddenException, NotFoundException
 from ...models.push_token import PushToken as PushTokenModel
+from ...models.user import User
 from ...schemas.push_token import PushTokenUpsert
 from ...schemas.user import UserRead
 
@@ -19,48 +21,57 @@ LOGGER = logging.getLogger(__name__)
 router = APIRouter(prefix="/push_tokens", tags=["push_tokens"])
 
 
-@router.post("/push_tokens", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{username}/push_tokens",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def upsert_push_token(
     request: Request,
+    username: str,
     values: PushTokenUpsert,
     current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> None:
+    db_user_id = (
+        await db.execute(
+            select(User.id).where(
+                User.username == username,
+                ~User.is_deleted,
+            )
+        )
+    ).scalar_one_or_none()
+    if not db_user_id:
+        raise NotFoundException("User not found")
+
+    if current_user.id != db_user_id:
+        raise ForbiddenException()
+
     now = datetime.now(UTC)
 
-    push_token_model = PushTokenModel(
-        **values.model_dump(),
-        user_id=current_user.id,
-        last_seen_at=now
-    )
-    db.add(push_token_model)
-
     try:
+        statement = (
+            insert(PushTokenModel)
+            .values(
+                token=values.token,
+                platform=values.platform,
+                user_id=db_user_id,
+                last_seen_at=now,
+                created_at=now,
+                updated_at=now
+            )
+            .on_conflict_do_update(
+                index_elements=[PushTokenModel.token],
+                set_={
+                    "platform": values.platform,
+                    "user_id": db_user_id,
+                    "last_seen_at": now,
+                    "updated_at": now
+                }
+            )
+        )
+
+        await db.execute(statement)
         await db.commit()
-
-    except IntegrityError:
-        await db.rollback()
-
-        try:
-            await db.execute(
-                update(PushTokenModel)
-                .where(PushTokenModel.token == values.token)
-                .values(
-                    **values.model_dump(),
-                    user_id=current_user.id,
-                    last_seen_at=now,
-                    updated_at=now
-                )
-            )
-            await db.commit()
-
-        except SQLAlchemyError:
-            await db.rollback()
-
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="An unexpected error occurred while saving the push token. Please try again later."
-            )
 
     except SQLAlchemyError:
         await db.rollback()

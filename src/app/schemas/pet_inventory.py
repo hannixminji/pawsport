@@ -1,6 +1,6 @@
 import math
 from datetime import date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -9,12 +9,12 @@ from ..core.schemas import PersistentDeletion, TimestampSchema
 from .pet_inventory_image import PetInventoryImageCreate, PetInventoryImageRead, PetInventoryImageUpdate
 
 
-class InventoryType(str, Enum):
+class InventoryType(StrEnum):
     FOOD = "food"
     MEDICINE = "medicine"
 
 
-class InventoryUnit(str, Enum):
+class InventoryUnit(StrEnum):
     KG = "kg"
     G = "g"
     LB = "lb"

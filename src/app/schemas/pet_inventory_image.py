@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
-class InventoryImageFileType(str, Enum):
+class InventoryImageFileType(StrEnum):
     JPG = "jpg"
     JPEG = "jpeg"
     PNG = "png"

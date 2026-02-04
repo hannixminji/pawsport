@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, String
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from .pet import Pet
 
 
-class MedicationFrequency(str, Enum):
+class MedicationFrequency(StrEnum):
     ONCE_DAILY = "once_daily"
     TWICE_DAILY = "twice_daily"
     THREE_TIMES_DAILY = "three_times_daily"
@@ -21,7 +21,7 @@ class MedicationFrequency(str, Enum):
     AS_NEEDED = "as_needed"
 
 
-class MedicationRoute(str, Enum):
+class MedicationRoute(StrEnum):
     ORAL = "oral"
     TOPICAL = "topical"
     INJECTION = "injection"

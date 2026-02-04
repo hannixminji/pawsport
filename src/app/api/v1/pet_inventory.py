@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import UTC, date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -32,19 +32,19 @@ LOGGER = logging.getLogger(__name__)
 router = APIRouter(tags=["pet_inventories"])
 
 
-class SortOrder(str, Enum):
+class SortOrder(StrEnum):
     ASC = "asc"
     DESC = "desc"
 
 
-class PetInventorySortBy(str, Enum):
+class PetInventorySortBy(StrEnum):
     ITEM_NAME = "item_name"
     INVENTORY_TYPE = "inventory_type"
     EXPIRATION_DATE = "expiration_date"
     CREATED_AT = "created_at"
 
 
-class FilterOp(str, Enum):
+class FilterOp(StrEnum):
     EQ = "eq"
     ILIKE = "ilike"
     GTE = "gte"
@@ -52,7 +52,7 @@ class FilterOp(str, Enum):
     IN = "in"
 
 
-class PetInventoryFilterField(str, Enum):
+class PetInventoryFilterField(StrEnum):
     ITEM_NAME = "item_name"
     INVENTORY_TYPE = "inventory_type"
     EXPIRATION_DATE = "expiration_date"

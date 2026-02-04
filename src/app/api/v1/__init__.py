@@ -4,6 +4,7 @@ from .article import router as article_router
 from .gcs_signed_url import router as gcs_signed_url_router
 from .health import router as health_router
 from .missing_reports import router as missing_reports_router
+from .notification_preferences import router as notification_preferences_router
 from .pet_allergy import router as pet_allergy_router
 from .pet_inventory import router as pet_inventory_router
 from .pet_medical_condition import router as pet_medical_condition_router
@@ -22,6 +23,7 @@ router.include_router(article_router)
 router.include_router(gcs_signed_url_router)
 router.include_router(health_router)
 router.include_router(missing_reports_router)
+router.include_router(notification_preferences_router)
 router.include_router(pet_allergy_router)
 router.include_router(pet_inventory_router)
 router.include_router(pet_medical_condition_router)

@@ -1,5 +1,5 @@
 from datetime import UTC, date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -32,17 +32,17 @@ from ...schemas.user import UserRead
 router = APIRouter(tags=["missing reports"])
 
 
-class SortOrder(str, Enum):
+class SortOrder(StrEnum):
     ASC = "asc"
     DESC = "desc"
 
 
-class MissingReportSortBy(str, Enum):
+class MissingReportSortBy(StrEnum):
     LAST_SEEN_DATETIME = "last_seen_datetime"
     CREATED_AT = "created_at"
 
 
-class FilterOp(str, Enum):
+class FilterOp(StrEnum):
     EQ = "eq"
     ILIKE = "ilike"
     GTE = "gte"
@@ -50,7 +50,7 @@ class FilterOp(str, Enum):
     IN = "in"
 
 
-class MissingReportFilterField(str, Enum):
+class MissingReportFilterField(StrEnum):
     STATUS = "status"
     LAST_SEEN_DATETIME = "last_seen_datetime"
     CREATED_AT = "created_at"

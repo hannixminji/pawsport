@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from dateutil.rrule import rrulestr
@@ -277,7 +277,7 @@ def _validate_rrule_allowed_subset(v: str) -> str:  # noqa: C901
     return v
 
 
-class PetScheduleType(str, Enum):
+class PetScheduleType(StrEnum):
     VET_VISIT = "vet_visit"
     VACCINATION = "vaccination"
     GROOMING = "grooming"

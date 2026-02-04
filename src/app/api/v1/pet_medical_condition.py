@@ -1,6 +1,6 @@
 import logging
 from datetime import UTC, date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -37,12 +37,12 @@ LOGGER = logging.getLogger(__name__)
 router = APIRouter(tags=["pet_medical_conditions"])
 
 
-class SortOrder(str, Enum):
+class SortOrder(StrEnum):
     ASC = "asc"
     DESC = "desc"
 
 
-class PetMedicalConditionSortBy(str, Enum):
+class PetMedicalConditionSortBy(StrEnum):
     CONDITION_NAME = "condition_name"
     SEVERITY_LEVEL = "severity_level"
     CONDITION_STATUS = "condition_status"
@@ -50,7 +50,7 @@ class PetMedicalConditionSortBy(str, Enum):
     CREATED_AT = "created_at"
 
 
-class FilterOp(str, Enum):
+class FilterOp(StrEnum):
     EQ = "eq"
     ILIKE = "ilike"
     GTE = "gte"
@@ -58,7 +58,7 @@ class FilterOp(str, Enum):
     IN = "in"
 
 
-class PetMedicalConditionFilterField(str, Enum):
+class PetMedicalConditionFilterField(StrEnum):
     CONDITION_NAME = "condition_name"
     SEVERITY_LEVEL = "severity_level"
     CONDITION_STATUS = "condition_status"

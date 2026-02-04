@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, String
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from .user import User
 
 
-class PushPlatform(str, Enum):
+class PushPlatform(StrEnum):
     ANDROID = "android"
     IOS = "ios"
 

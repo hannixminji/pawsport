@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -7,13 +7,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
-class MedicalConditionSeverity(str, Enum):
+class MedicalConditionSeverity(StrEnum):
     MILD = "mild"
     MODERATE = "moderate"
     SEVERE = "severe"
 
 
-class MedicalConditionStatus(str, Enum):
+class MedicalConditionStatus(StrEnum):
     ACTIVE = "active"
     RESOLVED = "resolved"
     CHRONIC = "chronic"
