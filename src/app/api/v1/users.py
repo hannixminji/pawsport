@@ -54,7 +54,7 @@ async def read_users(
     ).scalar_one()
 
     users_data = {
-        "data": [UserRead.from_orm(user) for user in users],
+        "data": [UserRead.model_validate(user) for user in users],
         "total_count": total_count
     }
 

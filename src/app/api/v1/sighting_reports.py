@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ...api.dependencies import get_authenticated_user
+from ...core.config import settings
 from ...core.db.database import async_get_db
 from ...core.exceptions.http_exceptions import BadRequestException, ForbiddenException, NotFoundException
 from ...core.utils import queue
@@ -111,6 +112,7 @@ async def write_sighting_report(
     await db.flush()
 
     species_value = normalize_species(sighting_report.pet_type)
+    pet_label = species_value if species_value in {"dog", "cat"} else "pet"
 
     new_images = [
         {
@@ -136,6 +138,26 @@ async def write_sighting_report(
         )
 
     await db.refresh(sighting_report_model)
+
+    try:
+        await queue.pool.enqueue_job(
+            "notify_nearby_alert_center_task",
+            event_longitude=geo_point.longitude,
+            event_latitude=geo_point.latitude,
+            notification_title="👀 Pet sighting alert",
+            notification_body=f"A {pet_label} was spotted near your alert center. Tap to view details.",
+            notification_data={
+                "type": "sighting_report_created",
+                "sighting_report_id": str(sighting_report_model.id),
+                "pet_type": pet_label,
+                "username": current_user.username,
+            },
+            notification_feature="nearby_report_alerts",
+            radius_in_meters=settings.NEARBY_ALERT_CENTER_RADIUS_METERS,
+            excluded_user_id=current_user.id,
+        )
+    except Exception as error:
+        LOGGER.warning(f"Failed to enqueue notify_nearby_alert_center_task: {error}")
 
     try:
         if new_images:

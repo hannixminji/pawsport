@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Union
@@ -14,12 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ...api.dependencies import get_authenticated_user
+from ...core.config import settings
 from ...core.db.database import async_get_db
 from ...core.exceptions.http_exceptions import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
 )
+from ...core.utils import queue
 from ...core.utils.cache import cache
 from ...core.utils.qdrant_cloud import update_payload
 from ...models.missing_report import MissingReport, MissingReportStatus
@@ -28,6 +31,8 @@ from ...models.pet_profile_image import PetProfileImage
 from ...models.user import User
 from ...schemas.missing_report import MissingReportCreate, MissingReportRead, MissingReportUpdate
 from ...schemas.user import UserRead
+
+LOGGER = logging.getLogger(__name__)
 
 router = APIRouter(tags=["missing reports"])
 
@@ -260,9 +265,9 @@ async def write_report_missing(
     if current_user.id != db_user_id:
         raise ForbiddenException()
 
-    db_pet_id = (
+    db_pet = (
         await db.execute(
-            select(Pet.id)
+            select(Pet)
             .where(
                 Pet.id == pet_id,
                 Pet.owner_id == db_user_id,
@@ -270,8 +275,11 @@ async def write_report_missing(
             )
         )
     ).scalar_one_or_none()
-    if not db_pet_id:
+    if not db_pet:
         raise NotFoundException("Pet not found")
+
+    pet_type = str(db_pet.type).lower().strip() if db_pet.type is not None else ""
+    pet_label = pet_type if pet_type in {"dog", "cat"} else "pet"
 
     geo_point = missing_report.last_seen_location
     wkb_location = from_shape(Point(geo_point.longitude, geo_point.latitude), srid=4326)
@@ -333,6 +341,27 @@ async def write_report_missing(
         )
 
     await db.refresh(missing_report_model)
+
+    try:
+        await queue.pool.enqueue_job(
+            "notify_nearby_alert_center_task",
+            event_longitude=geo_point.longitude,
+            event_latitude=geo_point.latitude,
+            notification_title="🚨 Missing pet alert",
+            notification_body=f"A missing {pet_label} was reported nearby. Tap to view details.",
+            notification_data={
+                "type": "missing_report_created",
+                "pet_id": str(pet_id),
+                "missing_report_id": str(missing_report_model.id),
+                "pet_type": pet_label,
+                "username": current_user.username,
+            },
+            notification_feature="nearby_report_alerts",
+            radius_in_meters=settings.NEARBY_ALERT_CENTER_RADIUS_METERS,
+            excluded_user_id=current_user.id,
+        )
+    except Exception as error:
+        LOGGER.warning(f"Failed to enqueue notify_nearby_alert_center_task: {error}")
 
     return MissingReportRead.model_validate(missing_report_model)
 

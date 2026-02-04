@@ -39,12 +39,15 @@ services:
     command: arq app.core.worker.settings.WorkerSettings
     env_file:
       - ./src/.env
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/google-service-account.json
     depends_on:
       - db
       - redis
     volumes:
       - ./src/app:/code/app
       - ./src/.env:/code/.env
+      - ./secrets/google-service-account.json:/secrets/google-service-account.json:ro
 
   db:
     image: postgis/postgis:18-3.6-alpine

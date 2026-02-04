@@ -184,6 +184,10 @@ class QdrantCloudSettings(BaseSettings):
     QDRANT_CLOUD_API_KEY: SecretStr = SecretStr("")
 
 
+class NotificationSettings(BaseSettings):
+    NEARBY_ALERT_CENTER_RADIUS_METERS: int = 3000
+
+
 class Settings(
     AppSettings,
     SQLiteSettings,
@@ -201,9 +205,9 @@ class Settings(
     AdminSessionSettings,
     EnvironmentSettings,
     CORSSettings,
-
     GCSSettings,
     QdrantCloudSettings,
+    NotificationSettings,
 ):
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", ".env"),

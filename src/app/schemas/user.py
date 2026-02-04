@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from geoalchemy2.shape import to_shape
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
 from pydantic_extra_types.phone_numbers import PhoneNumber
 
 from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
@@ -132,6 +133,8 @@ class UserRead(BaseModel):
     state_province_region: str | None
     postal_code: str | None
 
+    alert_center_geog: Any | None = Field(default=None, exclude=True)
+
     @field_validator("phone_number", mode="before")
     @classmethod
     def normalize_phone_number(cls, v):
@@ -145,6 +148,22 @@ class UserRead(BaseModel):
                 s = s[4:].strip()
             return s or None
         return v
+
+    @computed_field
+    @property
+    def alert_center_latitude(self) -> float | None:
+        if self.alert_center_geog is None:
+            return None
+        point = to_shape(self.alert_center_geog)
+        return float(point.y)
+
+    @computed_field
+    @property
+    def alert_center_longitude(self) -> float | None:
+        if self.alert_center_geog is None:
+            return None
+        point = to_shape(self.alert_center_geog)
+        return float(point.x)
 
 
 class UserCreate(UserBase):

@@ -3,10 +3,11 @@ import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from geoalchemy2 import Geography, Geometry
 from geoalchemy2.shape import from_shape
 from pydantic import BaseModel, Field
 from shapely.geometry import Point
-from sqlalchemy import func, select
+from sqlalchemy import cast, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,6 +53,79 @@ class NotificationPreferenceUpsert(BaseModel):
     feature: str = Field(..., max_length=64)
     is_enabled: bool
 
+
+@router.put(
+    "/{username}/alert_center",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def set_user_alert_center(
+    username: str,
+    values: dict[str, float],
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> None:
+    db_user = (
+        await db.execute(
+            select(User).where(
+                User.username == username,
+                ~User.is_deleted,
+            )
+        )
+    ).scalar_one_or_none()
+    if not db_user:
+        raise NotFoundException("User not found")
+
+    latitude = values.get("latitude")
+    longitude = values.get("longitude")
+    if latitude is None or longitude is None:
+        raise NotFoundException("latitude and longitude are required")
+
+    geometry_point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
+    geography_point: Any = cast(geometry_point, Geography(geometry_type="POINT", srid=4326))
+
+    try:
+        db_user.alert_center_geog = geography_point
+        await db.commit()
+    except SQLAlchemyError:
+        await db.rollback()
+        raise
+
+@router.get(
+    "/{username}",
+    status_code=status.HTTP_200_OK,
+)
+async def read_user_by_username(
+    request: Request,
+    username: str,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> dict[str, Any]:
+    row = (
+        await db.execute(
+            select(
+                User.id,
+                User.username,
+                User.is_deleted,
+                User.created_at,
+                User.updated_at,
+                func.ST_X(cast(User.alert_center_geog, Geometry())).label("alert_center_longitude"),
+                func.ST_Y(cast(User.alert_center_geog, Geometry())).label("alert_center_latitude"),
+            ).where(
+                User.username == username,
+                ~User.is_deleted,
+            )
+        )
+    ).first()
+    if not row:
+        raise NotFoundException("User not found")
+
+    return {
+        "id": row.id,
+        "username": row.username,
+        "is_deleted": bool(row.is_deleted),
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+        "alert_center_longitude": row.alert_center_longitude,
+        "alert_center_latitude": row.alert_center_latitude,
+    }
 
 @router.post("/user/{username}/notification_preference/upsert")
 async def upsert_notification_preference(
