@@ -82,9 +82,13 @@ async def upsert_push_token(
         )
 
 
-@router.delete("/push_tokens/{token}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{username}/push_tokens/{token}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def erase_push_token(
     request: Request,
+    username: str,
     token: str,
     current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
@@ -92,12 +96,26 @@ async def erase_push_token(
     if not token:
         raise BadRequestException("Token is required")
 
+    db_user_id = (
+        await db.execute(
+            select(User.id).where(
+                User.username == username,
+                ~User.is_deleted
+            )
+        )
+    ).scalar_one_or_none()
+    if not db_user_id:
+        raise NotFoundException("User not found")
+
+    if current_user.id != db_user_id:
+        raise ForbiddenException()
+
     db_push_token = (
         await db.execute(
             select(PushTokenModel)
             .where(
                 PushTokenModel.token == token,
-                PushTokenModel.user_id == current_user.id
+                PushTokenModel.user_id == db_user_id
             )
         )
     ).scalar_one_or_none()
