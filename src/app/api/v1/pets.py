@@ -211,6 +211,8 @@ async def search_pets(
             "Please upload a valid image file — only JPG and PNG formats are supported."
         )
 
+    score_threshold = 0.70 if species == "cat" else 0.60
+
     ml_url = "http://ml:9000/search_pet"
 
     timeout = httpx.Timeout(
@@ -268,6 +270,7 @@ async def search_pets(
             query_vector=embedding,
             collection_name="pet_profile_images",
             limit=5,
+            score_threshold=score_threshold,
             query_filter=Filter(must=query_conditions),
         )
     except Exception as e:
