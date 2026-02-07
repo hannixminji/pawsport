@@ -1,5 +1,5 @@
 # --------- Builder Stage ---------
-FROM ghcr.io/astral-sh/uv:0.9.28-python3.13-trixie-slim AS builder
+FROM ghcr.io/astral-sh/uv:0.10.0-python3.13-trixie-slim AS builder
 
 # Set environment variables for uv
 ENV UV_COMPILE_BYTECODE=1
@@ -13,18 +13,15 @@ RUN apt-get update \
         libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies first (for better layer caching)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project
+# Install dependencies first (standard COPY, no BuildKit mount)
+COPY uv.lock pyproject.toml ./
+RUN uv sync --locked --no-install-project
 
 # Copy the project source code
 COPY . /app
 
 # Install the project in non-editable mode
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-editable
+RUN uv sync --locked --no-editable
 
 # --------- Final Stage ---------
 FROM python:3.13.11-slim-trixie
@@ -39,12 +36,21 @@ COPY --from=builder --chown=app:app /app/.venv /app/.venv
 # Ensure the virtual environment is in the PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Switch to the non-root user
-USER app
-
 # Set the working directory
 WORKDIR /code
 
-# -------- replace with comment to run with gunicorn --------
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-# CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
+# Copy the project source code
+COPY --chown=app:app src/app /code/app
+
+# Copy startup script and fix Windows line endings (CRLF) AS ROOT
+COPY start.sh /code/start.sh
+RUN chmod +x /code/start.sh && sed -i 's/\r$//' /code/start.sh && chown app:app /code/start.sh
+
+# Create directory for crudadmin with correct permissions
+RUN mkdir -p /code/crudadmin_data && chown -R app:app /code/crudadmin_data
+
+# Switch to the non-root user
+USER app
+
+# -------- Run both Worker and Web Server --------
+CMD ["/code/start.sh"]

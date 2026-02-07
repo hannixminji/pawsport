@@ -5,6 +5,7 @@ from typing import Any
 import anyio
 import fastapi
 import redis.asyncio as redis
+from urllib.parse import urlparse
 from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import APIRouter, Depends, FastAPI
@@ -34,9 +35,12 @@ from .db.database import async_engine as engine
 from .utils import admin_session_store, cache, queue
 
 
+from sqlalchemy import text
+
 # -------------- database --------------
 async def create_tables() -> None:
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
         await conn.run_sync(Base.metadata.create_all)
 
 
@@ -53,7 +57,7 @@ async def close_redis_cache_pool() -> None:
 
 # -------------- admin session --------------
 async def create_redis_admin_session_pool() -> None:
-    admin_session_store.pool = redis.ConnectionPool.from_url(settings.REDIS_ADMIN_SESSION_URL)
+    admin_session_store.pool = redis.ConnectionPool.from_url(settings.REDIS_CACHE_URL)
     admin_session_store.client = redis.Redis.from_pool(admin_session_store.pool)  # type: ignore
 
 
@@ -64,7 +68,16 @@ async def close_redis_admin_session_pool() -> None:
 
 # -------------- queue --------------
 async def create_redis_queue_pool() -> None:
-    queue.pool = await create_pool(RedisSettings(host=settings.REDIS_QUEUE_HOST, port=settings.REDIS_QUEUE_PORT))
+    parsed = urlparse(settings.REDIS_CACHE_URL)
+    queue.pool = await create_pool(
+        RedisSettings(
+            host=parsed.hostname or "localhost",
+            port=parsed.port or 6379,
+            password=parsed.password,
+            ssl=parsed.scheme == "rediss",
+            database=0,
+        )
+    )
 
 
 async def close_redis_queue_pool() -> None:
@@ -74,7 +87,7 @@ async def close_redis_queue_pool() -> None:
 
 # -------------- rate limit --------------
 async def create_redis_rate_limit_pool() -> None:
-    rate_limiter.initialize(settings.REDIS_RATE_LIMIT_URL)  # type: ignore
+    rate_limiter.initialize(settings.REDIS_CACHE_URL)  # type: ignore
 
 
 async def close_redis_rate_limit_pool() -> None:

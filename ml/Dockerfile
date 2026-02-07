@@ -38,8 +38,5 @@ COPY --chown=app:app . .
 # Switch to non-root user
 USER app
 
-# Expose service port
-EXPOSE 9000
-
-# Start FastAPI with Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9000", "--reload"]
+# Start FastAPI on port 8080 (Cloud Run default)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

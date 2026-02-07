@@ -31,29 +31,39 @@ client = QdrantClient(
 )
 
 
+
+import logging
+
+logger = logging.getLogger(__name__)
+
 def init_collections() -> None:
-    existing_collections = [collection.name for collection in client.get_collections().collections]
-    for collection_name, vector_size in COLLECTIONS.items():
-        if collection_name not in existing_collections:
-            client.create_collection(
-                collection_name=collection_name,
-                vectors_config=VectorParams(
-                    size=vector_size,
-                    distance=Distance.COSINE
-                )
-            )
-
-    for collection_name, fields in INDEX_FIELDS.items():
-        collection_info = client.get_collection(collection_name)
-        existing_indexes = set(collection_info.payload_schema.keys())
-
-        for field_name, schema in fields.items():
-            if field_name not in existing_indexes:
-                client.create_payload_index(
+    try:
+        existing_collections = [collection.name for collection in client.get_collections().collections]
+        for collection_name, vector_size in COLLECTIONS.items():
+            if collection_name not in existing_collections:
+                client.create_collection(
                     collection_name=collection_name,
-                    field_name=field_name,
-                    field_schema=schema
+                    vectors_config=VectorParams(
+                        size=vector_size,
+                        distance=Distance.COSINE
+                    )
                 )
+
+        for collection_name, fields in INDEX_FIELDS.items():
+            collection_info = client.get_collection(collection_name)
+            existing_indexes = set(collection_info.payload_schema.keys())
+
+            for field_name, schema in fields.items():
+                if field_name not in existing_indexes:
+                    client.create_payload_index(
+                        collection_name=collection_name,
+                        field_name=field_name,
+                        field_schema=schema
+                    )
+    except Exception as e:
+        logger.warning(f"Failed to initialize Qdrant collections: {e}")
+        logger.warning("Application will continue without Qdrant (Search features will be unavailable)")
+
 
 
 def upsert_embedding(collection_name: str, points: PointStruct | list[PointStruct]) -> UpdateResult:

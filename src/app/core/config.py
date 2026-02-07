@@ -62,6 +62,11 @@ class PostgresSettings(DatabaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def POSTGRES_URI(self) -> str:
+        if self.POSTGRES_URL:
+            # Strip scheme if present because database.py prepends the async prefix
+            if "://" in self.POSTGRES_URL:
+                return self.POSTGRES_URL.split("://", 1)[1]
+            return self.POSTGRES_URL
         credentials = f"{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
         location = f"{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         return f"{credentials}@{location}"
@@ -85,6 +90,8 @@ class RedisCacheSettings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def REDIS_CACHE_URL(self) -> str:
+        if url := os.environ.get("REDIS_CACHE_URL"):
+            return url
         return f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}"
 
 

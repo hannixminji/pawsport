@@ -1202,11 +1202,12 @@
                 <div class="section-content">
                     <div class="medical-grid">
                         {% for allergy in pet.allergies %}
-                        <div class="medical-card severity-{{ (allergy.severity_level.name if allergy.severity_level.name is defined else allergy.severity_level)|lower }}">
+                        {% set severity = (allergy.severity_level.name if allergy.severity_level.name is defined else allergy.severity_level)|lower %}
+                        <div class="medical-card severity-{{ severity }}">
                             <div class="medical-card-header">
                                 <div class="medical-card-title">{{ allergy.allergen }}</div>
                                 <div class="badge-group">
-                                    <span class="severity-badge {{ (allergy.severity_level.name if allergy.severity_level.name is defined else allergy.severity_level)|lower }}">{{ (allergy.severity_level.name if allergy.severity_level.name is defined else allergy.severity_level)|lower }}</span>
+                                    <span class="severity-badge {{ severity }}">{{ severity }}</span>
                                     <span class="type-badge">{{ allergy.allergen_type|replace('_', ' ')|title }}</span>
                                 </div>
                             </div>
@@ -1215,6 +1216,49 @@
                                 <strong>Reaction:</strong> {{ allergy.reaction }}
                             </div>
                             {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Medications Section (Newly Added) -->
+            {% if pet.medications %}
+            <div class="medical-section" id="medicationsSection">
+                <div class="section-header-wrapper" onclick="toggleSection('medicationsSection')">
+                    <div class="section-header">
+                        <div class="section-header-left">
+                            <div class="section-icon">💊</div>
+                            <div class="section-title-group">
+                                <h2 class="section-title">Medications</h2>
+                                <span class="section-count">{{ pet.medications|length }} {{ 'medication' if pet.medications|length == 1 else 'medications' }} recorded</span>
+                            </div>
+                        </div>
+                        <button class="collapse-button" type="button">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div class="medical-grid">
+                        {% for med in pet.medications %}
+                        <div class="medical-card severity-moderate"> <!-- Default styling for meds -->
+                            <div class="medical-card-header">
+                                <div class="medical-card-title">{{ med.medication }}</div>
+                                <div class="badge-group">
+                                    <span class="type-badge">{{ med.route|replace('_', ' ')|title }}</span>
+                                </div>
+                            </div>
+                            <div class="medical-detail">
+                                <strong>Dosage:</strong> {{ med.dosage }} • {{ med.frequency|replace('_', ' ')|title }}
+                            </div>
+                            <div class="medical-detail">
+                                <strong>Duration:</strong> {{ med.start_date.strftime('%b %d, %Y') }} 
+                                {% if med.end_date %} - {{ med.end_date.strftime('%b %d, %Y') }}{% else %} (Ongoing){% endif %}
+                            </div>
                         </div>
                         {% endfor %}
                     </div>
@@ -1244,11 +1288,12 @@
                 <div class="section-content">
                     <div class="medical-grid">
                         {% for condition in pet.medical_conditions %}
-                        <div class="medical-card severity-{{ (condition.severity_level.name if condition.severity_level.name is defined else condition.severity_level)|lower }}">
+                        {% set severity = (condition.severity_level.name if condition.severity_level.name is defined else condition.severity_level)|lower %}
+                        <div class="medical-card severity-{{ severity }}">
                             <div class="medical-card-header">
                                 <div class="medical-card-title">{{ condition.condition_name }}</div>
                                 <div class="badge-group">
-                                    <span class="severity-badge {{ (condition.severity_level.name if condition.severity_level.name is defined else condition.severity_level)|lower }}">{{ (condition.severity_level.name if condition.severity_level.name is defined else condition.severity_level)|lower }}</span>
+                                    <span class="severity-badge {{ severity }}">{{ severity }}</span>
                                     <span class="status-badge-small {{ (condition.condition_status.name if condition.condition_status.name is defined else condition.condition_status)|lower }}">{{ (condition.condition_status.name if condition.condition_status.name is defined else condition.condition_status)|lower }}</span>
                                 </div>
                             </div>
@@ -1302,7 +1347,7 @@
                             {% if vaccine.attachments %}
                             <div class="attachment-list">
                                 {% for attachment in vaccine.attachments %}
-                                <a href="{{ attachment.attachment_url }}" target="_blank" class="attachment-badge" title="{{ attachment.file_name or 'Attachment ' ~ loop.index }}">
+                                <a href="{{ attachment.url or attachment.attachment_url }}" target="_blank" class="attachment-badge" title="{{ attachment.file_name or 'Attachment ' ~ loop.index }}">
                                     📎 {{ attachment.file_name or 'Attachment ' ~ loop.index }}
                                 </a>
                                 {% endfor %}

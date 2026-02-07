@@ -1,0 +1,73 @@
+
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+.env   # Wait - user might want .env in cloud run but usually secrets are managed via Secret Manager or passed as env vars. deploy.ps1 sets env vars via command line, so .env file is NOT needed in image!
+
+# Docker
+docker-compose.yml
+# Dockerfile <-- we NEED Dockerfile
+
+# Logs
+*.log
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# IDE
+.idea/
+.vscode/
+
+# Node
+node_modules/
+
+# Mac
+.DS_Store
+
+# PawsPort specific
+# We don't need the 'ml' folder for the backend service build context if it's large.
+# The backend Dockerfile copies `src/app`.
+# Let's exclude ml/ for now to speed up backend build.
+ml/

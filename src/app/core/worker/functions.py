@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 
 import firebase_admin
 import httpx
@@ -51,8 +52,9 @@ async def extract_features_task(ctx, data: list[dict], collection_name: str = "p
                 species_raw = species_raw.value
             species = str(species_raw).lower().strip()
 
+            ml_service_url = os.environ.get("ML_SERVICE_URL", "http://ml:9000")
             response = await client.post(
-                "http://ml:9000/extract_features",
+                f"{ml_service_url}/extract_features",
                 data={"species": species, "image_object_keys": payload},
             )
             response.raise_for_status()
