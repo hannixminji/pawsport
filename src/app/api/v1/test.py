@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Annotated, Any
 
+from argon2 import PasswordHasher
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from geoalchemy2 import Geography, Geometry
 from geoalchemy2.shape import from_shape
@@ -18,7 +19,6 @@ from ...core.exceptions.http_exceptions import (
     DuplicateValueException,
     NotFoundException,
 )
-from ...core.security import get_password_hash
 from ...core.utils import queue
 from ...core.utils.google_cloud_storage import is_objects_exist
 from ...core.utils.qr_code import generate_qr_and_upload_gcs
@@ -39,6 +39,8 @@ from ...schemas.user import UserCreate, UserRead
 LOGGER = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/test", tags=["tests"])
+
+ph = PasswordHasher()
 
 
 def normalize_species(value: Any) -> str:
@@ -103,6 +105,7 @@ async def read_user_by_username(
             select(
                 User.id,
                 User.username,
+                User.hashed_password,
                 User.is_deleted,
                 User.created_at,
                 User.updated_at,
@@ -201,8 +204,9 @@ async def create_test_user(
 ) -> UserRead:
     user_data = user.model_dump()
     password = user_data.pop("password", None)
+
     if password:
-        user_data["hashed_password"] = get_password_hash(password)
+        user_data["hashed_password"] = ph.hash(password)
 
     new_user = User(**user_data)
 

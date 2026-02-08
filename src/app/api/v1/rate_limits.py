@@ -44,7 +44,7 @@ async def write_rate_limit(
         await db.execute(
             select(Tier).where(
                 Tier.name == tier_name,
-                ~Tier.is_deleted,
+                ~Tier.is_deleted
             )
         )
     ).scalar_one_or_none()
@@ -57,7 +57,7 @@ async def write_rate_limit(
         await db.execute(
             select(RateLimit.id).where(
                 RateLimit.name == name,
-                ~RateLimit.is_deleted,
+                ~RateLimit.is_deleted
             )
         )
     ).scalar_one_or_none()
@@ -90,10 +90,12 @@ async def write_rate_limit(
 
     except IntegrityError:
         await db.rollback()
+
         raise BadRequestException("Unable to create the rate limit. Please try again.")
 
     except SQLAlchemyError:
         await db.rollback()
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while creating the rate limit. Please try again later.",
@@ -290,7 +292,7 @@ async def erase_rate_limit(
             select(RateLimit).where(
                 RateLimit.id == id,
                 RateLimit.tier_id == db_tier_id,
-                ~RateLimit.is_deleted,
+                ~RateLimit.is_deleted
             )
         )
     ).scalar_one_or_none()
@@ -307,6 +309,7 @@ async def erase_rate_limit(
 
     except SQLAlchemyError:
         await db.rollback()
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while deleting the rate limit. Please try again later.",

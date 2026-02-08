@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from .admin_auth import router as admin_auth_router
 from .article import router as article_router
 from .gcs_signed_url import router as gcs_signed_url_router
 from .health import router as health_router
@@ -19,6 +20,7 @@ from .test1 import router as test1_router
 from .users import router as users_router
 
 router = APIRouter(prefix="/v1")
+router.include_router(admin_auth_router)
 router.include_router(article_router)
 router.include_router(gcs_signed_url_router)
 router.include_router(health_router)
