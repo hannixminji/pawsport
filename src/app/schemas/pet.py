@@ -271,8 +271,9 @@ class PetCreateWithProfileImages(PetCreate):
     profile_images: Annotated[list[PetProfileImageCreate], Field(..., min_length=1, max_length=5)]
 
     @field_validator("profile_images", mode="after")
-    def check_exactly_one_primary(cls, profile_images):
-        primary_count = sum(profile_image.is_primary for profile_image in profile_images)
+    @classmethod
+    def validate_profile_images(cls, profile_images: list["PetProfileImageCreate"]):
+        primary_count = sum(bool(profile_image.is_primary) for profile_image in profile_images)
         if primary_count != 1:
             raise ValidationError.from_exception_data(
                 cls.__name__,
@@ -284,8 +285,24 @@ class PetCreateWithProfileImages(PetCreate):
                         "input": profile_images,
                         "ctx": {"required_primary_count": 1, "error": ValueError()},
                     }
-                ]
+                ],
             )
+
+        sort_orders = [profile_image.sort_order for profile_image in profile_images]
+        if len(set(sort_orders)) != len(sort_orders):
+            raise ValidationError.from_exception_data(
+                cls.__name__,
+                [
+                    {
+                        "type": "value_error",
+                        "loc": ("profile_images",),
+                        "msg": "profile_images.sort_order must be unique",
+                        "input": profile_images,
+                        "ctx": {"error": ValueError()},
+                    }
+                ],
+            )
+
         return profile_images
 
 
@@ -364,6 +381,41 @@ class PetProfileImageUpdate(BaseModel):
 
 class PetUpdateWithProfileImages(PetUpdate):
     profile_images: Annotated[list[PetProfileImageUpdate], Field(..., min_length=1, max_length=5)]
+
+    @field_validator("profile_images", mode="after")
+    @classmethod
+    def validate_profile_images(cls, profile_images: list["PetProfileImageUpdate"]):
+        primary_count = sum(bool(profile_image.is_primary) for profile_image in profile_images)
+        if primary_count != 1:
+            raise ValidationError.from_exception_data(
+                cls.__name__,
+                [
+                    {
+                        "type": "value_error",
+                        "loc": ("profile_images",),
+                        "msg": "A pet must have exactly one primary profile image",
+                        "input": profile_images,
+                        "ctx": {"required_primary_count": 1, "error": ValueError()},
+                    }
+                ],
+            )
+
+        sort_orders = [profile_image.sort_order for profile_image in profile_images]
+        if len(set(sort_orders)) != len(sort_orders):
+            raise ValidationError.from_exception_data(
+                cls.__name__,
+                [
+                    {
+                        "type": "value_error",
+                        "loc": ("profile_images",),
+                        "msg": "profile_images.sort_order must be unique",
+                        "input": profile_images,
+                        "ctx": {"error": ValueError()},
+                    }
+                ],
+            )
+
+        return profile_images
 
 
 class PetUpdateInternal(PetUpdate):
