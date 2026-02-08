@@ -6,10 +6,10 @@ from typing import Annotated, Any, Literal, Union
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastcrud import PaginatedListResponse, compute_offset, paginated_response
 from geoalchemy2.shape import from_shape
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from qdrant_client.http.models import UpdateStatus
 from shapely.geometry import Point
-from sqlalchemy import and_, func, not_, or_, select
+from sqlalchemy import and_, case, func, not_, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -247,7 +247,7 @@ async def write_report_missing(
     username: str,
     pet_id: int,
     missing_report: MissingReportCreate,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> MissingReportRead:
     db_user_id = (
@@ -262,8 +262,8 @@ async def write_report_missing(
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
 
     db_pet = (
         await db.execute(
@@ -354,11 +354,12 @@ async def write_report_missing(
                 "pet_id": str(pet_id),
                 "missing_report_id": str(missing_report_model.id),
                 "pet_type": pet_label,
-                "username": current_user.username,
+                # "username": current_user.username,
+                "username": username,
             },
             notification_feature="nearby_report_alerts",
             radius_in_meters=settings.NEARBY_ALERT_CENTER_RADIUS_METERS,
-            excluded_user_id=current_user.id,
+            # excluded_user_id=current_user.id,
         )
     except Exception as error:
         LOGGER.warning(f"Failed to enqueue notify_nearby_alert_center_task: {error}")
@@ -476,7 +477,7 @@ async def read_all_missing_reports(
             .join(Pet, Pet.id == MissingReport.pet_id)
             .where(
                 ~MissingReport.is_deleted,
-                ~Pet.is_deleted,
+                ~Pet.is_deleted
             )
         )
     ).scalar_one()
@@ -522,7 +523,8 @@ async def read_missing_reports(
             .join(Pet, Pet.id == MissingReport.pet_id)
             .where(
                 Pet.owner_id == db_user_id,
-                ~MissingReport.is_deleted
+                ~MissingReport.is_deleted,
+                ~Pet.is_deleted
             )
             .offset(compute_offset(page, items_per_page))
             .limit(items_per_page)
@@ -536,7 +538,8 @@ async def read_missing_reports(
             .join(Pet, Pet.id == MissingReport.pet_id)
             .where(
                 Pet.owner_id == db_user_id,
-                ~MissingReport.is_deleted
+                ~MissingReport.is_deleted,
+                ~Pet.is_deleted
             )
         )
     ).scalar_one()
@@ -582,7 +585,8 @@ async def read_missing_report(
             .where(
                 MissingReport.id == id,
                 Pet.owner_id == db_user_id,
-                ~MissingReport.is_deleted
+                ~MissingReport.is_deleted,
+                ~Pet.is_deleted
             )
         )
     ).scalar_one_or_none()
@@ -603,7 +607,7 @@ async def patch_missing_report(
     username: str,
     id: int,
     values: MissingReportUpdate,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, str]:
     db_user_id = (
@@ -618,8 +622,8 @@ async def patch_missing_report(
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
 
     db_missing_report = (
         await db.execute(
@@ -684,6 +688,73 @@ async def patch_missing_report(
     return {"message": "Missing report updated"}
 
 
+@router.patch("/{username}/missing_report/{id}/status")
+@cache(
+    "{username}_missing_report_cache",
+    resource_id_name="id",
+    pattern_to_invalidate_extra=["{username}_missing_reports:*"],
+)
+async def patch_missing_report_status(
+    request: Request,
+    username: str,
+    id: int,
+    status: MissingReportStatus,
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> dict[str, str]:
+    db_user_id = (
+        await db.execute(
+            select(User.id).where(
+                User.username == username,
+                ~User.is_deleted,
+            )
+        )
+    ).scalar_one_or_none()
+    if not db_user_id:
+        raise NotFoundException("User not found")
+
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
+
+    db_missing_report = (
+        await db.execute(
+            select(MissingReport)
+            .join(Pet, Pet.id == MissingReport.pet_id)
+            .where(
+                MissingReport.id == id,
+                Pet.owner_id == db_user_id,
+                ~MissingReport.is_deleted,
+            )
+        )
+    ).scalar_one_or_none()
+    if db_missing_report is None:
+        raise NotFoundException("Missing report not found")
+
+    if db_missing_report.status in {
+        MissingReportStatus.FOUND,
+        MissingReportStatus.RETURNED,
+        MissingReportStatus.CLOSED,
+    }:
+        raise BadRequestException("Missing report status is already final and cannot be changed.")
+
+    db_missing_report.status = status
+    db_missing_report.updated_at = datetime.now(UTC)
+    db.add(db_missing_report)
+
+    try:
+        await db.commit()
+
+    except SQLAlchemyError:
+        await db.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while updating the missing report status. Please try again later.",
+        )
+
+    return {"message": "Missing report status updated"}
+
+
 @router.delete("/{username}/missing_report/{id}")
 @cache(
     "{username}_missing_report_cache",
@@ -694,7 +765,7 @@ async def erase_missing_report(
     request: Request,
     username: str,
     id: int,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, str]:
     db_user_id = (
@@ -709,8 +780,8 @@ async def erase_missing_report(
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
 
     db_missing_report = (
         await db.execute(

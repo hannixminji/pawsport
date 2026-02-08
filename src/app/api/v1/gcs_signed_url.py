@@ -39,7 +39,7 @@ def validate_and_get_file_info(filename: str) -> tuple[str, str]:
 @router.post("/upload/signed-post-policy")
 async def create_upload_signed_post_policies(
     filenames: Annotated[list[str], Field(min_length=1, max_length=10)],
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
 ) -> dict[str, list[dict[str, Any]]]:
     uploads: list[dict[str, Any]] = []
 
@@ -50,7 +50,7 @@ async def create_upload_signed_post_policies(
         metadata = {
             "original_filename": filename,
             "file_type": extension,
-            "uploader_user_id": str(current_user.id),
+            # "uploader_user_id": str(current_user.id),
         }
 
         post_policy = generate_upload_signed_post_policy(

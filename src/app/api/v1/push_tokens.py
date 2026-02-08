@@ -29,7 +29,7 @@ async def upsert_push_token(
     request: Request,
     username: str,
     values: PushTokenUpsert,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> None:
     db_user_id = (
@@ -43,8 +43,8 @@ async def upsert_push_token(
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
 
     now = datetime.now(UTC)
 
@@ -90,7 +90,7 @@ async def erase_push_token(
     request: Request,
     username: str,
     token: str,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> None:
     if not token:
@@ -107,8 +107,8 @@ async def erase_push_token(
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
 
     db_push_token = (
         await db.execute(

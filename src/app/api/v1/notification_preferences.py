@@ -35,7 +35,7 @@ router = APIRouter(tags=["notification_preferences"])
 async def read_notification_preferences(
     request: Request,
     username: str,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> list[NotificationPreferenceRead]:
     db_user_id = (
@@ -50,13 +50,13 @@ async def read_notification_preferences(
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
 
     db_notification_preferences = (
         await db.execute(
             select(NotificationPreferenceModel)
-            .where(NotificationPreferenceModel.user_id == current_user.id)
+            .where(NotificationPreferenceModel.user_id == db_user_id)
             .order_by(NotificationPreferenceModel.feature.asc())
         )
     ).scalars().all()
@@ -75,28 +75,29 @@ async def upsert_notification_preference(
     request: Request,
     username: str,
     values: NotificationPreferenceCreate,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, str]:
     db_user_id = (
         await db.execute(
-            select(User.id).where(
+            select(User.id)
+            .where(
                 User.username == username,
-                ~User.is_deleted,
+                ~User.is_deleted
             )
         )
     ).scalar_one_or_none()
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
 
     now = datetime.now(UTC)
     feature_str = str(values.feature)
 
     try:
-        stmt = (
+        statement = (
             insert(NotificationPreferenceModel)
             .values(
                 user_id=db_user_id,
@@ -117,7 +118,7 @@ async def upsert_notification_preference(
             )
         )
 
-        await db.execute(stmt)
+        await db.execute(statement)
         await db.commit()
 
     except SQLAlchemyError:

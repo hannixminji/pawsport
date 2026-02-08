@@ -2,8 +2,9 @@ import asyncio
 import json
 import logging
 from datetime import UTC, date, datetime
+from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Union
 from uuid import UUID
 
 import httpx
@@ -11,8 +12,9 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastcrud import PaginatedListResponse, compute_offset, paginated_response
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, not_, or_, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -49,6 +51,7 @@ router = APIRouter(tags=["pets"])
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "core" / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
+
 def normalize_species(value: Any) -> str:
     if value is None:
         return ""
@@ -57,12 +60,154 @@ def normalize_species(value: Any) -> str:
     return str(value).lower().strip()
 
 
+class SortOrder(StrEnum):
+    ASC = "asc"
+    DESC = "desc"
+
+
+class FilterOp(StrEnum):
+    EQ = "eq"
+    ILIKE = "ilike"
+    GTE = "gte"
+    LTE = "lte"
+    IN = "in"
+
+
+class PetSortBy(StrEnum):
+    CREATED_AT = "created_at"
+    NAME = "name"
+    TYPE = "type"
+    BREED = "breed"
+    SEX = "sex"
+    DATE_OF_BIRTH = "date_of_birth"
+
+
+class PetFilterField(StrEnum):
+    NAME = "name"
+    TYPE = "type"
+    BREED = "breed"
+    SEX = "sex"
+    COLOR = "color"
+    IS_STERILIZED = "is_sterilized"
+    CREATED_AT = "created_at"
+    DATE_OF_BIRTH = "date_of_birth"
+
+
+class WhereRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["rule"]
+    field: PetFilterField
+    op: FilterOp
+    value: Any
+
+
+class WhereGroup(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["group"]
+    op: Literal["and", "or"]
+    conditions: list["WhereNode"] = Field(min_length=1, max_length=50)
+
+
+class WhereNot(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["not"]
+    condition: "WhereNode"
+
+
+WhereNode = Annotated[Union[WhereRule, WhereGroup, WhereNot], Field(discriminator="type")]
+
+
+class PetSearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    page: int = Field(1, ge=1)
+    items_per_page: int = Field(10, ge=1, le=100)
+
+    sort_by: PetSortBy = PetSortBy.CREATED_AT
+    sort_order: SortOrder = SortOrder.DESC
+
+    where: WhereNode | None = None
+
+    @model_validator(mode="after")
+    def limit_complexity(self):
+        def count_nodes(node: WhereNode, depth: int = 0) -> int:
+            if depth > 10:
+                raise ValueError("where is too deeply nested")
+
+            if isinstance(node, WhereRule):
+                return 1
+
+            if isinstance(node, WhereNot):
+                return 1 + count_nodes(node.condition, depth + 1)
+
+            total = 1
+            for child in node.conditions:
+                total += count_nodes(child, depth + 1)
+            return total
+
+        if self.where is not None:
+            total = count_nodes(self.where, 0)
+            if total > 200:
+                raise ValueError("where is too large")
+        return self
+
+
+def build_where(node: WhereNode, filter_columns: dict[PetFilterField, Any]):  # noqa: C901
+    if isinstance(node, WhereRule):
+        column = filter_columns[node.field]
+        value = node.value
+
+        if node.field in {PetFilterField.TYPE, PetFilterField.SEX}:
+            if node.op not in {FilterOp.EQ, FilterOp.IN}:
+                raise BadRequestException(f"{node.field.value} only supports eq or in.")
+
+        if node.field == PetFilterField.IS_STERILIZED:
+            if node.op != FilterOp.EQ:
+                raise BadRequestException("is_sterilized only supports eq.")
+            if not isinstance(value, bool):
+                raise BadRequestException("is_sterilized value must be boolean.")
+
+        if node.field in {PetFilterField.NAME, PetFilterField.BREED, PetFilterField.COLOR}:
+            if node.op not in {FilterOp.EQ, FilterOp.ILIKE, FilterOp.IN}:
+                raise BadRequestException(f"{node.field.value} only supports eq, ilike, or in.")
+
+        if node.op == FilterOp.EQ:
+            return column == value
+
+        if node.op == FilterOp.ILIKE:
+            if not isinstance(value, str):
+                raise BadRequestException("ILIKE value must be a string.")
+            return column.ilike(f"%{value}%")
+
+        if node.op == FilterOp.GTE:
+            return column >= value
+
+        if node.op == FilterOp.LTE:
+            return column <= value
+
+        if node.op == FilterOp.IN:
+            if not isinstance(value, list) or not value:
+                raise BadRequestException("IN value must be a non-empty list.")
+            return column.in_(value)
+
+        raise BadRequestException("Invalid filter operator.")
+
+    if isinstance(node, WhereNot):
+        return not_(build_where(node.condition, filter_columns))
+
+    children = [build_where(child, filter_columns) for child in node.conditions]
+    return and_(*children) if node.op == "and" else or_(*children)
+
+
 @router.post("/{username}/pet", response_model=PetRead, status_code=201)
 async def write_pet(
     request: Request,
     username: str,
     pet: PetCreateWithProfileImages,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> PetRead:
     db_user_id = (
@@ -76,8 +221,8 @@ async def write_pet(
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
 
     object_keys = [pi.image_object_key for pi in (pet.profile_images or []) if pi.image_object_key]
     exists_map = await asyncio.to_thread(is_objects_exist, object_keys)
@@ -309,6 +454,94 @@ async def search_pets(
     return data
 
 
+@router.post("/{username}/pets/search", response_model=PaginatedListResponse[PetRead])
+async def search_user_pets(
+    request: Request,
+    username: str,
+    values: PetSearchRequest,
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> dict[str, Any]:
+    db_user_id = (
+        await db.execute(
+            select(User.id).where(
+                User.username == username,
+                ~User.is_deleted,
+            )
+        )
+    ).scalar_one_or_none()
+    if not db_user_id:
+        raise NotFoundException("User not found")
+
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
+
+    filter_columns = {
+        PetFilterField.NAME: Pet.name,
+        PetFilterField.TYPE: Pet.type,
+        PetFilterField.BREED: Pet.breed,
+        PetFilterField.SEX: Pet.sex,
+        PetFilterField.COLOR: Pet.color,
+        PetFilterField.IS_STERILIZED: Pet.is_sterilized,
+        PetFilterField.CREATED_AT: Pet.created_at,
+        PetFilterField.DATE_OF_BIRTH: Pet.date_of_birth,
+    }
+
+    sort_columns = {
+        PetSortBy.CREATED_AT: Pet.created_at,
+        PetSortBy.NAME: Pet.name,
+        PetSortBy.TYPE: Pet.type,
+        PetSortBy.BREED: Pet.breed,
+        PetSortBy.SEX: Pet.sex,
+        PetSortBy.DATE_OF_BIRTH: Pet.date_of_birth,
+    }
+
+    where_clauses = [
+        Pet.owner_id == db_user_id,
+        ~Pet.is_deleted,
+    ]
+
+    if values.where is not None:
+        where_clauses.append(build_where(values.where, filter_columns))
+
+    sort_column = sort_columns.get(values.sort_by)
+    if not sort_column:
+        raise BadRequestException("Invalid sort_by field.")
+
+    order_by_clause = sort_column.asc() if values.sort_order == SortOrder.ASC else sort_column.desc()
+
+    pets = (
+        await db.execute(
+            select(Pet)
+            .options(selectinload(Pet.profile_images))
+            .where(*where_clauses)
+            .order_by(order_by_clause)
+            .offset(compute_offset(values.page, values.items_per_page))
+            .limit(values.items_per_page)
+        )
+    ).scalars().all()
+
+    total_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(Pet)
+            .where(*where_clauses)
+        )
+    ).scalar_one()
+
+    pets_data = {
+        "data": [PetRead.model_validate(pet) for pet in pets],
+        "total_count": total_count
+    }
+
+    response: dict[str, Any] = paginated_response(
+        crud_data=pets_data,
+        page=values.page,
+        items_per_page=values.items_per_page
+    )
+    return response
+
+
 @router.get("/pets", response_model=PaginatedListResponse[PetRead])
 async def read_all_pets(
     request: Request,
@@ -485,7 +718,7 @@ async def patch_pet(
     username: str,
     id: int,
     values: PetUpdateWithProfileImages,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, str]:
     db_user_id = (
@@ -500,8 +733,8 @@ async def patch_pet(
     if not db_user_id:
         raise NotFoundException("User not found")
 
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
 
     db_pet = (
         await db.execute(
@@ -633,6 +866,7 @@ async def erase_pet(
     request: Request,
     username: str,
     id: int,
+    # current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, str]:
     db_user_id = (
@@ -646,6 +880,9 @@ async def erase_pet(
     ).scalar_one_or_none()
     if not db_user_id:
         raise NotFoundException("User not found")
+
+    # if current_user.id != db_user_id:
+    #     raise ForbiddenException()
 
     db_pet = (
         await db.execute(
@@ -775,7 +1012,10 @@ async def erase_pet(
 @router.delete("/{username}/db_pet/{id}", dependencies=[Depends(get_authenticated_superuser)])
 @cache("{username}_pet_cache", resource_id_name="id", to_invalidate_extra={"{username}_pets": "{username}"})
 async def erase_db_pet(
-    request: Request, username: str, id: int, db: Annotated[AsyncSession, Depends(async_get_db)]
+    request: Request,
+    username: str,
+    id: int,
+    db: Annotated[AsyncSession, Depends(async_get_db)]
 ) -> dict[str, str]:
     db_user_id = (
         await db.execute(
