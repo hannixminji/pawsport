@@ -14,6 +14,24 @@ from ...core.type_aliases import HttpMethod, ImageMimeType, SignedUrlVersion
 
 @lru_cache(maxsize=1)
 def get_storage_client() -> storage.Client:
+    if settings.GOOGLE_APPLICATION_CREDENTIALS_JSON:
+        import base64
+        import json
+        from google.oauth2 import service_account
+
+        secret_value = settings.GOOGLE_APPLICATION_CREDENTIALS_JSON.get_secret_value()
+        
+        try:
+            # Try decoding as base64 first
+            decoded_bytes = base64.b64decode(secret_value)
+            decoded_str = decoded_bytes.decode("utf-8")
+            info = json.loads(decoded_str)
+        except (ValueError, base64.binascii.Error):
+            # Fallback to plain JSON string if not base64
+            info = json.loads(secret_value)
+
+        credentials = service_account.Credentials.from_service_account_info(info)
+        return storage.Client(credentials=credentials)
     return storage.Client()
 
 
