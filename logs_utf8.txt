@@ -1,0 +1,217 @@
+﻿Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Traceback (most recent call last):
+  File "/code/app/core/health.py", line 12, in check_database_health
+    await db.execute(text("SELECT 1"))
+  File "/app/.venv/lib/python3.13/site-packages/sqlalchemy/ext/asyncio/session.py", line 463, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 838, in _start_transaction
+    self._transaction = self._connection.transaction(
+                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+
+
+
+Default STARTUP TCP probe failed 1 time consecutively for container "pawsport-backend-1" on port 8080. The instance was not started.
+Connection failed with status CANCELLED.
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/local/lib/python3.13/contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 133, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/local/lib/python3.13/contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/code/app/main.py", line 28, in lifespan_with_admin
+    async with default_lifespan(app):
+               ~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/local/lib/python3.13/contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/code/app/core/setup.py", line 140, in lifespan
+    await create_tables()
+  File "/code/app/core/setup.py", line 41, in create_tables
+    await conn.run_sync(Base.metadata.create_all)
+  File "/app/.venv/lib/python3.13/site-packages/sqlalchemy/ext/asyncio/engine.py", line 887, in run_sync
+    return await greenlet_spawn(
+           ^^^^^^^^^^^^^^^^^^^^^
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+
+
+Default STARTUP TCP probe failed 1 time consecutively for container "pawsport-backend-1" on port 8080. The instance was not started.
+Connection failed with status CANCELLED.
+
+
+Default STARTUP TCP probe failed 1 time consecutively for container "pawsport-backend-1" on port 8080. The instance was not started.
+Connection failed with status CANCELLED.
+
+
+Default STARTUP TCP probe failed 1 time consecutively for container "pawsport-backend-1" on port 8080. The instance was not started.
+Connection failed with status CANCELLED.
+
+
+Default STARTUP TCP probe failed 1 time consecutively for container "pawsport-backend-1" on port 8080. The instance was not started.
+Connection failed with status CANCELLED.
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/local/lib/python3.13/contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 133, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/local/lib/python3.13/contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/code/app/main.py", line 28, in lifespan_with_admin
+    async with default_lifespan(app):
+               ~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/local/lib/python3.13/contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/code/app/core/setup.py", line 124, in lifespan
+    await create_redis_queue_pool()
+  File "/code/app/core/setup.py", line 67, in create_redis_queue_pool
+    queue.pool = await create_pool(RedisSettings(host=settings.REDIS_QUEUE_HOST, port=settings.REDIS_QUEUE_PORT))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/arq/connections.py", line 280, in create_pool
+    await pool.ping()
+  File "/app/.venv/lib/python3.13/site-packages/redis/asyncio/client.py", line 641, in execute_command
+    conn = self.connection or await pool.get_connection()
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1100, in get_connection
+    await self.ensure_connection(connection)
+  File "/app/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 1133, in ensure_connection
+    await connection.connect()
+  File "/app/.venv/lib/python3.13/site-packages/redis/asyncio/connection.py", line 298, in connect
+    raise ConnectionError(self._error_message(e))
+redis.exceptions.ConnectionError: Error 111 connecting to localhost:6379. Connection refused.
+
+
+Default STARTUP TCP probe failed 1 time consecutively for container "pawsport-backend-1" on port 8080. The instance was not started.
+Connection failed with status CANCELLED.
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/starlette/routing.py", line 693, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/local/lib/python3.13/contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/fastapi/routing.py", line 133, in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/local/lib/python3.13/contextlib.py", line 214, in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/code/app/main.py", line 21, in lifespan_with_admin
+    init_collections()
+    ~~~~~~~~~~~~~~~~^^
+  File "/code/app/core/utils/qdrant_cloud.py", line 35, in init_collections
+    existing_collections = [collection.name for collection in client.get_collections().collections]
+                                                              ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/app/.venv/lib/python3.13/site-packages/qdrant_client/qdrant_client.py", line 1521, in get_collections
+    return self._client.get_collections(**kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/qdrant_client/qdrant_remote.py", line 1786, in get_collections
+    self.http.collections_api.get_collections().result
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/app/.venv/lib/python3.13/site-packages/qdrant_client/http/api/collections_api.py", line 330, in get_collections
+    return self._build_for_get_collections()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/app/.venv/lib/python3.13/site-packages/qdrant_client/http/api/collections_api.py", line 159, in _build_for_get_collections
+    return self.api_client.request(
+           ~~~~~~~~~~~~~~~~~~~~~~~^
+Traceback (most recent call last):
+  File "/app/.venv/lib/python3.13/site-packages/qdrant_client/http/api_client.py", line 134, in send_inner
+    response = self._client.send(request)
+  File "/app/.venv/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+
+
+Default STARTUP TCP probe failed 1 time consecutively for container "pawsport-backend-1" on port 8080. The instance was not started.
+Connection failed with status CANCELLED.
+Traceback (most recent call last):
+  File "/app/.venv/bin/uvicorn", line 10, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/app/.venv/lib/python3.13/site-packages/click/core.py", line 1442, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/click/core.py", line 1363, in main
+    rv = self.invoke(ctx)
+  File "/app/.venv/lib/python3.13/site-packages/click/core.py", line 1226, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/click/core.py", line 794, in invoke
+    return callback(*args, **kwargs)
+  File "/app/.venv/lib/python3.13/site-packages/uvicorn/main.py", line 413, in main
+    run(
+    ~~~^
+
+
+Default STARTUP TCP probe failed 1 time consecutively for container "pawsport-backend-1" on port 8080. The instance was not started.
+Connection failed with status CANCELLED.
+Traceback (most recent call last):
+  File "/app/.venv/bin/uvicorn", line 10, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/app/.venv/lib/python3.13/site-packages/click/core.py", line 1442, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/click/core.py", line 1363, in main
+    rv = self.invoke(ctx)
+  File "/app/.venv/lib/python3.13/site-packages/click/core.py", line 1226, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/click/core.py", line 794, in invoke
+    return callback(*args, **kwargs)
+  File "/app/.venv/lib/python3.13/site-packages/uvicorn/main.py", line 413, in main
+    run(
+    ~~~^
+
+
+Default STARTUP TCP probe failed 1 time consecutively for container "pawsport-backend-1" on port 8080. The instance was not started.
+Connection failed with status CANCELLED.

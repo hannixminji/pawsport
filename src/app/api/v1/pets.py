@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ...api.dependencies import get_authenticated_superuser, get_authenticated_user
+from ...core.config import settings
 from ...core.db.database import async_get_db
 from ...core.exceptions.http_exceptions import (
     BadRequestException,
@@ -85,7 +86,7 @@ async def write_pet(
 
     validation_payload = [{"id": str(i), "image_object_key": k} for i, k in enumerate(object_keys)]
 
-    ml_url = "http://ml:9000/validate_detection"
+    ml_url = f"{settings.ML_SERVICE_URL}/validate_detection"
     timeout = httpx.Timeout(connect=20.0, write=30.0, read=60.0, pool=None)
 
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -211,7 +212,7 @@ async def search_pets(
             "Please upload a valid image file — only JPG and PNG formats are supported."
         )
 
-    ml_url = "http://ml:9000/search_pet"
+    ml_url = f"{settings.ML_SERVICE_URL}/search_pet"
 
     timeout = httpx.Timeout(
         connect=60.0,

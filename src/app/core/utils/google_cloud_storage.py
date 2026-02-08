@@ -19,7 +19,7 @@ def get_storage_client() -> storage.Client:
         import json
         from google.oauth2 import service_account
 
-        secret_value = settings.GOOGLE_APPLICATION_CREDENTIALS_JSON.get_secret_value()
+        secret_value = settings.GOOGLE_APPLICATION_CREDENTIALS_JSON.get_secret_value().strip().strip("'").strip('"')
         
         try:
             # Try decoding as base64 first
@@ -28,7 +28,12 @@ def get_storage_client() -> storage.Client:
             info = json.loads(decoded_str)
         except (ValueError, base64.binascii.Error):
             # Fallback to plain JSON string if not base64
-            info = json.loads(secret_value)
+            try:
+                info = json.loads(secret_value)
+            except json.JSONDecodeError as e:
+                # Log a masked snippet of the value to help debugging without leaking the full key
+                masked = secret_value[:10] + "..." if len(secret_value) > 10 else secret_value
+                raise ValueError(f"Failed to decode credentials. Value starts with: {masked}. Error: {e}")
 
         credentials = service_account.Credentials.from_service_account_info(info)
         return storage.Client(credentials=credentials)
