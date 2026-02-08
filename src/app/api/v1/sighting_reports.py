@@ -214,8 +214,10 @@ async def get_combined_reports_by_viewport(
                 cast(MissingReport.last_seen_location, Geometry("POINT", 4326)), user_point
             ).label("distance"),
         )
+        .join(MissingReport.pet)
         .where(
             ~MissingReport.is_deleted,
+            ~Pet.is_deleted,
             ST_Within(
                 cast(MissingReport.last_seen_location, Geometry("POINT", 4326)), envelope
             ),

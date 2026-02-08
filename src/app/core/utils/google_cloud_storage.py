@@ -219,3 +219,16 @@ def get_objects_metadata(
             results[blob_name] = {}
 
     return results
+
+
+def delete_object(blob_name: str, bucket_name: str | None = None) -> bool:
+    bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+
+    storage_client = get_storage_client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+
+    if blob.exists():
+        blob.delete()
+        return True
+    return False

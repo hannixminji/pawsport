@@ -28,11 +28,17 @@ from ...core.exceptions.http_exceptions import (
 )
 from ...core.utils import queue
 from ...core.utils.cache import cache
-from ...core.utils.google_cloud_storage import is_objects_exist
+from ...core.utils.google_cloud_storage import delete_object, is_objects_exist
 from ...core.utils.qdrant_cloud import delete_embedding, search_pet
 from ...core.utils.qr_code import generate_qr_and_upload_gcs
+from ...models.missing_report import MissingReport
 from ...models.pet import Pet
+from ...models.pet_allergy import PetAllergy
+from ...models.pet_medical_condition import PetMedicalCondition
+from ...models.pet_medication import PetMedication
 from ...models.pet_profile_image import PetProfileImage
+from ...models.pet_schedule import PetSchedule
+from ...models.pet_vaccination_record import PetVaccinationRecord
 from ...models.user import User
 from ...schemas.pet import PetCreateWithProfileImages, PetRead, PetReadByQr, PetSearch, PetUpdateWithProfileImages
 from ...schemas.user import UserRead
@@ -623,7 +629,14 @@ async def patch_pet(
 
 
 @router.delete("/{username}/pet/{id}")
-@cache("{username}_pet_cache", resource_id_name="id", to_invalidate_extra={"{username}_pets": "{username}"})
+@cache(
+    "{username}_pet_cache",
+    resource_id_name="id",
+    to_invalidate_extra={
+        "{username}_pets": "{username}",
+        "{username}_missing_reports": "{username}",
+    },
+)
 async def erase_pet(
     request: Request,
     username: str,
@@ -662,10 +675,40 @@ async def erase_pet(
 
     profile_image_uuids = [str(profile_image.uuid) for profile_image in db_pet.profile_images]
 
+    # Get related entities to soft delete
+    missing_reports = (
+        await db.execute(select(MissingReport).where(MissingReport.pet_id == db_pet.id, ~MissingReport.is_deleted))
+    ).scalars().all()
+
+    vaccination_records = (
+        await db.execute(select(PetVaccinationRecord).where(PetVaccinationRecord.pet_id == db_pet.id, ~PetVaccinationRecord.is_deleted))
+    ).scalars().all()
+
+    allergies = (
+        await db.execute(select(PetAllergy).where(PetAllergy.pet_id == db_pet.id, ~PetAllergy.is_deleted))
+    ).scalars().all()
+
+    medications = (
+        await db.execute(select(PetMedication).where(PetMedication.pet_id == db_pet.id, ~PetMedication.is_deleted))
+    ).scalars().all()
+
+    medical_conditions = (
+        await db.execute(select(PetMedicalCondition).where(PetMedicalCondition.pet_id == db_pet.id, ~PetMedicalCondition.is_deleted))
+    ).scalars().all()
+
+    schedules = (
+        await db.execute(select(PetSchedule).where(PetSchedule.pet_id == db_pet.id, ~PetSchedule.is_deleted))
+    ).scalars().all()
+
     now = datetime.now(UTC)
     db_pet.is_deleted = True
     db_pet.deleted_at = now
     db.add(db_pet)
+
+    for entity in missing_reports + vaccination_records + allergies + medications + medical_conditions + schedules:
+        entity.is_deleted = True
+        entity.deleted_at = now
+        db.add(entity)
 
     try:
         await db.execute(
@@ -692,6 +735,12 @@ async def erase_pet(
             await asyncio.to_thread(delete_embedding, "pet_profile_images", profile_image_uuids)
         except Exception as error:
             LOGGER.warning(f"Failed to delete embeddings for pet_profile_images {profile_image_uuids}: {error}")
+
+    if db_pet.qr_code_image_object_key:
+        try:
+            await asyncio.to_thread(delete_object, db_pet.qr_code_image_object_key)
+        except Exception as error:
+            LOGGER.warning(f"Failed to delete QR code image {db_pet.qr_code_image_object_key}: {error}")
 
     return {"message": "Pet deleted"}
 
