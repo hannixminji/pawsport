@@ -30,8 +30,14 @@ from ...core.utils.cache import cache
 from ...core.utils.google_cloud_storage import is_objects_exist
 from ...core.utils.qdrant_cloud import delete_embedding, search_pet
 from ...core.utils.qr_code import generate_qr_and_upload_gcs
+from ...models.missing_report import MissingReport
 from ...models.pet import Pet
+from ...models.pet_allergy import PetAllergy
+from ...models.pet_medical_condition import PetMedicalCondition
+from ...models.pet_medication import PetMedication
 from ...models.pet_profile_image import PetProfileImage
+from ...models.pet_schedule import PetSchedule
+from ...models.pet_vaccination_record import PetVaccinationRecord
 from ...models.user import User
 from ...schemas.pet import PetCreateWithProfileImages, PetRead, PetReadByQr, PetSearch, PetUpdateWithProfileImages
 from ...schemas.user import UserRead
@@ -627,7 +633,6 @@ async def erase_pet(
     request: Request,
     username: str,
     id: int,
-    current_user: Annotated[UserRead, Depends(get_authenticated_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
 ) -> dict[str, str]:
     db_user_id = (
@@ -641,9 +646,6 @@ async def erase_pet(
     ).scalar_one_or_none()
     if not db_user_id:
         raise NotFoundException("User not found")
-
-    if current_user.id != db_user_id:
-        raise ForbiddenException()
 
     db_pet = (
         await db.execute(
@@ -678,9 +680,84 @@ async def erase_pet(
                 deleted_at=now
             )
         )
+
+        await db.execute(
+            update(PetVaccinationRecord)
+            .where(
+                PetVaccinationRecord.pet_id == db_pet.id,
+                ~PetVaccinationRecord.is_deleted
+            )
+            .values(
+                is_deleted=True,
+                deleted_at=now
+            )
+        )
+
+        await db.execute(
+            update(PetAllergy)
+            .where(
+                PetAllergy.pet_id == db_pet.id,
+                ~PetAllergy.is_deleted
+            )
+            .values(
+                is_deleted=True,
+                deleted_at=now
+            )
+        )
+
+        await db.execute(
+            update(PetMedication)
+            .where(
+                PetMedication.pet_id == db_pet.id,
+                ~PetMedication.is_deleted
+            )
+            .values(
+                is_deleted=True,
+                deleted_at=now
+            )
+        )
+
+        await db.execute(
+            update(PetMedicalCondition)
+            .where(
+                PetMedicalCondition.pet_id == db_pet.id,
+                ~PetMedicalCondition.is_deleted
+            )
+            .values(
+                is_deleted=True,
+                deleted_at=now
+            )
+        )
+
+        await db.execute(
+            update(PetSchedule)
+            .where(
+                PetSchedule.pet_id == db_pet.id,
+                ~PetSchedule.is_deleted
+            )
+            .values(
+                is_deleted=True,
+                deleted_at=now
+            )
+        )
+
+        await db.execute(
+            update(MissingReport)
+            .where(
+                MissingReport.pet_id == db_pet.id,
+                ~MissingReport.is_deleted
+            )
+            .values(
+                is_deleted=True,
+                deleted_at=now
+            )
+        )
+
         await db.commit()
+
     except SQLAlchemyError:
         await db.rollback()
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while deleting the pet. Please try again later."

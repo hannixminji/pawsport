@@ -459,7 +459,11 @@ async def read_all_missing_reports(
         await db.execute(
             select(MissingReport)
             .options(selectinload(MissingReport.pet).selectinload(Pet.profile_images))
-            .where(~MissingReport.is_deleted)
+            .join(Pet, Pet.id == MissingReport.pet_id)
+            .where(
+                ~MissingReport.is_deleted,
+                ~Pet.is_deleted
+            )
             .offset(compute_offset(page, items_per_page))
             .limit(items_per_page)
         )
@@ -469,7 +473,11 @@ async def read_all_missing_reports(
         await db.execute(
             select(func.count())
             .select_from(MissingReport)
-            .where(~MissingReport.is_deleted)
+            .join(Pet, Pet.id == MissingReport.pet_id)
+            .where(
+                ~MissingReport.is_deleted,
+                ~Pet.is_deleted,
+            )
         )
     ).scalar_one()
 
