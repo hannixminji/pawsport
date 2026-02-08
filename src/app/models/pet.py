@@ -121,9 +121,20 @@ class Pet(Base):
         return [profile_image.image_url for profile_image in self.profile_images]
 
     @property
-    def primary_profile_image_url(self) -> str | None:
-        primary = next((profile_image for profile_image in self.profile_images if profile_image.is_primary), None)
-        return primary.image_url if primary else None
+    def primary_profile_image_url(self) -> str:
+        if not self.profile_images:
+            raise RuntimeError(f"Pet {self.id} has no profile images")
+
+        primary = next(
+            (
+                profile_image
+                for profile_image in self.profile_images
+                if profile_image.is_primary
+            ),
+            None,
+        )
+
+        return (primary or self.profile_images[0]).image_url
 
     @property
     def qr_code_url(self) -> str | None:
