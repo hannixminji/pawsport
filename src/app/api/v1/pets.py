@@ -295,7 +295,7 @@ async def write_pet(
     await db.flush()
 
     qr_object_key = generate_qr_and_upload_gcs(
-        data=f"http://localhost/api/v1/pet/qr/{pet_model.uuid}",
+        data=f"http://localhost:8000/api/v1/pet/qr/{pet_model.uuid}",
         object_key=f"qr_codes/{pet_model.uuid}.png",
         scale=10,
         error="H",
