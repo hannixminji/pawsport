@@ -11,12 +11,15 @@ from uuid6 import uuid7
 
 from ..core.db.database import Base
 from ..core.utils.google_cloud_storage import generate_view_signed_url
+from ._rbac_tables import user_permission, user_role
 
 if TYPE_CHECKING:
     from .notification_preference import NotificationPreference
+    from .permission import Permission
     from .pet import Pet
     from .pet_inventory import PetInventory
     from .push_token import PushToken
+    from .role import Role
     from .user_linked_account import UserLinkedAccount
 
 
@@ -26,6 +29,24 @@ class User(Base):
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
     username: Mapped[str] = mapped_column(String(20), index=True)
     email: Mapped[str] = mapped_column(String(255), index=True)
+
+    roles: Mapped[list["Role"]] = relationship(
+        "Role",
+        secondary=user_role,
+        back_populates="users",
+        passive_deletes=True,
+        lazy="selectin",
+        init=False,
+    )
+    direct_permissions: Mapped[list["Permission"]] = relationship(
+        "Permission",
+        secondary=user_permission,
+        back_populates="users",
+        passive_deletes=True,
+        lazy="selectin",
+        init=False,
+    )
+
     linked_accounts: Mapped[list["UserLinkedAccount"]] = relationship(
         "UserLinkedAccount",
         primaryjoin="and_(User.id == UserLinkedAccount.user_id, ~UserLinkedAccount.is_deleted)",

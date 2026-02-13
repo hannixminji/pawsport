@@ -1,5 +1,5 @@
 # --------- Builder Stage ---------
-FROM ghcr.io/astral-sh/uv:0.9.28-python3.13-trixie-slim AS builder
+FROM ghcr.io/astral-sh/uv:0.10.2-python3.13-trixie-slim AS builder
 
 # Set environment variables for uv
 ENV UV_COMPILE_BYTECODE=1
@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable
 
 # --------- Final Stage ---------
-FROM python:3.13.11-slim-trixie
+FROM python:3.13.12-slim-trixie
 
 # Create a non-root user for security
 RUN groupadd --gid 1000 app \

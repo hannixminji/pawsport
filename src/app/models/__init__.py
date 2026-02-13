@@ -1,6 +1,7 @@
 from .article import Article
 from .missing_report import MissingReport
 from .notification_preference import NotificationPreference
+from .permission import Permission
 from .pet import Pet
 from .pet_allergy import PetAllergy
 from .pet_inventory import PetInventory
@@ -13,6 +14,7 @@ from .pet_vaccination_record import PetVaccinationRecord
 from .pet_vaccination_record_attachment import PetVaccinationRecordAttachment
 from .push_token import PushToken
 from .rate_limit import RateLimit
+from .role import Role
 from .sighting_report import SightingReport
 from .sighting_report_image import SightingReportImage
 from .tier import Tier

@@ -15,9 +15,11 @@ class UserLinkedAccount(Base):
 
     id: Mapped[int] = mapped_column(init=False, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True)
-    provider: Mapped[str] = mapped_column(String(15), nullable=False, index=True)
-    provider_user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(25), nullable=False)
+    provider_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
     user: Mapped["User"] = relationship("User", back_populates="linked_accounts", lazy="selectin", init=False)
+
+    provider_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default_factory=lambda: datetime.now(UTC), nullable=False
