@@ -1,58 +1,32 @@
-from datetime import UTC, datetime
-from enum import StrEnum
-
-from sqlalchemy import DateTime, Index, String, Text
 from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import Index, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.db.database import Base
+from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
+from ..core.enums import ArticleCategory
 
 
-class ArticleCategory(StrEnum):
-    HEALTH = "health"
-    CARE = "care"
-    VET_VISIT = "vet_visit"
-    TRAINING = "training"
-    NUTRITION = "nutrition"
-
-
-class ArticlePetType(StrEnum):
-    DOG = "dog"
-    CAT = "cat"
-    BOTH = "both"
-
-
-class Article(Base):
+class Article(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "article"
 
-    id: Mapped[int] = mapped_column(init=False, primary_key=True)
-
-    title: Mapped[str] = mapped_column(String(50), nullable=False)
-    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    title: Mapped[str] = mapped_column(String, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
-    category: Mapped[ArticleCategory] = mapped_column(
-        SQLEnum(ArticleCategory, name="article_category_enum"),
-        nullable=False,
-        index=True,
+    category: Mapped[ArticleCategory | None] = mapped_column(
+        SQLEnum(
+            ArticleCategory,
+            name="article_category_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=True,
     )
-    pet_type: Mapped[ArticlePetType] = mapped_column(
-        SQLEnum(ArticlePetType, name="article_pet_type_enum"),
-        nullable=False
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default_factory=lambda: datetime.now(UTC), nullable=False
-    )
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True, default=None, server_default=text("NULL"))
+    tags: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb"))
 
     __table_args__ = (
-        Index(
-            "uq_article_title_active",
-            "title",
-            unique=True,
-            postgresql_where=~is_deleted,
-        ),
+        Index("uq_article_title_active", "title", unique=True, postgresql_where=text("is_deleted = false")),
+        Index("idx_article_category_active", "category", postgresql_where=text("is_deleted = false")),
+        Index("idx_article_tags_active", "tags", postgresql_using="gin", postgresql_where=text("is_deleted = false")),
     )

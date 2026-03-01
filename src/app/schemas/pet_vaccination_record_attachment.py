@@ -1,25 +1,19 @@
 from datetime import datetime
-from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..core.enums import AttachmentMimeType
 from ..core.schemas import PersistentDeletion, TimestampSchema
-
-
-class AttachmentFileType(StrEnum):
-    PDF = "pdf"
-    JPG = "jpg"
-    JPEG = "jpeg"
-    PNG = "png"
 
 
 class PetVaccinationRecordAttachmentBase(BaseModel):
     object_key: Annotated[str, Field(min_length=1, max_length=1024, examples=["path/to/file.pdf"])]
+    sort_order: Annotated[int, Field(ge=0, examples=[0, 1, 2])]
 
     @field_validator("object_key")
     @classmethod
-    def validate_object_key(cls, v: str) -> str:
+    def validate_object_key(cls, v):
         if any(ch.isspace() for ch in v):
             raise ValueError("object_key must not contain whitespace")
 
@@ -47,8 +41,8 @@ class PetVaccinationRecordAttachmentBase(BaseModel):
 
 class PetVaccinationRecordAttachment(TimestampSchema, PetVaccinationRecordAttachmentBase, PersistentDeletion):
     vaccination_record_id: int
-    file_name: str | None
-    file_type: AttachmentFileType | None
+    original_filename: str | None = None
+    mime_type: AttachmentMimeType | None = None
 
 
 class PetVaccinationRecordAttachmentRead(BaseModel):
@@ -57,28 +51,22 @@ class PetVaccinationRecordAttachmentRead(BaseModel):
     id: int
     vaccination_record_id: int
     attachment_url: str
-    file_name: str | None
-    file_type: AttachmentFileType | None
+    sort_order: int
+    created_at: datetime
+    original_filename: str | None
+    mime_type: AttachmentMimeType | None
 
 
 class PetVaccinationRecordAttachmentCreate(PetVaccinationRecordAttachmentBase):
     model_config = ConfigDict(extra="forbid")
 
 
-class PetVaccinationRecordAttachmentCreateInternal(PetVaccinationRecordAttachmentBase):
-    vaccination_record_id: int
-    file_name: str | None
-    file_type: AttachmentFileType | None
-
-
 class PetVaccinationRecordAttachmentUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: Annotated[int | None, Field(gt=0, default=None)]
-    object_key: Annotated[
-        str | None,
-        Field(min_length=1, max_length=1024, examples=["path/to/image.jpg"], default=None)
-    ]
+    object_key: Annotated[str | None, Field(min_length=1, max_length=1024, examples=["path/to/file.pdf"], default=None)]
+    sort_order: Annotated[int, Field(ge=0, examples=[0, 1, 2])]
 
     @field_validator("object_key")
     @classmethod
@@ -111,7 +99,7 @@ class PetVaccinationRecordAttachmentUpdate(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def validate_existing_or_new_image(self):
+    def validate_existing_or_new_attachment(self):
         has_id = self.id is not None
         has_object_key = self.object_key is not None
 
@@ -122,14 +110,3 @@ class PetVaccinationRecordAttachmentUpdate(BaseModel):
             raise ValueError("Provide id (existing) or object_key (new)")
 
         return self
-
-
-class PetVaccinationRecordAttachmentUpdateInternal(PetVaccinationRecordAttachmentUpdate):
-    updated_at: datetime
-
-
-class PetVaccinationRecordAttachmentDelete(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    is_deleted: bool
-    deleted_at: datetime

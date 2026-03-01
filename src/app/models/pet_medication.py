@@ -1,74 +1,62 @@
-from datetime import UTC, date, datetime
-from enum import StrEnum
+from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, String
+from sqlalchemy import Date, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.db.database import Base
+from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
+from ..core.enums import MedicationAdministrationRoute, MedicationFrequency, MedicationStatus
 
 if TYPE_CHECKING:
     from .pet import Pet
 
 
-class MedicationFrequency(StrEnum):
-    ONCE_DAILY = "once_daily"
-    TWICE_DAILY = "twice_daily"
-    THREE_TIMES_DAILY = "three_times_daily"
-    EVERY_OTHER_DAY = "every_other_day"
-    WEEKLY = "weekly"
-    AS_NEEDED = "as_needed"
-
-
-class MedicationRoute(StrEnum):
-    ORAL = "oral"
-    TOPICAL = "topical"
-    INJECTION = "injection"
-    INHALATION = "inhalation"
-    OCULAR = "ocular"
-    OTIC = "otic"
-    OTHER = "other"
-
-
-class PetMedication(Base):
+class PetMedication(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "pet_medication"
 
-    id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id", ondelete="CASCADE"), nullable=False, index=True)
+    pet_id: Mapped[int] = mapped_column(Integer, ForeignKey("pet.id", ondelete="CASCADE"), nullable=False)
 
-    medication: Mapped[str] = mapped_column(String(255), nullable=False)
-    dosage: Mapped[str] = mapped_column(String(100), nullable=False)
+    medication_name: Mapped[str] = mapped_column(String, nullable=False)
+    dosage: Mapped[str] = mapped_column(String, nullable=False)
+    administration_route: Mapped[MedicationAdministrationRoute] = mapped_column(
+        SQLEnum(
+            MedicationAdministrationRoute,
+            name="pet_medication_administration_route_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+    )
     frequency: Mapped[MedicationFrequency] = mapped_column(
-        SQLEnum(MedicationFrequency, name="pet_medication_frequency_enum"),
+        SQLEnum(
+            MedicationFrequency,
+            name="pet_medication_frequency_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
-        index=True
     )
-    route: Mapped[MedicationRoute] = mapped_column(
-        SQLEnum(MedicationRoute, name="pet_medication_route_enum"),
-        nullable=False,
-        index=True
-    )
-
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
-
-    pet: Mapped["Pet"] = relationship("Pet", back_populates="medications", lazy="selectin", init=False)
-
-    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default_factory=lambda: datetime.now(UTC), nullable=False
+    medication_status: Mapped[MedicationStatus] = mapped_column(
+        SQLEnum(
+            MedicationStatus,
+            name="pet_medication_status_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
     )
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
+
+    pet: Mapped["Pet"] = relationship("Pet", uselist=False, back_populates="medications", lazy="raise", init=False)
+
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True, default=None, server_default=text("NULL"))
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True, default=None, server_default=text("NULL"))
 
     __table_args__ = (
+        Index("idx_pet_medication_pet_id_active", "pet_id", postgresql_where=text("is_deleted = false")),
         Index(
-            "uq_pet_medication_pet_id_medication_name_active",
-            "pet_id",
-            "medication",
-            unique=True,
-            postgresql_where=~is_deleted,
+            "idx_pet_medication_administration_route_active",
+            "administration_route",
+            postgresql_where=text("is_deleted = false"),
         ),
+        Index("idx_pet_medication_status_active", "medication_status", postgresql_where=text("is_deleted = false")),
     )

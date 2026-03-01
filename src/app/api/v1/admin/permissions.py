@@ -1,0 +1,118 @@
+from typing import Annotated
+
+from fastapi import Depends, Query, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.csrf_router import CSRFProtectedRouter
+from app.api.dependencies import get_current_superuser_actor
+from app.core.db.database import async_get_db
+from app.core.schemas import Actor, PaginatedResponse
+from app.core.search_engine.schemas import SearchRequest
+from app.core.utils.cache import cache
+from app.schemas.admin_permission import (
+    AdminPermissionBulkDelete,
+    AdminPermissionCreate,
+    AdminPermissionRead,
+    AdminPermissionUpdate,
+)
+from app.services.admin_permission_service import AdminPermissionService
+
+router = CSRFProtectedRouter(prefix="/permissions", tags=["Admin Permissions"])
+
+
+def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> AdminPermissionService:
+    return AdminPermissionService(db=db)
+
+
+AdminPermissionServiceDependency = Annotated[AdminPermissionService, Depends(get_service)]
+SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
+
+
+@router.post("", response_model=AdminPermissionRead, status_code=status.HTTP_201_CREATED)
+async def create_permission(
+    request: Request,
+    payload: AdminPermissionCreate,
+    actor: SuperuserActorDependency,
+    service: AdminPermissionServiceDependency,
+) -> AdminPermissionRead:
+    return await service.create(actor=actor, permission_input=payload)
+
+
+@router.post("/search", response_model=PaginatedResponse[AdminPermissionRead], status_code=status.HTTP_200_OK)
+async def search_permissions(
+    search_request: SearchRequest,
+    actor: SuperuserActorDependency,
+    service: AdminPermissionServiceDependency,
+) -> PaginatedResponse[AdminPermissionRead]:
+    return await service.search(actor=actor, search_request=search_request)
+
+
+@router.get("", response_model=PaginatedResponse[AdminPermissionRead], status_code=status.HTTP_200_OK)
+@cache(
+    key_prefix="admin_permissions:page_{page}:size_{items_per_page}",
+    resource_id_name="page",
+    expiration=60,
+)
+async def list_permissions(
+    request: Request,
+    actor: SuperuserActorDependency,
+    service: AdminPermissionServiceDependency,
+    page: Annotated[int, Query(ge=1)] = 1,
+    items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
+) -> PaginatedResponse[AdminPermissionRead]:
+    return await service.get_all_permissions(
+        actor=actor,
+        page=page,
+        items_per_page=items_per_page,
+    )
+
+
+@router.get("/{permission_id}", response_model=AdminPermissionRead, status_code=status.HTTP_200_OK)
+@cache(key_prefix="admin_permission", resource_id_name="permission_id", expiration=60)
+async def get_permission(
+    request: Request,
+    permission_id: int,
+    actor: SuperuserActorDependency,
+    service: AdminPermissionServiceDependency,
+) -> AdminPermissionRead:
+    return await service.get_permission(actor=actor, permission_id=permission_id)
+
+
+@router.patch("/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
+@cache(
+    key_prefix="admin_permission",
+    resource_id_name="permission_id",
+    pattern_to_invalidate_extra=["admin_permissions:*"],
+)
+async def update_permission(
+    request: Request,
+    permission_id: int,
+    payload: AdminPermissionUpdate,
+    actor: SuperuserActorDependency,
+    service: AdminPermissionServiceDependency,
+) -> None:
+    await service.update(actor=actor, permission_id=permission_id, permission_input=payload)
+
+
+@router.delete("/{permission_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
+@cache(
+    key_prefix="admin_permission",
+    resource_id_name="permission_id",
+    pattern_to_invalidate_extra=["admin_permissions:*"],
+)
+async def hard_delete_permission(
+    request: Request,
+    permission_id: int,
+    actor: SuperuserActorDependency,
+    service: AdminPermissionServiceDependency,
+) -> None:
+    await service.hard_delete(actor=actor, permission_id=permission_id)
+
+
+@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_permissions(
+    payload: AdminPermissionBulkDelete,
+    actor: SuperuserActorDependency,
+    service: AdminPermissionServiceDependency,
+) -> None:
+    await service.bulk_hard_delete(actor=actor, permission_ids=payload.ids)

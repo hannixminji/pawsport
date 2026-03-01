@@ -1,70 +1,67 @@
-from datetime import UTC, date, datetime
-from enum import StrEnum
+from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, String
+from sqlalchemy import Date, ForeignKey, Index, Integer, String, text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.db.database import Base
+from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
+from ..core.enums import VaccineType
 
 if TYPE_CHECKING:
     from .pet import Pet
     from .pet_vaccination_record_attachment import PetVaccinationRecordAttachment
 
 
-class VaccineType(StrEnum):
-    CORE = "core"
-    NON_CORE = "non_core"
-
-
-class PetVaccinationRecord(Base):
+class PetVaccinationRecord(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "pet_vaccination_record"
 
-    id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id", ondelete="CASCADE"), nullable=False, index=True)
+    pet_id: Mapped[int] = mapped_column(Integer, ForeignKey("pet.id", ondelete="CASCADE"), nullable=False)
 
-    vaccine_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    vaccine_name: Mapped[str] = mapped_column(String, nullable=False)
     vaccine_type: Mapped[VaccineType] = mapped_column(
-        SQLEnum(VaccineType, name="vaccine_type_enum"),
+        SQLEnum(
+            VaccineType,
+            name="pet_vaccination_record_vaccine_type_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
-        index=True
     )
-    date_administered: Mapped[date] = mapped_column(Date, nullable=False)
+    administered_date: Mapped[date] = mapped_column(Date, nullable=False)
 
-    pet: Mapped["Pet"] = relationship("Pet", back_populates="vaccination_records", lazy="selectin", init=False)
-
+    pet: Mapped["Pet"] = relationship(
+        "Pet",
+        uselist=False,
+        back_populates="vaccination_records",
+        lazy="raise",
+        init=False,
+    )
     attachments: Mapped[list["PetVaccinationRecordAttachment"]] = relationship(
         "PetVaccinationRecordAttachment",
         primaryjoin=(
-            "and_("
-            "PetVaccinationRecord.id == PetVaccinationRecordAttachment.vaccination_record_id, "
-            "~PetVaccinationRecordAttachment.is_deleted"
-            ")"
+            "and_(PetVaccinationRecord.id == PetVaccinationRecordAttachment.vaccination_record_id, "
+            "PetVaccinationRecordAttachment.is_deleted.is_(False))"
         ),
-        order_by="PetVaccinationRecordAttachment.created_at.asc()",
         back_populates="vaccination_record",
-        cascade="all, delete-orphan",
+        cascade="delete, delete-orphan",
+        lazy="raise",
         passive_deletes=True,
-        lazy="selectin",
-        init=False
+        init=False,
     )
 
-    next_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default_factory=lambda: datetime.now(UTC), nullable=False
-    )
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
+    next_due_date: Mapped[date | None] = mapped_column(Date, nullable=True, default=None, server_default=text("NULL"))
 
     __table_args__ = (
+        Index("idx_pet_vaccination_record_pet_id_active", "pet_id", postgresql_where=text("is_deleted = false")),
         Index(
-            "uq_pet_vaccination_record_pet_id_vaccine_name_active",
-            "pet_id",
-            "vaccine_name",
-            unique=True,
-            postgresql_where=~is_deleted,
+            "idx_pet_vaccination_record_vaccine_type_active",
+            "vaccine_type",
+            postgresql_where=text("is_deleted = false"),
+        ),
+        Index(
+            "idx_pet_vaccination_record_next_due_date_active",
+            "next_due_date",
+            postgresql_where=text("is_deleted = false"),
         ),
     )

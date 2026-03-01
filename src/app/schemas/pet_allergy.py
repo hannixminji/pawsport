@@ -1,31 +1,24 @@
 from datetime import datetime
-from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from ..core.enums import AllergenType, AllergySeverity
 from ..core.schemas import PersistentDeletion, TimestampSchema
-
-
-class AllergenType(StrEnum):
-    FOOD = "food"
-    MEDICATION = "medication"
-    ENVIRONMENTAL = "environmental"
-    OTHER = "other"
-
-
-class AllergySeverity(StrEnum):
-    MILD = "mild"
-    MODERATE = "moderate"
-    SEVERE = "severe"
 
 
 class PetAllergyBase(BaseModel):
     allergen: Annotated[str, Field(min_length=3, max_length=255, examples=["Chicken"])]
     allergen_type: Annotated[AllergenType, Field(examples=[AllergenType.FOOD])]
-    severity_level: Annotated[AllergySeverity, Field(examples=[AllergySeverity.MILD])]
+    severity: Annotated[AllergySeverity, Field(examples=[AllergySeverity.MILD])]
     reaction: Annotated[
-        str | None, Field(min_length=5, max_length=500, examples=["Itchy skin and watery eyes"], default=None)
+        str | None,
+        Field(
+            min_length=5,
+            max_length=500,
+            examples=["Itchy skin and watery eyes"],
+            default=None,
+        ),
     ]
 
     @field_validator("allergen", mode="before")
@@ -35,18 +28,18 @@ class PetAllergyBase(BaseModel):
             return v.strip()
         return v
 
+    @field_validator("allergen_type", "severity", mode="before")
+    @classmethod
+    def normalize_enum_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
+
     @field_validator("reaction", mode="before")
     @classmethod
     def normalize_reaction(cls, v):
         if isinstance(v, str):
             return v.strip() or None
-        return v
-
-    @field_validator("allergen_type", "severity_level", mode="before")
-    @classmethod
-    def normalize_enum_fields(cls, v):
-        if isinstance(v, str):
-            return v.strip().lower()
         return v
 
 
@@ -61,7 +54,8 @@ class PetAllergyRead(BaseModel):
     pet_id: int
     allergen: str
     allergen_type: AllergenType
-    severity_level: AllergySeverity
+    severity: AllergySeverity
+    created_at: datetime
     reaction: str | None
 
 
@@ -69,18 +63,20 @@ class PetAllergyCreate(PetAllergyBase):
     model_config = ConfigDict(extra="forbid")
 
 
-class PetAllergyCreateInternal(PetAllergyCreate):
-    pet_id: int
-
-
 class PetAllergyUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     allergen: Annotated[str | None, Field(min_length=3, max_length=255, examples=["Pollen"], default=None)]
     allergen_type: Annotated[AllergenType | None, Field(examples=[AllergenType.ENVIRONMENTAL], default=None)]
-    severity_level: Annotated[AllergySeverity | None, Field(examples=[AllergySeverity.MODERATE], default=None)]
+    severity: Annotated[AllergySeverity | None, Field(examples=[AllergySeverity.MODERATE], default=None)]
     reaction: Annotated[
-        str | None, Field(min_length=5, max_length=500, examples=["Sneezing and itchy eyes"], default=None)
+        str | None,
+        Field(
+            min_length=5,
+            max_length=500,
+            examples=["Sneezing and itchy eyes"],
+            default=None,
+        ),
     ]
 
     @field_validator("allergen", "reaction", mode="before")
@@ -90,20 +86,9 @@ class PetAllergyUpdate(BaseModel):
             return v.strip() or None
         return v
 
-    @field_validator("allergen_type", "severity_level", mode="before")
+    @field_validator("allergen_type", "severity", mode="before")
     @classmethod
     def normalize_enum_fields(cls, v):
         if isinstance(v, str):
             return v.strip().lower()
         return v
-
-
-class PetAllergyUpdateInternal(PetAllergyUpdate):
-    updated_at: datetime
-
-
-class PetAllergyDelete(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    is_deleted: bool
-    deleted_at: datetime

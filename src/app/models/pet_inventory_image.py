@@ -1,54 +1,48 @@
-from datetime import UTC, datetime
-from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.db.database import Base
+from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
+from ..core.enums import MimeType
 from ..core.utils.google_cloud_storage import generate_view_signed_url
 
 if TYPE_CHECKING:
     from .pet_inventory import PetInventory
 
 
-class InventoryImageFileType(StrEnum):
-    JPG = "jpg"
-    JPEG = "jpeg"
-    PNG = "png"
-
-
-class PetInventoryImage(Base):
+class PetInventoryImage(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "pet_inventory_image"
 
-    id: Mapped[int] = mapped_column(init=False, primary_key=True)
     inventory_id: Mapped[int] = mapped_column(
+        Integer,
         ForeignKey("pet_inventory.id", ondelete="CASCADE"),
         nullable=False,
-        index=True
     )
 
-    object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    object_key: Mapped[str] = mapped_column(String, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False)
 
     inventory: Mapped["PetInventory"] = relationship(
         "PetInventory",
+        uselist=False,
         back_populates="images",
-        lazy="selectin",
-        init=False
+        lazy="raise",
+        init=False,
     )
 
-    file_type: Mapped[InventoryImageFileType | None] = mapped_column(
-        SQLEnum(InventoryImageFileType, name="pet_inventory_image_file_type_enum"),
-        nullable=True
+    mime_type: Mapped[MimeType | None] = mapped_column(
+        SQLEnum(
+            MimeType,
+            name="pet_inventory_image_mime_type_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=True,
+        default=None,
+        server_default=text("NULL"),
     )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default_factory=lambda: datetime.now(UTC), nullable=False
-    )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
 
     @property
     def image_url(self) -> str:
@@ -60,6 +54,6 @@ class PetInventoryImage(Base):
             "inventory_id",
             "sort_order",
             unique=True,
-            postgresql_where=~is_deleted,
+            postgresql_where=text("is_deleted = false"),
         ),
     )

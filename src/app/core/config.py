@@ -1,6 +1,8 @@
 import os
 from enum import StrEnum
 
+from argon2 import PasswordHasher
+from argon2.low_level import Type
 from pydantic import SecretStr, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +21,29 @@ class CryptSettings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+
+class Argon2Settings(BaseSettings):
+    TIME_COST: int = int(os.getenv("ARGON2_TIME_COST", 4))
+    MEMORY_COST: int = int(os.getenv("ARGON2_MEMORY_COST", 131072))
+    PARALLELISM: int = int(os.getenv("ARGON2_PARALLELISM", 4))
+    HASH_LEN: int = int(os.getenv("ARGON2_HASH_LEN", 32))
+    SALT_LEN: int = int(os.getenv("ARGON2_SALT_LEN", 16))
+    ENCODING: str = os.getenv("ARGON2_ENCODING", "utf-8")
+    TYPE: Type = Type.ID
+
+    @computed_field
+    @property
+    def password_hasher(self) -> PasswordHasher:
+        return PasswordHasher(
+            time_cost=self.TIME_COST,
+            memory_cost=self.MEMORY_COST,
+            parallelism=self.PARALLELISM,
+            hash_len=self.HASH_LEN,
+            salt_len=self.SALT_LEN,
+            encoding=self.ENCODING,
+            type=self.TYPE,
+        )
 
 
 class DatabaseSettings(BaseSettings):
@@ -123,27 +148,6 @@ class DefaultRateLimitSettings(BaseSettings):
     DEFAULT_RATE_LIMIT_PERIOD: int = 3600
 
 
-class CRUDAdminSettings(BaseSettings):
-    CRUD_ADMIN_ENABLED: bool = True
-    CRUD_ADMIN_MOUNT_PATH: str = "/admin"
-
-    CRUD_ADMIN_ALLOWED_IPS_LIST: list[str] | None = None
-    CRUD_ADMIN_ALLOWED_NETWORKS_LIST: list[str] | None = None
-    CRUD_ADMIN_MAX_SESSIONS: int = 10
-    CRUD_ADMIN_SESSION_TIMEOUT: int = 1440
-    SESSION_SECURE_COOKIES: bool = True
-
-    CRUD_ADMIN_TRACK_EVENTS: bool = True
-    CRUD_ADMIN_TRACK_SESSIONS: bool = True
-
-    CRUD_ADMIN_REDIS_ENABLED: bool = False
-    CRUD_ADMIN_REDIS_HOST: str = "localhost"
-    CRUD_ADMIN_REDIS_PORT: int = 6379
-    CRUD_ADMIN_REDIS_DB: int = 0
-    CRUD_ADMIN_REDIS_PASSWORD: str | None = "None"
-    CRUD_ADMIN_REDIS_SSL: bool = False
-
-
 class AdminSessionSettings(BaseSettings):
     ADMIN_SESSION_TTL_SECONDS: int = 1800
     ADMIN_SESSION_ABSOLUTE_TTL_SECONDS: int = 604800
@@ -152,6 +156,14 @@ class AdminSessionSettings(BaseSettings):
     ADMIN_SESSION_COOKIE_SECURE: bool = True
     ADMIN_SESSION_COOKIE_SAMESITE: str = "lax"
     ADMIN_SESSION_COOKIE_PATH: str = "/admin"
+
+    ADMIN_SESSION_MAXIMUM_SESSIONS_PER_USER: int = 3
+
+
+class AdminAuthSettings(BaseSettings):
+    LOGIN_WINDOW_SECONDS: int = 60
+    LOGIN_MAX_ATTEMPTS_PER_IP_USERNAME: int = 10
+    LOGIN_MAX_ATTEMPTS_PER_IP: int = 30
 
 
 class EnvironmentOption(StrEnum):
@@ -185,7 +197,7 @@ class QdrantCloudSettings(BaseSettings):
 
 
 class NotificationSettings(BaseSettings):
-    NEARBY_ALERT_CENTER_RADIUS_METERS: int = 3000
+    NEARBY_ALERT_CENTER_RADIUS_METERS: int = 3_000
 
 
 class Settings(
@@ -193,6 +205,7 @@ class Settings(
     SQLiteSettings,
     PostgresSettings,
     CryptSettings,
+    Argon2Settings,
     FirstUserSettings,
     TestSettings,
     RedisCacheSettings,
@@ -201,8 +214,8 @@ class Settings(
     RedisQueueSettings,
     RedisRateLimiterSettings,
     DefaultRateLimitSettings,
-    CRUDAdminSettings,
     AdminSessionSettings,
+    AdminAuthSettings,
     EnvironmentSettings,
     CORSSettings,
     GCSSettings,

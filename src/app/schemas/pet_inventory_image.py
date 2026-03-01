@@ -1,20 +1,14 @@
 from datetime import datetime
-from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..core.enums import MimeType
 from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
-class InventoryImageFileType(StrEnum):
-    JPG = "jpg"
-    JPEG = "jpeg"
-    PNG = "png"
-
-
 class PetInventoryImageBase(BaseModel):
-    object_key: Annotated[str, Field(min_length=1, max_length=1024, examples=["path/to/file.pdf"])]
+    object_key: Annotated[str, Field(min_length=1, max_length=1024, examples=["path/to/image.jpg"])]
     sort_order: Annotated[int, Field(ge=0, examples=[0, 1, 2])]
 
     @field_validator("object_key")
@@ -47,7 +41,7 @@ class PetInventoryImageBase(BaseModel):
 
 class PetInventoryImage(TimestampSchema, PetInventoryImageBase, PersistentDeletion):
     inventory_id: int
-    file_type: InventoryImageFileType | None
+    mime_type: MimeType | None = None
 
 
 class PetInventoryImageRead(BaseModel):
@@ -57,16 +51,12 @@ class PetInventoryImageRead(BaseModel):
     inventory_id: int
     image_url: str
     sort_order: int
-    file_type: InventoryImageFileType | None
+    created_at: datetime
+    mime_type: MimeType | None
 
 
 class PetInventoryImageCreate(PetInventoryImageBase):
     model_config = ConfigDict(extra="forbid")
-
-
-class PetInventoryImageCreateInternal(PetInventoryImageBase):
-    inventory_id: int
-    file_type: InventoryImageFileType | None
 
 
 class PetInventoryImageUpdate(BaseModel):
@@ -75,7 +65,12 @@ class PetInventoryImageUpdate(BaseModel):
     id: Annotated[int | None, Field(gt=0, default=None)]
     object_key: Annotated[
         str | None,
-        Field(min_length=1, max_length=1024, examples=["path/to/image.jpg"], default=None)
+        Field(
+            min_length=1,
+            max_length=1024,
+            examples=["path/to/image.jpg"],
+            default=None,
+        ),
     ]
     sort_order: Annotated[int, Field(ge=0, examples=[0, 1, 2])]
 
@@ -121,14 +116,3 @@ class PetInventoryImageUpdate(BaseModel):
             raise ValueError("Provide id (existing) or object_key (new)")
 
         return self
-
-
-class PetInventoryImageUpdateInternal(PetInventoryImageUpdate):
-    updated_at: datetime
-
-
-class PetInventoryImageDelete(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    is_deleted: bool
-    deleted_at: datetime

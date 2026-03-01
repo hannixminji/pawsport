@@ -286,6 +286,12 @@
             pointer-events:none;
         }
 
+        /* Hide arrows and dots when no photos */
+        .main-photo-wrapper.no-photos .carousel-arrow,
+        .main-photo-wrapper.no-photos .carousel-nav {
+            display: none;
+        }
+
         .photo-carousel {
             position:relative;
             width:100%;
@@ -1082,8 +1088,8 @@
                     <div class="pet-info">
                         <div style="display:flex; align-items:center; gap:16px; margin-bottom:12px; flex-wrap:wrap;">
                             <h1 class="pet-name">{{ pet.name }}</h1>
-                            {% if pet.missing_status %}
-                            <div class="status-badge">⚠️ {{ pet.missing_status.name }}</div>
+                            {% if pet.is_missing %}
+                            <div class="status-badge">⚠️ Missing</div>
                             {% endif %}
                         </div>
                         <div class="pet-breed-row">
@@ -1166,10 +1172,10 @@
                 </div>
 
                 <div class="photo-gallery">
-                    <div class="main-photo-wrapper">
+                    <div class="main-photo-wrapper" id="mainPhotoWrapper">
                         <div class="photo-carousel" id="photoCarousel">
-                            {% for img in pet.profile_images %}
-                            <img src="{{ img.image_url }}" alt="{{ pet.name }} photo {{ loop.index }}" class="{% if loop.first %}active{% endif %}">
+                            {% for img in pet.photos %}
+                            <img src="{{ img.photo_url }}" alt="{{ pet.name }} photo {{ loop.index }}" class="{% if loop.first %}active{% endif %}">
                             {% endfor %}
                         </div>
                         <button class="carousel-arrow prev" onclick="changePhoto(-1)">‹</button>
@@ -1336,6 +1342,7 @@
         let currentPhotoIndex = 0;
         const photos = document.querySelectorAll('#photoCarousel img');
         const totalPhotos = photos.length;
+        const wrapper = document.querySelector('.main-photo-wrapper');
 
         function initCarousel() {
             const navContainer = document.getElementById('carouselNav');
@@ -1368,11 +1375,13 @@
         }
 
         function changePhoto(direction) {
+            if (totalPhotos === 0) return;
             currentPhotoIndex = (currentPhotoIndex + direction + totalPhotos) % totalPhotos;
             updatePhotoDisplay();
         }
 
         function goToPhoto(index) {
+            if (totalPhotos === 0) return;
             currentPhotoIndex = index;
             updatePhotoDisplay();
         }
@@ -1391,17 +1400,21 @@
             });
         }
 
-        let autoPlayInterval = setInterval(() => changePhoto(1), 4000);
-        const wrapper = document.querySelector('.main-photo-wrapper');
-        if (wrapper) {
-            wrapper.addEventListener('mouseenter', () => clearInterval(autoPlayInterval));
-            wrapper.addEventListener('mouseleave', () => {
-                autoPlayInterval = setInterval(() => changePhoto(1), 4000);
-            });
-        }
-
         if (totalPhotos > 0) {
             initCarousel();
+
+            let autoPlayInterval = setInterval(() => changePhoto(1), 4000);
+            if (wrapper) {
+                wrapper.addEventListener('mouseenter', () => clearInterval(autoPlayInterval));
+                wrapper.addEventListener('mouseleave', () => {
+                    autoPlayInterval = setInterval(() => changePhoto(1), 4000);
+                });
+            }
+        } else {
+            // No photos: hide arrows and dots, keep container visible
+            if (wrapper) {
+                wrapper.classList.add('no-photos');
+            }
         }
 
         // Collapsible Sections
@@ -1424,7 +1437,7 @@
             });
         });
 
-        // Owner contact reveal - FIXED
+        // Owner contact reveal
         const revealBtn = document.getElementById('revealOwnerBtn');
         const ownerContent = document.getElementById('ownerContent');
         const btnText = document.getElementById('revealOwnerBtnText');

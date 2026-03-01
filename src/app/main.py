@@ -1,41 +1,57 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-import firebase_admin
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from uuid6 import uuid7
 
-from .admin.initialize import create_admin_interface
 from .api import router
 from .core.config import settings
+from .core.exceptions.authorization_exceptions import ForbiddenError
+from .core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
+from .core.exceptions.domain_exceptions import InvalidInputError, NotFoundError
 from .core.setup import create_application, lifespan_factory
 from .core.utils.qdrant_cloud import init_collections
 
-admin = create_admin_interface()
-
 
 @asynccontextmanager
-async def lifespan_with_admin(app: FastAPI) -> AsyncGenerator[None, None]:
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app()
-
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     init_collections()
 
-    """Custom lifespan that includes admin initialization."""
-    # Get the default lifespan
     default_lifespan = lifespan_factory(settings)
-
-    # Run the default lifespan initialization and our admin initialization
     async with default_lifespan(app):
-        # Initialize admin interface if it exists
-        if admin:
-            # Initialize admin database and setup
-            await admin.initialize()
-
         yield
 
 
-app = create_application(router=router, settings=settings, lifespan=lifespan_with_admin)
+app = create_application(router=router, settings=settings, lifespan=lifespan)
 
-# Mount admin interface if enabled
-if admin:
-    app.mount(settings.CRUD_ADMIN_MOUNT_PATH, admin.app)
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request.state.request_id = str(uuid7())
+    return await call_next(request)
+
+
+@app.exception_handler(ForbiddenError)
+async def forbidden_error_handler(request: Request, error: ForbiddenError) -> JSONResponse:
+    return JSONResponse(status_code=403, content={"detail": str(error)})
+
+
+@app.exception_handler(NotFoundError)
+async def not_found_error_handler(request: Request, error: NotFoundError) -> JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": str(error)})
+
+
+@app.exception_handler(InvalidInputError)
+async def invalid_input_error_handler(request: Request, error: InvalidInputError) -> JSONResponse:
+    return JSONResponse(status_code=422, content={"detail": str(error)})
+
+
+@app.exception_handler(TransientDatabaseError)
+async def transient_db_error_handler(request: Request, error: TransientDatabaseError) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": str(error)})
+
+
+@app.exception_handler(NonTransientDatabaseError)
+async def non_transient_db_error_handler(request: Request, error: NonTransientDatabaseError) -> JSONResponse:
+    return JSONResponse(status_code=500, content={"detail": str(error)})

@@ -1,67 +1,66 @@
-import uuid as uuid_pkg
-from datetime import UTC, datetime
-from enum import StrEnum
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from geoalchemy2 import Geography
 from geoalchemy2.elements import WKBElement
 from geoalchemy2.shape import to_shape
-from sqlalchemy import UUID, DateTime, ForeignKey, Index, String, and_
+from shapely.geometry import Point
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, and_, text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from uuid6 import uuid7
 
 from ..core.db.database import Base
+from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
+from ..core.enums import MissingReportStatus
 
 if TYPE_CHECKING:
     from .pet import Pet
 
 
-class MissingReportStatus(StrEnum):
-    MISSING = "missing"
-    FOUND = "found"
-    RETURNED = "returned"
-    CLOSED = "closed"
-
-
-class MissingReport(Base):
+class MissingReport(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "missing_report"
 
-    id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    pet_id: Mapped[int] = mapped_column(ForeignKey("pet.id", ondelete="CASCADE"), index=True)
-    last_seen_location: Mapped[WKBElement] = mapped_column(Geography(geometry_type="POINT", srid=4326))
-    last_seen_address: Mapped[str] = mapped_column(String(512))
-    last_seen_datetime: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    contact_name: Mapped[str] = mapped_column(String(30))
-    contact_number: Mapped[str] = mapped_column(String(20))
-    pet: Mapped["Pet"] = relationship("Pet", back_populates="missing_reports", lazy="selectin", init=False)
+    pet_id: Mapped[int] = mapped_column(Integer, ForeignKey("pet.id", ondelete="CASCADE"), nullable=False)
 
-    status: Mapped[MissingReportStatus] = mapped_column(
-        SQLEnum(MissingReportStatus, name="missing_report_status"),
-        default=MissingReportStatus.MISSING,
-        index=True
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_location: Mapped[WKBElement] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326, spatial_index=False),
+        nullable=False,
     )
-    contact_address: Mapped[str | None] = mapped_column(String(512), default=None)
-    description: Mapped[str | None] = mapped_column(String(2000), default=None)
-    uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), default_factory=uuid7, nullable=False, unique=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default_factory=lambda: datetime.now(UTC), nullable=False
+    last_seen_address: Mapped[str] = mapped_column(String, nullable=False)
+
+    pet: Mapped["Pet"] = relationship("Pet", uselist=False, back_populates="missing_reports", lazy="raise", init=False)
+
+    description: Mapped[str | None] = mapped_column(Text, nullable=True, default=None, server_default=text("NULL"))
+    report_status: Mapped[MissingReportStatus] = mapped_column(
+        SQLEnum(
+            MissingReportStatus,
+            name="missing_report_status_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=MissingReportStatus.LOST,
+        server_default=text(f"'{MissingReportStatus.LOST.value}'::missing_report_status_enum"),
     )
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
 
     @property
-    def location(self) -> dict[str, float]:
-        point = to_shape(self.last_seen_location)
+    def last_seen_location_dict(self) -> dict[str, float]:
+        point: Point = to_shape(self.last_seen_location)
         return {"latitude": point.y, "longitude": point.x}
 
     __table_args__ = (
         Index(
-            "uq_active_missing_report_per_pet",
+            "uq_missing_report_one_lost_per_pet_active",
             "pet_id",
             unique=True,
-            postgresql_where=and_(status.in_(["missing", "found"]), ~is_deleted)
+            postgresql_where=and_(report_status == MissingReportStatus.LOST, text("is_deleted = false")),
         ),
-        Index("idx_missing_report_location", "last_seen_location", postgresql_using="gist"),
+        Index("idx_missing_report_last_seen_at_active", "last_seen_at", postgresql_where=text("is_deleted = false")),
+        Index(
+            "idx_missing_report_last_seen_location_active",
+            "last_seen_location",
+            postgresql_using="gist",
+            postgresql_where=text("is_deleted = false"),
+        ),
+        Index("idx_missing_report_status_active", "report_status", postgresql_where=text("is_deleted = false")),
     )

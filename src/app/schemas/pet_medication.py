@@ -1,47 +1,30 @@
 from datetime import date, datetime
-from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..core.enums import MedicationAdministrationRoute, MedicationFrequency, MedicationStatus
 from ..core.schemas import PersistentDeletion, TimestampSchema
 
 
-class MedicationFrequency(StrEnum):
-    ONCE_DAILY = "once_daily"
-    TWICE_DAILY = "twice_daily"
-    THREE_TIMES_DAILY = "three_times_daily"
-    EVERY_OTHER_DAY = "every_other_day"
-    WEEKLY = "weekly"
-    AS_NEEDED = "as_needed"
-
-
-class MedicationRoute(StrEnum):
-    ORAL = "oral"
-    TOPICAL = "topical"
-    INJECTION = "injection"
-    INHALATION = "inhalation"
-    OCULAR = "ocular"
-    OTIC = "otic"
-    OTHER = "other"
-
-
 class PetMedicationBase(BaseModel):
-    medication: Annotated[str, Field(min_length=3, max_length=255, examples=["Amoxicillin"])]
+    medication_name: Annotated[str, Field(min_length=3, max_length=255, examples=["Amoxicillin"])]
     dosage: Annotated[str, Field(min_length=1, max_length=100, examples=["250 mg"])]
+    administration_route: Annotated[MedicationAdministrationRoute, Field(examples=[MedicationAdministrationRoute.ORAL])]
     frequency: Annotated[MedicationFrequency, Field(examples=[MedicationFrequency.ONCE_DAILY])]
-    route: Annotated[MedicationRoute, Field(examples=[MedicationRoute.ORAL])]
     start_date: Annotated[date, Field(examples=["2026-01-20"])]
+    medication_status: Annotated[MedicationStatus, Field(examples=[MedicationStatus.ACTIVE])]
     end_date: Annotated[date | None, Field(examples=["2026-01-27"], default=None)]
+    notes: Annotated[str | None, Field(max_length=2000, examples=["Take with food"], default=None)]
 
-    @field_validator("medication", "dosage", mode="before")
+    @field_validator("medication_name", "dosage", mode="before")
     @classmethod
     def normalize_text_fields(cls, v):
         if isinstance(v, str):
             return v.strip()
         return v
 
-    @field_validator("frequency", "route", mode="before")
+    @field_validator("administration_route", "frequency", "medication_status", mode="before")
     @classmethod
     def normalize_enum_fields(cls, v):
         if isinstance(v, str):
@@ -54,6 +37,13 @@ class PetMedicationBase(BaseModel):
             raise ValueError("end_date must be the same as or after start_date")
         return self
 
+    @field_validator("notes", mode="before")
+    @classmethod
+    def normalize_notes(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
 
 class PetMedication(TimestampSchema, PetMedicationBase, PersistentDeletion):
     pet_id: int
@@ -64,40 +54,47 @@ class PetMedicationRead(BaseModel):
 
     id: int
     pet_id: int
-    medication: str
+    medication_name: str
     dosage: str
+    administration_route: MedicationAdministrationRoute
     frequency: MedicationFrequency
-    route: MedicationRoute
     start_date: date
+    medication_status: MedicationStatus
+    created_at: datetime
     end_date: date | None
+    notes: str | None
 
 
 class PetMedicationCreate(PetMedicationBase):
     model_config = ConfigDict(extra="forbid")
 
 
-class PetMedicationCreateInternal(PetMedicationBase):
-    pet_id: int
-
-
 class PetMedicationUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    medication: Annotated[str | None, Field(min_length=3, max_length=255, examples=["Amoxicillin"], default=None)]
+    medication_name: Annotated[str | None, Field(min_length=3, max_length=255, examples=["Amoxicillin"], default=None)]
     dosage: Annotated[str | None, Field(min_length=1, max_length=100, examples=["250 mg"], default=None)]
+    administration_route: Annotated[
+        MedicationAdministrationRoute | None,
+        Field(
+            examples=[MedicationAdministrationRoute.ORAL],
+            default=None,
+        ),
+    ]
     frequency: Annotated[MedicationFrequency | None, Field(examples=[MedicationFrequency.ONCE_DAILY], default=None)]
-    route: Annotated[MedicationRoute | None, Field(examples=[MedicationRoute.ORAL], default=None)]
     start_date: Annotated[date | None, Field(examples=["2026-01-20"], default=None)]
+    medication_status: Annotated[MedicationStatus | None, Field(examples=[MedicationStatus.ACTIVE], default=None)]
     end_date: Annotated[date | None, Field(examples=["2026-01-27"], default=None)]
+    notes: Annotated[str | None, Field(max_length=2000, examples=["Updated notes"], default=None)]
 
-    @field_validator("medication", "dosage", mode="before")
+    @field_validator("medication_name", "dosage", "notes", mode="before")
     @classmethod
     def normalize_text_fields(cls, v):
         if isinstance(v, str):
             return v.strip() or None
         return v
 
-    @field_validator("frequency", "route", mode="before")
+    @field_validator("administration_route", "frequency", "medication_status", mode="before")
     @classmethod
     def normalize_enum_fields(cls, v):
         if isinstance(v, str):
@@ -110,14 +107,3 @@ class PetMedicationUpdate(BaseModel):
             if self.end_date < self.start_date:
                 raise ValueError("end_date must be the same as or after start_date")
         return self
-
-
-class PetMedicationUpdateInternal(PetMedicationUpdate):
-    updated_at: datetime
-
-
-class PetMedicationDelete(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    is_deleted: bool
-    deleted_at: datetime

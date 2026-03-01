@@ -3,8 +3,9 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
-from .sighting_report_image import SightingReportImageCreate, SightingReportImageRead
+from ..core.enums import PetSpecies
+from ..core.schemas import PersistentDeletion, TimestampSchema
+from .sighting_report_image import SightingReportImageCreate, SightingReportImageRead, SightingReportImageUpdate
 
 
 class GeoPoint(BaseModel):
@@ -13,35 +14,61 @@ class GeoPoint(BaseModel):
 
 
 class SightingReportBase(BaseModel):
-    pet_type: Annotated[str, Field(pattern=r"^(?i)(cat|dog)$", examples=["cat", "dog"])]
-    sighted_at_datetime: datetime
-    sighting_location: GeoPoint
-    address: Annotated[str, Field(min_length=3, max_length=512)]
-    description: Annotated[str | None, Field(default=None, max_length=2000)]
+    pet_species: Annotated[PetSpecies, Field(examples=[PetSpecies.DOG])]
+    sighted_at: Annotated[datetime, Field()]
+    sighting_location: Annotated[GeoPoint, Field()]
+    sighting_address: Annotated[str, Field(max_length=512)]
+    description: Annotated[str | None, Field(max_length=2000, default=None)]
 
-    @field_validator("pet_type")
+    @field_validator("pet_species", mode="before")
     @classmethod
-    def normalize_pet_type(cls, v):
-        if not v:
-            return v
-        return v.lower()
+    def normalize_pet_species(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
+        return v
+
+    @field_validator("sighted_at")
+    @classmethod
+    def validate_sighted_at(cls, v: datetime):
+        if v.tzinfo is None:
+            raise ValueError("sighted_at must include timezone info")
+        if v > datetime.now(v.tzinfo):
+            raise ValueError("sighted_at cannot be in the future")
+        return v
+
+    @field_validator("sighting_address", mode="before")
+    @classmethod
+    def normalize_sighting_address(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def normalize_description(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
 
 
-class SightingReport(TimestampSchema, SightingReportBase, UUIDSchema, PersistentDeletion):
-    user_id: int
+class SightingReport(TimestampSchema, SightingReportBase, PersistentDeletion):
+    mobile_user_id: int | None = None
+    guest_token: str | None = None
 
 
 class SightingReportRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    user_id: int
-    pet_type: str
-    sighted_at_datetime: datetime
-    location: GeoPoint
-    address: str
-    description: str | None
+    pet_species: PetSpecies
+    sighted_at: datetime
+    sighting_location: dict[str, float] = Field(alias="sighting_location_dict")
+    sighting_address: str
     images: list[SightingReportImageRead]
+    created_at: datetime
+    mobile_user_id: int | None
+    guest_token: str | None
+    description: str | None
 
 
 class SightingReportWithMatches(SightingReportRead):
@@ -51,9 +78,7 @@ class SightingReportWithMatches(SightingReportRead):
 class SightingReportCreate(SightingReportBase):
     model_config = ConfigDict(extra="forbid")
 
-
-class SightingReportCreateInternal(SightingReportCreate):
-    user_id: int
+    guest_token: Annotated[str | None, Field(max_length=255, default=None)]
 
 
 class SightingReportCreateWithImages(SightingReportCreate):
@@ -62,13 +87,15 @@ class SightingReportCreateWithImages(SightingReportCreate):
     @field_validator("images", mode="after")
     @classmethod
     def validate_images_sort_order(cls, images):
+        if images is None:
+            return images
+
         if not images:
             return images
 
         sort_orders = [image.sort_order for image in images]
-
         if len(sort_orders) != len(set(sort_orders)):
-            raise ValueError("Image order numbers must not have duplicates")
+            raise ValueError("image sort_order must be unique")
 
         return images
 
@@ -76,18 +103,26 @@ class SightingReportCreateWithImages(SightingReportCreate):
 class SightingReportUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    sighted_at_datetime: Annotated[datetime | None, Field(default=None)]
-    description: Annotated[str | None, Field(default=None, max_length=2000)]
+    sighted_at: Annotated[datetime | None, Field(default=None)]
+    description: Annotated[str | None, Field(max_length=2000, default=None)]
 
+    @field_validator("sighted_at")
+    @classmethod
+    def validate_sighted_at(cls, v: datetime | None):
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            raise ValueError("sighted_at must include timezone info")
+        if v > datetime.now(v.tzinfo):
+            raise ValueError("sighted_at cannot be in the future")
+        return v
 
-class SightingReportImageUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    id: Annotated[int | None, Field(default=None)]
-    image_object_key: Annotated[
-        str | None, Field(min_length=1, max_length=1024, examples=["path/to/image.jpg"], default=None)
-    ]
-    sort_order: Annotated[int, Field(ge=0, le=9, examples=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9])]
+    @field_validator("description", mode="before")
+    @classmethod
+    def normalize_description(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
 
 
 class SightingReportUpdateWithImages(SightingReportUpdate):
@@ -96,23 +131,14 @@ class SightingReportUpdateWithImages(SightingReportUpdate):
     @field_validator("images", mode="after")
     @classmethod
     def validate_images_sort_order(cls, images):
+        if images is None:
+            return images
+
         if not images:
             return images
 
         sort_orders = [image.sort_order for image in images]
-
         if len(sort_orders) != len(set(sort_orders)):
-            raise ValueError("Image order numbers must not have duplicates")
+            raise ValueError("image sort_order must be unique")
 
         return images
-
-
-class SightingReportUpdateInternal(SightingReportUpdate):
-    updated_at: datetime
-
-
-class SightingReportDelete(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    is_deleted: bool
-    deleted_at: datetime

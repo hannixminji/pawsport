@@ -1,8 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from ..api.v1 import router as v1_router
-from ..api.v2 import router as v2_router
+from app.api.v1.admin import router as admin_router
+from app.api.v1.app import router as app_router
 
-router = APIRouter(prefix="/api")
-router.include_router(v1_router)
-router.include_router(v2_router)
+router = APIRouter(prefix="/api/v1")
+router.include_router(admin_router)
+router.include_router(app_router)

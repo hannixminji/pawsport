@@ -14,14 +14,15 @@ from qdrant_client.http.models import (
 from ..config import settings
 
 COLLECTIONS = {
-    "pet_profile_images": 1_536,
+    "pet_photos": 1_536,
     "report_sightings": 1_536
 }
 
 INDEX_FIELDS = {
-    "pet_profile_images": {
+    "pet_photos": {
         "species": PayloadSchemaType.KEYWORD,
-        "is_missing": PayloadSchemaType.BOOL
+        "is_missing": PayloadSchemaType.BOOL,
+        "is_deleted": PayloadSchemaType.BOOL,
     }
 }
 

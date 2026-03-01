@@ -164,6 +164,15 @@ def is_objects_exist(blob_names: list[str], bucket_name: str | None = None) -> d
     return results
 
 
+def is_object_exists(blob_name: str, bucket_name: str | None = None) -> bool:
+    bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+
+    storage_client = get_storage_client()
+    bucket = storage_client.bucket(bucket_name)
+
+    return bucket.blob(blob_name).exists()
+
+
 def get_object_metadata(blob_name: str, bucket_name: str | None = None) -> dict[str, str] | None:
     bucket_name = bucket_name or settings.GCS_BUCKET_NAME
 

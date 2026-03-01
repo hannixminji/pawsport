@@ -1,11 +1,11 @@
 import re
 from datetime import datetime
-from enum import StrEnum
 from typing import Annotated
 
 from dateutil.rrule import rrulestr
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..core.enums import PetScheduleType
 from ..core.schemas import PersistentDeletion, TimestampSchema
 
 _ALLOWED_KEYS = {
@@ -127,12 +127,10 @@ def _validate_rrule_allowed_subset(v: str) -> str:  # noqa: C901
     if freq not in _ALLOWED_FREQ:
         raise ValueError("recurrence_rule FREQ must be one of: DAILY, WEEKLY, MONTHLY, YEARLY")
 
-    # STRICT: require INTERVAL
     if "INTERVAL" not in kv:
         raise ValueError("recurrence_rule must include INTERVAL")
     _parse_int_in_range("INTERVAL", kv["INTERVAL"], 1, 999)
 
-    # COUNT vs UNTIL
     has_count = "COUNT" in kv
     has_until = "UNTIL" in kv
     if has_count and has_until:
@@ -144,13 +142,11 @@ def _validate_rrule_allowed_subset(v: str) -> str:  # noqa: C901
         if not _UNTIL_RE.match(until):
             raise ValueError("recurrence_rule UNTIL must be in format YYYYMMDDTHHMMSS or YYYYMMDDTHHMMSSZ")
 
-    # Validate WKST (only meaningful in WEEKLY, or YEARLY with BYWEEKNO in our strict subset)
     if "WKST" in kv:
         wkst = kv["WKST"].upper()
         if wkst not in _ALLOWED_DAYS:
             raise ValueError("recurrence_rule WKST must be one of: MO, TU, WE, TH, FR, SA, SU")
 
-    # Validate numeric fields (syntax + range) up-front, but keep strict combo rules below
     if "BYMONTH" in kv:
         _require_single_value("BYMONTH", kv["BYMONTH"])
         _parse_int_in_range("BYMONTH", kv["BYMONTH"], 1, 12)
@@ -169,26 +165,18 @@ def _validate_rrule_allowed_subset(v: str) -> str:  # noqa: C901
 
     if "BYSETPOS" in kv:
         _require_single_value("BYSETPOS", kv["BYSETPOS"])
-        # strict: only common ordinals for “nth/last”
         _parse_signed_int_in_range_excluding_zero("BYSETPOS", kv["BYSETPOS"], -5, 5)
-
-    if "BYDAY" in kv:
-        # actual constraints depend on FREQ; we validate later with correct settings
-        pass
 
     keys = set(kv.keys())
     by_keys = {"BYMONTH", "BYMONTHDAY", "BYYEARDAY", "BYWEEKNO", "BYDAY", "BYSETPOS"}
     present_by = {k for k in by_keys if k in keys}
 
-    # ---------- STRICT COMBINATION RULES ----------
     if freq == "DAILY":
-        # strict subset: daily must be plain daily only
         banned = present_by | ({"WKST"} if "WKST" in keys else set())
         if banned:
             raise ValueError("recurrence_rule for DAILY must not include WKST or any BY* rules")
 
     elif freq == "WEEKLY":
-        # weekly: must specify days of week; no other BY* besides BYDAY; WKST optional
         if "BYDAY" not in kv:
             raise ValueError("recurrence_rule for WEEKLY must include BYDAY")
         _validate_byday(kv["BYDAY"], allow_list=True, allow_ordinals=False)
@@ -200,11 +188,9 @@ def _validate_rrule_allowed_subset(v: str) -> str:  # noqa: C901
             )
 
         if "WKST" in kv:
-            # ok (already validated)
             pass
 
     elif freq == "MONTHLY":
-        # monthly: either BYMONTHDAY OR (BYDAY + BYSETPOS). no BYMONTH/BYWEEKNO/BYYEARDAY/WKST
         if "WKST" in kv:
             raise ValueError("recurrence_rule for MONTHLY must not include WKST")
         if "BYMONTH" in kv or "BYWEEKNO" in kv or "BYYEARDAY" in kv:
@@ -223,10 +209,6 @@ def _validate_rrule_allowed_subset(v: str) -> str:  # noqa: C901
             _validate_byday(kv["BYDAY"], allow_list=False, allow_ordinals=False)
 
     else:  # YEARLY
-        # yearly supports exactly one “mode” in this strict subset:
-        #   A) month-based: BYMONTH required, plus BYMONTHDAY OR (BYDAY+BYSETPOS)
-        #   B) weekno-based: BYWEEKNO required, plus BYDAY required (WKST optional), nothing else
-        #   C) yearday-based: BYYEARDAY required, nothing else
         has_bymonth = "BYMONTH" in kv
         has_byweekno = "BYWEEKNO" in kv
         has_byyearday = "BYYEARDAY" in kv
@@ -252,10 +234,8 @@ def _validate_rrule_allowed_subset(v: str) -> str:  # noqa: C901
                 raise ValueError(
                     "recurrence_rule YEARLY with BYWEEKNO must not include BYMONTH, BYMONTHDAY, BYYEARDAY, or BYSETPOS"
                 )
-            # WKST is allowed here (already validated if present)
 
         else:  # month-based
-            # BYMONTH is present
             if "BYWEEKNO" in kv or "BYYEARDAY" in kv:
                 raise ValueError("recurrence_rule YEARLY month-based must not include BYWEEKNO or BYYEARDAY")
 
@@ -277,34 +257,21 @@ def _validate_rrule_allowed_subset(v: str) -> str:  # noqa: C901
     return v
 
 
-class PetScheduleType(StrEnum):
-    VET_VISIT = "vet_visit"
-    VACCINATION = "vaccination"
-    GROOMING = "grooming"
-    FOOD = "food"
-    WALK = "walk"
-    MEDICINE = "medicine"
-    PLAY_TIME = "play_time"
-    OTHER = "other"
-
-
 class PetScheduleBase(BaseModel):
-    type: Annotated[PetScheduleType, Field(examples=[PetScheduleType.VET_VISIT])]
     title: Annotated[str, Field(min_length=3, max_length=255, examples=["Vet checkup"])]
+    schedule_type: Annotated[PetScheduleType, Field(examples=[PetScheduleType.VET_VISIT])]
     scheduled_at: Annotated[datetime, Field(examples=["2026-01-20T10:00:00+08:00"])]
-    is_recurring: Annotated[bool, Field(examples=[True, False], default=False)]
-    description: Annotated[str | None, Field(max_length=500, examples=["Annual checkup"], default=None)]
     recurrence_rule: Annotated[
         str | None,
-        Field(min_length=1, max_length=1024, examples=["FREQ=WEEKLY;INTERVAL=1"], default=None),
+        Field(
+            min_length=1,
+            max_length=1024,
+            examples=["FREQ=WEEKLY;INTERVAL=1"],
+            default=None,
+        ),
     ]
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def normalize_type(cls, v):
-        if isinstance(v, str):
-            return v.strip().lower()
-        return v
+    is_recurring: Annotated[bool, Field(examples=[True, False], default=False)]
+    description: Annotated[str | None, Field(max_length=500, examples=["Annual checkup"], default=None)]
 
     @field_validator("title", mode="before")
     @classmethod
@@ -313,11 +280,11 @@ class PetScheduleBase(BaseModel):
             return v.strip()
         return v
 
-    @field_validator("description", "recurrence_rule", mode="before")
+    @field_validator("schedule_type", mode="before")
     @classmethod
-    def normalize_optional_text_fields(cls, v):
+    def normalize_type(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip().lower()
         return v
 
     @field_validator("scheduled_at")
@@ -327,17 +294,22 @@ class PetScheduleBase(BaseModel):
             raise ValueError("scheduled_at must include a timezone offset")
         return v
 
+    @field_validator("recurrence_rule", "description", mode="before")
+    @classmethod
+    def normalize_optional_text_fields(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
     @field_validator("recurrence_rule")
     @classmethod
     def validate_recurrence_rule(cls, v: str | None) -> str | None:
         if v is None:
             return None
-
         try:
             rrulestr(v)
         except Exception:
             raise ValueError("recurrence_rule must be a valid RFC 5545 RRULE")
-
         return v
 
     @field_validator("recurrence_rule")
@@ -353,13 +325,11 @@ class PetScheduleBase(BaseModel):
             raise ValueError("recurrence_rule is required when is_recurring is true")
         if self.is_recurring is False and self.recurrence_rule is not None:
             raise ValueError("recurrence_rule must be null when is_recurring is false")
-
         return self
 
 
 class PetSchedule(TimestampSchema, PetScheduleBase, PersistentDeletion):
     pet_id: int
-    next_scheduled_at: datetime | None
 
 
 class PetScheduleRead(BaseModel):
@@ -367,48 +337,49 @@ class PetScheduleRead(BaseModel):
 
     id: int
     pet_id: int
-    type: PetScheduleType
     title: str
+    schedule_type: PetScheduleType
     scheduled_at: datetime
     is_recurring: bool
-    description: str | None
+    created_at: datetime
     recurrence_rule: str | None
-    next_scheduled_at: datetime | None
+    description: str | None
 
 
 class PetScheduleCreate(PetScheduleBase):
     model_config = ConfigDict(extra="forbid")
 
 
-class PetScheduleCreateInternal(PetScheduleBase):
-    pet_id: int
-
-
 class PetScheduleUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: Annotated[PetScheduleType | None, Field(examples=[PetScheduleType.VET_VISIT], default=None)]
-    title: Annotated[str | None, Field(min_length=3, max_length=255, examples=["Vet checkup"], default=None)]
+    title: Annotated[str | None, Field(min_length=3, max_length=255, examples=["Updated checkup"], default=None)]
+    schedule_type: Annotated[PetScheduleType | None, Field(examples=[PetScheduleType.VET_VISIT], default=None)]
     scheduled_at: Annotated[datetime | None, Field(examples=["2026-01-20T10:00:00+08:00"], default=None)]
-    description: Annotated[str | None, Field(max_length=500, examples=["Annual checkup"], default=None)]
-    is_recurring: Annotated[bool | None, Field(examples=[True, False], default=None)]
     recurrence_rule: Annotated[
         str | None,
-        Field(min_length=1, max_length=1024, examples=["FREQ=WEEKLY;INTERVAL=1"], default=None)
+        Field(
+            min_length=1,
+            max_length=1024,
+            examples=["FREQ=WEEKLY;INTERVAL=2"],
+            default=None,
+        ),
     ]
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def normalize_type(cls, v):
-        if isinstance(v, str):
-            return v.strip().lower()
-        return v
+    is_recurring: Annotated[bool | None, Field(examples=[True], default=None)]
+    description: Annotated[str | None, Field(max_length=500, examples=["Updated description"], default=None)]
 
     @field_validator("title", "description", "recurrence_rule", mode="before")
     @classmethod
     def normalize_text_fields(cls, v):
         if isinstance(v, str):
             return v.strip() or None
+        return v
+
+    @field_validator("schedule_type", mode="before")
+    @classmethod
+    def normalize_type(cls, v):
+        if isinstance(v, str):
+            return v.strip().lower()
         return v
 
     @field_validator("scheduled_at")
@@ -425,12 +396,10 @@ class PetScheduleUpdate(BaseModel):
     def validate_recurrence_rule(cls, v: str | None) -> str | None:
         if v is None:
             return None
-
         try:
             rrulestr(v)
         except Exception:
             raise ValueError("recurrence_rule must be a valid RFC 5545 RRULE")
-
         return v
 
     @field_validator("recurrence_rule")
@@ -443,22 +412,9 @@ class PetScheduleUpdate(BaseModel):
     @model_validator(mode="after")
     def validate_recurrence_fields_partial(self):
         fields = self.model_fields_set
-
         if "is_recurring" in fields:
             if self.is_recurring is True and self.recurrence_rule is None:
                 raise ValueError("recurrence_rule is required when is_recurring is true")
             if self.is_recurring is False and self.recurrence_rule is not None:
                 raise ValueError("recurrence_rule must be null when is_recurring is false")
-
         return self
-
-
-class PetScheduleUpdateInternal(PetScheduleUpdate):
-    updated_at: datetime
-
-
-class PetScheduleDelete(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    is_deleted: bool
-    deleted_at: datetime

@@ -1,9 +1,11 @@
 import uuid as uuid_pkg
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any, Generic, TypeVar
 
 from pydantic import BaseModel, Field, field_serializer
 from uuid6 import uuid7
+
+from .enums import ActorType
 
 
 class HealthCheck(BaseModel):
@@ -59,6 +61,18 @@ class PersistentDeletion(BaseModel):
         return None
 
 
+# -------------- pagination --------------
+T = TypeVar("T")
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    data: list[T]
+    total_count: int
+    has_more: bool
+    page: int
+    items_per_page: int
+
+
 # -------------- token --------------
 class Token(BaseModel):
     access_token: str
@@ -84,3 +98,18 @@ class TokenBlacklistCreate(TokenBlacklistBase):
 
 class TokenBlacklistUpdate(TokenBlacklistBase):
     pass
+
+
+class Actor(BaseModel):
+    id: int
+    actor_type: ActorType
+    request_id: str
+    is_superuser: bool
+    role_ids: list[int] | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+
+
+class GeoPoint(BaseModel):
+    latitude: Annotated[float, Field(ge=-90, le=90, examples=[37.7749])]
+    longitude: Annotated[float, Field(ge=-180, le=180, examples=[-122.4194])]

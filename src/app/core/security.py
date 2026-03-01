@@ -1,28 +1,35 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any
 
-import bcrypt
+from argon2.exceptions import VerificationError, VerifyMismatchError
+from fastapi import Request
 from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 from firebase_admin import auth
 from firebase_admin.auth import CertificateFetchError, ExpiredIdTokenError, InvalidIdTokenError, RevokedIdTokenError
 from firebase_admin.exceptions import FirebaseError
 from jose import JWTError, jwt
 from pydantic import SecretStr
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..crud.crud_users import crud_users
 from .config import settings
 from .db.crud_token_blacklist import crud_token_blacklist
 from .schemas import TokenBlacklistCreate, TokenData
+from .utils.rbac_bitmap import PermissionIndex, roleset_has_permission
+
+LOGGER = logging.getLogger(__name__)
 
 SECRET_KEY: SecretStr = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/admin")
 security = HTTPBearer()
+
+argon2_settings = settings.password_hasher
 
 
 class TokenType(StrEnum):
@@ -30,29 +37,29 @@ class TokenType(StrEnum):
     REFRESH = "refresh"
 
 
-async def verify_password(plain_password: str, hashed_password: str) -> bool:
-    correct_password: bool = bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
-    return correct_password
+def get_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.client.host if request.client else None
+
+
+async def verify_password(plain_password: str, hashed_password: str) -> tuple[bool, str | None]:
+    try:
+        valid = argon2_settings.verify(hashed_password, plain_password)
+
+        new_hash = None
+        if argon2_settings.check_needs_rehash(hashed_password):
+            new_hash = argon2_settings.hash(plain_password)
+
+        return valid, new_hash
+
+    except (VerifyMismatchError, VerificationError):
+        return False, None
 
 
 def get_password_hash(password: str) -> str:
-    hashed_password: str = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    return hashed_password
-
-
-async def authenticate_user(username_or_email: str, password: str, db: AsyncSession) -> dict[str, Any] | Literal[False]:
-    if "@" in username_or_email:
-        db_user = await crud_users.get(db=db, email=username_or_email, is_deleted=False)
-    else:
-        db_user = await crud_users.get(db=db, username=username_or_email, is_deleted=False)
-
-    if not db_user:
-        return False
-
-    if not await verify_password(password, db_user["hashed_password"]):
-        return False
-
-    return db_user
+    return argon2_settings.hash(password)
 
 
 async def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
@@ -154,3 +161,39 @@ def verify_firebase_token(id_token: str) -> dict[str, Any]:
         raise ValueError("Error fetching Firebase public keys.")
     except FirebaseError as firebase_error:
         raise ValueError(f"Firebase error: {firebase_error}")
+
+
+async def has_permission(
+    *,
+    db: AsyncSession,
+    redis: Redis,
+    permission_index: PermissionIndex,
+    permission_key: str,
+    role_ids: set[int] | None,
+) -> bool:
+    if not permission_key or not role_ids:
+        return False
+
+    try:
+        validated_role_ids = {int(role_id) for role_id in role_ids if role_id is not None}
+    except (TypeError, ValueError):
+        return False
+
+    if not validated_role_ids:
+        return False
+
+    if permission_key not in permission_index.by_key:
+        return False
+
+    try:
+        is_allowed = await roleset_has_permission(
+            db=db,
+            redis=redis,
+            perm_index=permission_index,
+            role_ids=validated_role_ids,
+            permission_key=permission_key,
+        )
+        return bool(is_allowed)
+
+    except (TimeoutError, Exception):
+        return False

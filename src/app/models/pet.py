@@ -1,152 +1,178 @@
 import uuid as uuid_pkg
-from datetime import UTC, date, datetime
+from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import UUID, Boolean, Date, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import UUID, Boolean, Date, ForeignKey, Index, Integer, Numeric, String, text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from uuid6 import uuid7
 
 from ..core.db.database import Base
+from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
+from ..core.enums import PetSex, PetSpecies
 from ..core.utils.google_cloud_storage import generate_view_signed_url
-from .missing_report import MissingReportStatus
 
 if TYPE_CHECKING:
     from .missing_report import MissingReport
+    from .mobile_user import MobileUser
     from .pet_allergy import PetAllergy
     from .pet_medical_condition import PetMedicalCondition
     from .pet_medication import PetMedication
-    from .pet_profile_image import PetProfileImage
+    from .pet_photo import PetPhoto
+    from .pet_qr_preference import PetQRPreference
     from .pet_schedule import PetSchedule
     from .pet_vaccination_record import PetVaccinationRecord
-    from .user import User
 
 
-class Pet(Base):
+class Pet(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "pet"
 
-    id: Mapped[int] = mapped_column(init=False, primary_key=True)
-    owner_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False, index=True)
+    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("mobile_user.id", ondelete="CASCADE"), nullable=False)
 
-    name: Mapped[str] = mapped_column(String(25), nullable=False)
-    type: Mapped[str] = mapped_column(String(3), nullable=False, index=True)
-    breed: Mapped[str] = mapped_column(String(30), nullable=False)
-    sex: Mapped[str] = mapped_column(String(6), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    species: Mapped[PetSpecies] = mapped_column(
+        SQLEnum(
+            PetSpecies,
+            name="pet_species_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+    )
+    breed: Mapped[str] = mapped_column(String, nullable=False)
+    sex: Mapped[PetSex] = mapped_column(
+        SQLEnum(
+            PetSex,
+            name="pet_sex_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+    )
     date_of_birth: Mapped[date] = mapped_column(Date, nullable=False)
 
-    owner: Mapped["User"] = relationship("User", back_populates="pets", lazy="selectin", init=False)
-    profile_images: Mapped[list["PetProfileImage"]] = relationship(
-        "PetProfileImage",
-        primaryjoin="and_(Pet.id == PetProfileImage.pet_id, ~PetProfileImage.is_deleted)",
-        order_by="(PetProfileImage.sort_order.asc(), PetProfileImage.created_at.desc())",
+    owner: Mapped["MobileUser"] = relationship(
+        "MobileUser",
+        uselist=False,
+        back_populates="pets",
+        lazy="raise",
+        init=False,
+    )
+    photos: Mapped[list["PetPhoto"]] = relationship(
+        "PetPhoto",
+        primaryjoin="and_(Pet.id == PetPhoto.pet_id, PetPhoto.is_deleted.is_(False))",
         back_populates="pet",
+        order_by="PetPhoto.sort_order.asc()",
         cascade="delete, delete-orphan",
+        lazy="raise",
         passive_deletes=True,
-        lazy="selectin",
-        init=False
+        init=False,
     )
     vaccination_records: Mapped[list["PetVaccinationRecord"]] = relationship(
         "PetVaccinationRecord",
-        primaryjoin="and_(Pet.id == PetVaccinationRecord.pet_id, ~PetVaccinationRecord.is_deleted)",
+        primaryjoin="and_(Pet.id == PetVaccinationRecord.pet_id, PetVaccinationRecord.is_deleted.is_(False))",
         back_populates="pet",
-        cascade="all, delete-orphan",
+        cascade="delete, delete-orphan",
+        lazy="raise",
         passive_deletes=True,
-        lazy="selectin",
-        init=False
+        init=False,
     )
     allergies: Mapped[list["PetAllergy"]] = relationship(
         "PetAllergy",
-        primaryjoin="and_(Pet.id == PetAllergy.pet_id, ~PetAllergy.is_deleted)",
+        primaryjoin="and_(Pet.id == PetAllergy.pet_id, PetAllergy.is_deleted.is_(False))",
         back_populates="pet",
-        cascade="all, delete-orphan",
+        cascade="delete, delete-orphan",
+        lazy="raise",
         passive_deletes=True,
-        lazy="selectin",
-        init=False
+        init=False,
     )
     medications: Mapped[list["PetMedication"]] = relationship(
         "PetMedication",
-        primaryjoin="and_(Pet.id == PetMedication.pet_id, ~PetMedication.is_deleted)",
+        primaryjoin="and_(Pet.id == PetMedication.pet_id, PetMedication.is_deleted.is_(False))",
         back_populates="pet",
-        cascade="all, delete-orphan",
+        cascade="delete, delete-orphan",
+        lazy="raise",
         passive_deletes=True,
-        lazy="selectin",
         init=False,
     )
     medical_conditions: Mapped[list["PetMedicalCondition"]] = relationship(
         "PetMedicalCondition",
-        primaryjoin="and_(Pet.id == PetMedicalCondition.pet_id, ~PetMedicalCondition.is_deleted)",
+        primaryjoin="and_(Pet.id == PetMedicalCondition.pet_id, PetMedicalCondition.is_deleted.is_(False))",
         back_populates="pet",
-        cascade="all, delete-orphan",
+        cascade="delete, delete-orphan",
+        lazy="raise",
         passive_deletes=True,
-        lazy="selectin",
-        init=False
+        init=False,
     )
     schedules: Mapped[list["PetSchedule"]] = relationship(
         "PetSchedule",
-        primaryjoin="and_(Pet.id == PetSchedule.pet_id, ~PetSchedule.is_deleted)",
+        primaryjoin="and_(Pet.id == PetSchedule.pet_id, PetSchedule.is_deleted.is_(False))",
         back_populates="pet",
-        cascade="all, delete-orphan",
+        cascade="delete, delete-orphan",
+        lazy="raise",
         passive_deletes=True,
-        lazy="selectin",
-        init=False
+        init=False,
     )
     missing_reports: Mapped[list["MissingReport"]] = relationship(
         "MissingReport",
-        primaryjoin="and_(Pet.id == MissingReport.pet_id, ~MissingReport.is_deleted)",
+        primaryjoin="and_(Pet.id == MissingReport.pet_id, MissingReport.is_deleted.is_(False))",
         back_populates="pet",
-        cascade="all, delete-orphan",
+        cascade="delete, delete-orphan",
+        lazy="raise",
         passive_deletes=True,
-        lazy="selectin",
-        init=False
+        init=False,
+    )
+    qr_preference: Mapped["PetQRPreference | None"] = relationship(
+        "PetQRPreference",
+        uselist=False,
+        back_populates="pet",
+        cascade="delete",
+        lazy="raise",
+        passive_deletes=True,
+        init=False,
     )
 
-    weight_kg: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    color: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    markings: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_sterilized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    qr_code_image_object_key: Mapped[str | None] = mapped_column(String(1024), nullable=True, default=None)
-    qr_show_owner_name: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    qr_show_email: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    qr_show_phone_number: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    qr_show_address: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), default_factory=uuid7, nullable=False, unique=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default_factory=lambda: datetime.now(UTC), nullable=False
+    color: Mapped[str | None] = mapped_column(String, nullable=True, default=None, server_default=text("NULL"))
+    markings: Mapped[str | None] = mapped_column(String, nullable=True, default=None, server_default=text("NULL"))
+    weight_kg: Mapped[Decimal | None] = mapped_column(
+        Numeric(5, 2),
+        nullable=True,
+        default=None,
+        server_default=text("NULL"),
     )
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    is_deleted: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
+
+    qr_code_object_key: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+        default=None,
+        server_default=text("NULL"),
+    )
+    uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, default_factory=uuid7, init=False)
+
+    is_sterilized: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    is_missing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
 
     @property
-    def profile_image_urls(self) -> list[str]:
-        return [profile_image.image_url for profile_image in self.profile_images]
+    def photo_urls(self) -> list[str]:
+        return [photo.photo_url for photo in self.photos]
 
     @property
-    def primary_profile_image_url(self) -> str:
-        if not self.profile_images:
-            raise RuntimeError(f"Pet {self.id} has no profile images")
+    def primary_photo_url(self) -> str | None:
+        if self.photos:
+            return self.photos[0].photo_url
 
-        primary = next(
-            (
-                profile_image
-                for profile_image in self.profile_images
-                if profile_image.is_primary
-            ),
-            None,
-        )
-
-        return (primary or self.profile_images[0]).image_url
+        return None
 
     @property
     def qr_code_url(self) -> str | None:
-        if not self.qr_code_image_object_key:
+        if not self.qr_code_object_key:
             return None
 
-        return generate_view_signed_url(self.qr_code_image_object_key)
+        return generate_view_signed_url(self.qr_code_object_key)
 
-    @property
-    def missing_status(self) -> MissingReportStatus | None:
-        if not self.missing_reports:
-            return None
-
-        latest_missing_report = max(self.missing_reports, key=lambda mr: mr.created_at)
-        return latest_missing_report.status
+    __table_args__ = (
+        Index("uq_pet_uuid", "uuid", unique=True),
+        Index("uq_pet_qr_code_object_key", "qr_code_object_key", unique=True),
+        Index("idx_pet_owner_id_active", "owner_id", postgresql_where=text("is_deleted = false")),
+        Index("idx_pet_species_active", "species", postgresql_where=text("is_deleted = false")),
+        Index("idx_pet_is_missing_active", "is_missing", postgresql_where=text("is_deleted = false")),
+    )

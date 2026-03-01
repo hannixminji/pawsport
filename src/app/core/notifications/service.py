@@ -1,13 +1,14 @@
-from __future__ import annotations
+import logging
 
-from sqlalchemy import delete
+from sqlalchemy import bindparam, text
+from sqlalchemy.dialects.postgresql import ARRAY, TEXT
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.push_token import PushToken
-from app.schemas.notification_preference import NotificationFeature
-
+from ..enums import NotificationFeature
 from .nearby import fetch_push_tokens_within_radius_of_user_alert_center
 from .sender_fcm import send_fcm_multicast_notifications_in_chunks
+
+logger = logging.getLogger(__name__)
 
 
 async def notify_users_near_event_using_alert_center_radius(
@@ -32,7 +33,22 @@ async def notify_users_near_event_using_alert_center_radius(
     )
 
     if not registration_tokens:
+        logger.debug(
+            "No eligible push tokens found within %dm of (%.4f, %.4f) — skipping.",
+            radius_in_meters,
+            event_latitude,
+            event_longitude,
+        )
         return
+
+    logger.info(
+        "Dispatching '%s' to %d devices within %dm of (%.4f, %.4f).",
+        notification_title,
+        len(registration_tokens),
+        radius_in_meters,
+        event_latitude,
+        event_longitude,
+    )
 
     invalid_registration_tokens = await send_fcm_multicast_notifications_in_chunks(
         registration_tokens=registration_tokens,
@@ -41,8 +57,24 @@ async def notify_users_near_event_using_alert_center_radius(
         notification_data=notification_data,
     )
 
-    if invalid_registration_tokens:
-        await database_session.execute(
-            delete(PushToken)
-            .where(PushToken.token.in_(invalid_registration_tokens))
-        )
+    if not invalid_registration_tokens:
+        return
+
+    statement = text(
+        """
+        DELETE FROM device_push_token
+        WHERE token = ANY(:tokens)
+        """
+    ).bindparams(
+        bindparam("tokens", type_=ARRAY(TEXT))
+    )
+
+    await database_session.execute(
+        statement,
+        {"tokens": invalid_registration_tokens},
+    )
+
+    logger.info(
+        "Purged %d dead FCM tokens from device_push_token.",
+        len(invalid_registration_tokens),
+    )

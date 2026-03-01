@@ -1,29 +1,23 @@
 from datetime import date, datetime
-from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from ..core.enums import MedicalConditionSeverity, MedicalConditionStatus
 from ..core.schemas import PersistentDeletion, TimestampSchema
-
-
-class MedicalConditionSeverity(StrEnum):
-    MILD = "mild"
-    MODERATE = "moderate"
-    SEVERE = "severe"
-
-
-class MedicalConditionStatus(StrEnum):
-    ACTIVE = "active"
-    RESOLVED = "resolved"
-    CHRONIC = "chronic"
 
 
 class PetMedicalConditionBase(BaseModel):
     condition_name: Annotated[str, Field(min_length=3, max_length=255, examples=["Hip Dysplasia"])]
-    severity_level: Annotated[MedicalConditionSeverity, Field(examples=[MedicalConditionSeverity.MODERATE])]
-    condition_status: Annotated[MedicalConditionStatus, Field(examples=[MedicalConditionStatus.ACTIVE])]
+    severity: Annotated[MedicalConditionSeverity, Field(examples=[MedicalConditionSeverity.MODERATE])]
+    condition_status: Annotated[
+        MedicalConditionStatus,
+        Field(
+            examples=[MedicalConditionStatus.ACTIVE],
+        ),
+    ]
     diagnosis_date: Annotated[date | None, Field(examples=["2024-05-12"], default=None)]
+    notes: Annotated[str | None, Field(max_length=2000, examples=["Requires regular checkups"], default=None)]
 
     @field_validator("condition_name", mode="before")
     @classmethod
@@ -32,7 +26,7 @@ class PetMedicalConditionBase(BaseModel):
             return v.strip()
         return v
 
-    @field_validator("severity_level", "condition_status", mode="before")
+    @field_validator("severity", "condition_status", mode="before")
     @classmethod
     def normalize_enum_fields(cls, v):
         if isinstance(v, str):
@@ -43,7 +37,14 @@ class PetMedicalConditionBase(BaseModel):
     @classmethod
     def validate_diagnosis_date(cls, v: date | None):
         if v is not None and v > date.today():
-            raise ValueError("Diagnosis date cannot be in the future.")
+            raise ValueError("diagnosis_date cannot be in the future")
+        return v
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def normalize_notes(cls, v):
+        if isinstance(v, str):
+            return v.strip() or None
         return v
 
 
@@ -57,39 +58,46 @@ class PetMedicalConditionRead(BaseModel):
     id: int
     pet_id: int
     condition_name: str
-    severity_level: MedicalConditionSeverity
+    severity: MedicalConditionSeverity
     condition_status: MedicalConditionStatus
+    created_at: datetime
     diagnosis_date: date | None
+    notes: str | None
 
 
 class PetMedicalConditionCreate(PetMedicalConditionBase):
     model_config = ConfigDict(extra="forbid")
 
 
-class PetMedicalConditionCreateInternal(PetMedicalConditionBase):
-    pet_id: int
-
-
 class PetMedicalConditionUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     condition_name: Annotated[str | None, Field(min_length=3, max_length=255, examples=["Hip Dysplasia"], default=None)]
-    severity_level: Annotated[
-        MedicalConditionSeverity | None, Field(examples=[MedicalConditionSeverity.MODERATE], default=None)
+    severity: Annotated[
+        MedicalConditionSeverity | None,
+        Field(
+            examples=[MedicalConditionSeverity.MODERATE],
+            default=None,
+        ),
     ]
     condition_status: Annotated[
-        MedicalConditionStatus | None, Field(examples=[MedicalConditionStatus.ACTIVE], default=None)
+        MedicalConditionStatus | None,
+        Field(
+            examples=[MedicalConditionStatus.ACTIVE],
+            default=None,
+        ),
     ]
     diagnosis_date: Annotated[date | None, Field(examples=["2024-05-12"], default=None)]
+    notes: Annotated[str | None, Field(max_length=2000, examples=["Updated notes"], default=None)]
 
-    @field_validator("condition_name", mode="before")
+    @field_validator("condition_name", "notes", mode="before")
     @classmethod
-    def normalize_condition_name(cls, v):
+    def normalize_text_fields(cls, v):
         if isinstance(v, str):
             return v.strip() or None
         return v
 
-    @field_validator("severity_level", "condition_status", mode="before")
+    @field_validator("severity", "condition_status", mode="before")
     @classmethod
     def normalize_enum_fields(cls, v):
         if isinstance(v, str):
@@ -100,16 +108,5 @@ class PetMedicalConditionUpdate(BaseModel):
     @classmethod
     def validate_diagnosis_date(cls, v: date | None):
         if v is not None and v > date.today():
-            raise ValueError("Diagnosis date cannot be in the future.")
+            raise ValueError("diagnosis_date cannot be in the future")
         return v
-
-
-class PetMedicalConditionUpdateInternal(PetMedicalConditionUpdate):
-    updated_at: datetime
-
-
-class PetMedicalConditionDelete(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    is_deleted: bool
-    deleted_at: datetime
