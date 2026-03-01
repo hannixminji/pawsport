@@ -10,6 +10,7 @@ from app.core.security import get_ip
 
 from ..core.enums import ActorType, AdminAccountStatus
 from ..core.schemas import Actor, PersistentDeletion, TimestampSchema, UUIDSchema
+from .schemas.admin_role import AdminRoleRead
 
 
 class AdminUserBase(BaseModel):
@@ -118,45 +119,24 @@ class AdminUserRead(BaseModel):
         return v
 
 
-class AdminActor(BaseModel):
-    id: int
-    actor_type: ActorType
-    is_superuser: bool
-    role_ids: set[int] | None
+class AdminUserReadWithRoles(AdminUserRead):
+    roles: list[AdminRoleRead]
 
-    def to_actor(self, request: Request) -> Actor:
-        return Actor(
-            id=self.id,
-            actor_type=self.actor_type,
-            is_superuser=self.is_superuser,
-            role_ids=list(self.role_ids) if self.role_ids else None,
-            request_id=getattr(request.state, "request_id", None),
-            ip_address=get_ip(request),
-            user_agent=request.headers.get("user-agent"),
-        )
+
+class AdminUserLoginResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    email: EmailStr
+    is_superuser: bool
+    profile_image_url: str | None = None
 
 
 class AdminUserCreate(AdminUserBase):
     model_config = ConfigDict(extra="forbid")
 
     password: Annotated[SecretStr, Field(pattern=r"^.{8,}|[0-9]+|[A-Z]+|[a-z]+|[^a-zA-Z0-9]+$", examples=["Str1ngst!"])]
-
-
-class AdminAssignRoles(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    role_ids: list[int] = Field(..., min_length=1, max_length=100)
-
-    @field_validator("role_ids")
-    def validate_positive_ids(cls: type, v: list[int]) -> list[int]:
-        if len(v) != len(set(v)):
-            raise ValueError("Role IDs must be unique.")
-
-        for role_id in v:
-            if role_id < 1:
-                raise ValueError(f"Invalid role ID: {role_id}. Role IDs must be positive integers.")
-
-        return v
 
 
 class AdminUserLogin(BaseModel):
@@ -166,14 +146,44 @@ class AdminUserLogin(BaseModel):
     password: Annotated[str, Field(pattern=r"^.{8,}|[0-9]+|[A-Z]+|[a-z]+|[^a-zA-Z0-9]+$", examples=["Str1ngst!"])]
 
 
-class AdminLoginResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+class AdminUserAssignRoles(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-    id: int
-    username: str
-    email: EmailStr
-    is_superuser: bool
-    profile_image_url: str | None = None
+    role_ids: Annotated[set[int], Field(min_length=1, max_length=100)]
+
+    @field_validator("role_ids", mode="before")
+    @classmethod
+    def validate_role_ids(cls, v):
+        if not isinstance(v, list):
+            raise ValueError("role_ids must be a list")
+
+        if len(v) != len(set(v)):
+            raise ValueError("role_ids must not contain duplicates")
+
+        if any(role_id < 1 for role_id in v):
+            raise ValueError("each role_id must be >= 1")
+
+        return v
+
+
+class AdminUserAssignPermissions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    permission_ids: Annotated[set[int], Field(min_length=1, max_length=100)]
+
+    @field_validator("permission_ids", mode="before")
+    @classmethod
+    def validate_permission_ids(cls, v):
+        if not isinstance(v, list):
+            raise ValueError("permission_ids must be a list")
+
+        if len(v) != len(set(v)):
+            raise ValueError("permission_ids must not contain duplicates")
+
+        if any(permission_id < 1 for permission_id in v):
+            raise ValueError("each permission_id must be >= 1")
+
+        return v
 
 
 class AdminUserUpdate(BaseModel):
@@ -255,7 +265,7 @@ class AdminUserUpdate(BaseModel):
         return v
 
 
-class AdminUserAccountStatusUpdate(BaseModel):
+class AdminUserStatusUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     account_status: Annotated[AdminAccountStatus, Field(examples=[AdminAccountStatus.SUSPENDED])]
@@ -285,3 +295,41 @@ class AdminUserPasswordUpdate(BaseModel):
             examples=["NewPass456@"],
         ),
     ]
+
+
+class AdminActor(BaseModel):
+    id: int
+    actor_type: ActorType
+    is_superuser: bool
+    role_ids: set[int] | None
+
+    def to_actor(self, request: Request) -> Actor:
+        return Actor(
+            id=self.id,
+            actor_type=self.actor_type,
+            is_superuser=self.is_superuser,
+            role_ids=list(self.role_ids) if self.role_ids else None,
+            request_id=getattr(request.state, "request_id", None),
+            ip_address=get_ip(request),
+            user_agent=request.headers.get("user-agent"),
+        )
+
+
+class AdminUserBulkDelete(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ids: Annotated[set[int], Field(min_length=1, max_length=100)]
+
+    @field_validator("ids", mode="before")
+    @classmethod
+    def validate_ids(cls, v):
+        if not isinstance(v, list):
+            raise ValueError("ids must be a list")
+
+        if len(v) != len(set(v)):
+            raise ValueError("ids must not contain duplicates")
+
+        if any(id_ < 1 for id_ in v):
+            raise ValueError("each id must be >= 1")
+
+        return v

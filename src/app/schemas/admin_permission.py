@@ -93,8 +93,11 @@ class AdminPermissionBulkDelete(BaseModel):
     def validate_ids(cls, v):
         if not isinstance(v, list):
             raise ValueError("ids must be a list")
+
         if len(v) != len(set(v)):
             raise ValueError("ids must not contain duplicates")
+
         if any(id_ < 1 for id_ in v):
             raise ValueError("each id must be >= 1")
+
         return v

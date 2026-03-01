@@ -5,7 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.db.database import Base
 from ..core.db.models import IntegerPKMixin, TimestampMixin
-from ._rbac_tables import admin_role_permission, admin_user_role
+from ._rbac_table import admin_role_permission, admin_user_role
 
 if TYPE_CHECKING:
     from .admin_permission import AdminPermission

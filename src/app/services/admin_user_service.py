@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import any_, delete, func, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from ..core.enums import AdminAccountStatus
 from ..core.exceptions.authorization_exceptions import ForbiddenError
@@ -24,6 +25,7 @@ from ..models.admin_user import AdminUser
 from ..schemas.admin_user import (
     AdminUserCreate,
     AdminUserRead,
+    AdminUserReadWithRoles,
     AdminUserUpdate,
 )
 
@@ -94,16 +96,19 @@ class AdminUserService:
 
         return constraint_name in str(original_exception)
 
-    async def _get_admin_user_by_id(self, user_id: int) -> AdminUser | None:
-        return (
-            await self.db.execute(
+    async def _get_admin_user_by_id(self, user_id: int, with_roles: bool = False) -> AdminUser | None:
+            query = (
                 select(AdminUser)
                 .where(
                     AdminUser.id == user_id,
                     AdminUser.is_deleted.is_(False),
                 )
             )
-        ).scalar_one_or_none()
+
+            if with_roles:
+                query = query.options(selectinload(AdminUser.roles))
+
+            return (await self.db.execute(query)).scalar_one_or_none()
 
     async def create(
         self,
@@ -228,20 +233,35 @@ class AdminUserService:
             items_per_page=items_per_page,
         )
 
-    async def get_admin_user(
+    async def get_admin_user_with_roles(
         self,
         *,
         actor: Actor,
         user_id: int,
-    ) -> AdminUserRead:
-        if not actor.is_superuser:
-            raise ForbiddenError("Superuser privileges are required to perform this action.")
+    ) -> AdminUserReadWithRoles:
+        if not actor.is_superuser and actor.id != user_id:
+            raise ForbiddenError("You do not have permission to view this admin user.")
 
-        db_user = await self._get_admin_user_by_id(user_id)
+        db_user = await self._get_admin_user_by_id(user_id, with_roles=True)
         if db_user is None:
             raise NotFoundError("Admin user not found.")
 
-        return AdminUserRead.model_validate(db_user)
+        return AdminUserReadWithRoles.model_validate(db_user)
+
+    async def get_admin_user(
+            self,
+            *,
+            actor: Actor,
+            user_id: int,
+        ) -> AdminUserRead:
+            if not actor.is_superuser and actor.id != user_id:
+                raise ForbiddenError("You do not have permission to view this admin user.")
+
+            db_user = await self._get_admin_user_by_id(user_id)
+            if db_user is None:
+                raise NotFoundError("Admin user not found.")
+
+            return AdminUserRead.model_validate(db_user)
 
     async def update(
         self,

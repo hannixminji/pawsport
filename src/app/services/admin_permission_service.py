@@ -90,8 +90,7 @@ class AdminPermissionService:
 
             if self._is_unique_constraint_violation(error, "uq_admin_permission_key"):
                 raise InvalidInputError("A permission with this key already exists.")
-            print("Error orig:", getattr(error, "orig", None))
-            print("Error diag:", getattr(getattr(error, "orig", None), "diag", None))
+
             raise InvalidInputError("Unable to create the admin permission.")
 
         except OperationalError as error:

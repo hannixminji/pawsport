@@ -11,7 +11,7 @@ from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...models._rbac_tables import admin_role_permission
+from ...models._rbac_table import admin_role_permission
 from ...models.admin_permission import AdminPermission
 
 LOGGER = logging.getLogger(__name__)

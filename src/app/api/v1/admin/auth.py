@@ -34,7 +34,7 @@ from app.core.utils.admin_sessions import (
     set_admin_cookies,
 )
 from app.models.admin_user import AdminUser
-from app.schemas.admin_user import AdminLoginResponse, AdminUserLogin, AdminUserRead
+from app.schemas.admin_user import AdminUserLogin, AdminUserLoginResponse, AdminUserRead
 
 LOGGER = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ async def _get_admin_by_username(username: str, db: AsyncSession) -> AdminUser |
         raise CustomException(status_code=500, detail="An unexpected error occurred.")
 
 
-@router.post("/login", response_model=AdminLoginResponse)
+@router.post("/login", response_model=AdminUserLoginResponse)
 @csrf_exempt
 async def admin_login(
     request: Request,
@@ -115,7 +115,7 @@ async def admin_login(
     redis: Annotated[Redis, Depends(get_redis_safe)],
     sm: Annotated[SessionManager, Depends(get_session_manager)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
-) -> AdminLoginResponse:
+) -> AdminUserLoginResponse:
     attempt_count = await _enforce_login_rate_limit(redis, request, payload.username)
 
     user = await _get_admin_by_username(payload.username, db=db)
@@ -159,7 +159,7 @@ async def admin_login(
         log_level=logging.INFO,
     )
 
-    return AdminLoginResponse.model_validate(user)
+    return AdminUserLoginResponse.model_validate(user)
 
 
 @router.post("/logout")

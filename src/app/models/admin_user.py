@@ -12,7 +12,7 @@ from ..core.db.database import Base
 from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
 from ..core.enums import AdminAccountStatus
 from ..core.utils.google_cloud_storage import generate_view_signed_url
-from ._rbac_tables import admin_user_permission, admin_user_role
+from ._rbac_table import admin_user_permission, admin_user_role
 
 if TYPE_CHECKING:
     from .admin_permission import AdminPermission

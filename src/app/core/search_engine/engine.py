@@ -263,7 +263,8 @@ class SearchEngine(Generic[_T]):
             case FilterOp.GTE:
                 return column >= value
             case FilterOp.ILIKE:
-                return column.ilike(value)
+                safe_search = f"%{value.strip()}%"
+                return column.ilike(safe_search)
             case FilterOp.IN:
                 return column.in_(value)
             case FilterOp.NOT_IN:

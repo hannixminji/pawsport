@@ -36,7 +36,7 @@ from ..core.utils.rbac_bitmap import (
     load_permission_index,
     roleset_has_permission,
 )
-from ..models._rbac_tables import admin_role_permission
+from ..models._rbac_table import admin_role_permission
 from ..models.admin_permission import AdminPermission
 from ..models.admin_role import AdminRole
 from ..models.admin_user import AdminUser
