@@ -21,7 +21,7 @@ class AdminPermissionBase(BaseModel):
     @classmethod
     def normalize_description(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("key")
@@ -65,7 +65,7 @@ class AdminPermissionUpdate(BaseModel):
     @classmethod
     def normalize_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("key")

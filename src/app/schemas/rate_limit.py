@@ -61,12 +61,12 @@ class RateLimitUpdate(BaseModel):
     @classmethod
     def normalize_name(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("path", mode="before")
     @classmethod
     def validate_and_sanitize_path(cls, v):
         if isinstance(v, str):
-            return sanitize_path(v.strip()) or None
+            return sanitize_path(v.strip())
         return v

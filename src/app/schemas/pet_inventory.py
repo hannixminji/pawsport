@@ -121,7 +121,7 @@ class PetInventoryUpdate(BaseModel):
     @classmethod
     def normalize_name(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("inventory_type", "unit", mode="before")

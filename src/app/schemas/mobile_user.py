@@ -52,14 +52,14 @@ class MobileUserBase(BaseModel):
     @classmethod
     def normalize_optional_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("phone_number", mode="before")
     @classmethod
     def normalize_phone_number(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("profile_image_object_key")
@@ -99,7 +99,7 @@ class MobileUserBase(BaseModel):
             stripped = v.strip()
             if any(ch.isspace() for ch in stripped):
                 raise ValueError("postal_code must not contain whitespace")
-            return stripped or None
+            return stripped
         return v
 
     @field_validator("country", "street_address_1", "street_address_2", "city", "state_province_region", "postal_code")
@@ -221,14 +221,14 @@ class MobileUserUpdate(BaseModel):
     @classmethod
     def normalize_names(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("phone_number", mode="before")
     @classmethod
     def normalize_phone_number(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("profile_image_object_key")
@@ -265,7 +265,7 @@ class MobileUserUpdate(BaseModel):
     @classmethod
     def normalize_optional_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("postal_code", mode="before")
@@ -275,7 +275,7 @@ class MobileUserUpdate(BaseModel):
             stripped = v.strip()
             if any(ch.isspace() for ch in stripped):
                 raise ValueError("postal_code must not contain whitespace")
-            return stripped or None
+            return stripped
         return v
 
     @field_validator("country", "street_address_1", "street_address_2", "city", "state_province_region", "postal_code")

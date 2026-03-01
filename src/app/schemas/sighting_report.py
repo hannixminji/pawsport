@@ -47,7 +47,7 @@ class SightingReportBase(BaseModel):
     @classmethod
     def normalize_description(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
 
@@ -121,7 +121,7 @@ class SightingReportUpdate(BaseModel):
     @classmethod
     def normalize_description(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
 

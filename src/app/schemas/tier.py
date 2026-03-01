@@ -40,5 +40,5 @@ class TierUpdate(BaseModel):
     @field_validator("name", mode="before")
     def normalize_name(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v

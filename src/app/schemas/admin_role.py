@@ -22,7 +22,7 @@ class AdminRoleBase(BaseModel):
     @classmethod
     def normalize_description(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
 
@@ -72,5 +72,5 @@ class AdminRoleUpdate(BaseModel):
     @classmethod
     def normalize_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v

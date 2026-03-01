@@ -298,7 +298,7 @@ class PetScheduleBase(BaseModel):
     @classmethod
     def normalize_optional_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("recurrence_rule")
@@ -372,7 +372,7 @@ class PetScheduleUpdate(BaseModel):
     @classmethod
     def normalize_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("schedule_type", mode="before")

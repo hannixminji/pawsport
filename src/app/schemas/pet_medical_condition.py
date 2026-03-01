@@ -44,7 +44,7 @@ class PetMedicalConditionBase(BaseModel):
     @classmethod
     def normalize_notes(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
 
@@ -94,7 +94,7 @@ class PetMedicalConditionUpdate(BaseModel):
     @classmethod
     def normalize_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("severity", "condition_status", mode="before")

@@ -39,14 +39,14 @@ class AdminUserBase(BaseModel):
     @classmethod
     def normalize_names(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("phone_number", mode="before")
     @classmethod
     def normalize_phone_number(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("profile_image_object_key")
@@ -207,21 +207,21 @@ class AdminUserUpdate(BaseModel):
     @classmethod
     def normalize_username_and_email(cls, v):
         if isinstance(v, str):
-            return v.strip().lower() or None
+            return v.strip().lower()
         return v
 
     @field_validator("first_name", "last_name", mode="before")
     @classmethod
     def normalize_names(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("phone_number", mode="before")
     @classmethod
     def normalize_phone_number(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("profile_image_object_key")

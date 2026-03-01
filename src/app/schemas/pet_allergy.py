@@ -39,7 +39,7 @@ class PetAllergyBase(BaseModel):
     @classmethod
     def normalize_reaction(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
 
@@ -83,7 +83,7 @@ class PetAllergyUpdate(BaseModel):
     @classmethod
     def normalize_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("allergen_type", "severity", mode="before")

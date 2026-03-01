@@ -60,23 +60,12 @@ class RateLimitService:
         "created_at",
     }
 
-    def _is_unique_constraint_violation(
-        self, error: IntegrityError, constraint_name: str
-    ) -> bool:
+    def _is_unique_constraint_violation(self, error: IntegrityError, constraint_name: str) -> bool:
         original_exception = getattr(error, "orig", None)
-        if not original_exception:
+        if original_exception is None:
             return False
 
-        violated_constraint_name = getattr(original_exception, "constraint_name", None)
-        if isinstance(violated_constraint_name, str) and violated_constraint_name:
-            return violated_constraint_name == constraint_name
-
-        diagnostic = getattr(original_exception, "diag", None)
-        diagnostic_constraint_name = getattr(diagnostic, "constraint_name", None)
-        if isinstance(diagnostic_constraint_name, str) and diagnostic_constraint_name:
-            return diagnostic_constraint_name == constraint_name
-
-        return False
+        return constraint_name in str(original_exception)
 
     async def _get_rate_limit(self, rate_limit_id: int, tier_id: int) -> RateLimit | None:
         return (

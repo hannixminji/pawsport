@@ -34,7 +34,7 @@ class MissingReportBase(BaseModel):
     @classmethod
     def normalize_optional_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("last_seen_at")
@@ -108,7 +108,7 @@ class MissingReportUpdate(BaseModel):
     @classmethod
     def normalize_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @model_validator(mode="before")

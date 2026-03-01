@@ -51,7 +51,7 @@ class PetBase(BaseModel):
     @classmethod
     def normalize_optional_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("color", "markings")
@@ -343,7 +343,7 @@ class PetUpdate(BaseModel):
     @classmethod
     def normalize_text_fields(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("name", "breed", "color", "markings")

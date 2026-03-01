@@ -151,11 +151,11 @@ class DefaultRateLimitSettings(BaseSettings):
 class AdminSessionSettings(BaseSettings):
     ADMIN_SESSION_TTL_SECONDS: int = 1800
     ADMIN_SESSION_ABSOLUTE_TTL_SECONDS: int = 604800
-    ADMIN_SESSION_SIGNING_SECRET: SecretStr = SecretStr("")
+    ADMIN_SESSION_SIGNING_SECRET: SecretStr
 
     ADMIN_SESSION_COOKIE_SECURE: bool = True
     ADMIN_SESSION_COOKIE_SAMESITE: str = "lax"
-    ADMIN_SESSION_COOKIE_PATH: str = "/admin"
+    ADMIN_SESSION_COOKIE_PATH: str = "/api/v1/admin"
 
     ADMIN_SESSION_MAXIMUM_SESSIONS_PER_USER: int = 3
 
@@ -163,7 +163,7 @@ class AdminSessionSettings(BaseSettings):
 class AdminAuthSettings(BaseSettings):
     LOGIN_WINDOW_SECONDS: int = 60
     LOGIN_MAX_ATTEMPTS_PER_IP_USERNAME: int = 10
-    LOGIN_MAX_ATTEMPTS_PER_IP: int = 30
+    LOGIN_MAX_ATTEMPTS_PER_IP: int = 10
 
 
 class EnvironmentOption(StrEnum):

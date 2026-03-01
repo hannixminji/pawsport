@@ -104,7 +104,7 @@ class PetVaccinationRecordUpdate(BaseModel):
     @classmethod
     def normalize_vaccine_name(cls, v):
         if isinstance(v, str):
-            return v.strip() or None
+            return v.strip()
         return v
 
     @field_validator("vaccine_type", mode="before")
