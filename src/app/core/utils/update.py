@@ -10,5 +10,4 @@ def apply_partial_update(
 ) -> None:
     excluded_fields = set(exclude or ())
     for field_name, field_value in input.model_dump(exclude_unset=True, exclude=excluded_fields).items():
-        if field_value is not None:
-            setattr(target, field_name, field_value)
+        setattr(target, field_name, field_value)
