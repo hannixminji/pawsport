@@ -304,7 +304,7 @@ async def rate_limiter_dependency(
     request: Request,
     db: Annotated[AsyncSession, Depends(async_get_db)],
     user: Annotated[MobileActor, Depends(get_current_mobile_user)],
-) -> None:
+) -> Actor:
     if hasattr(request.app.state, "initialization_complete"):
         await request.app.state.initialization_complete.wait()
 
@@ -343,6 +343,8 @@ async def rate_limiter_dependency(
 
     if is_limited:
         raise RateLimitException("Rate limit exceeded.")
+
+    return user.to_actor(request)
 
 
 async def get_current_admin_actor(
