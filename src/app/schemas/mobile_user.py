@@ -2,11 +2,11 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import Request
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from pydantic_extra_types.phone_numbers import PhoneNumber
 
 from ..core.enums import ActorType
-from ..core.schemas import Actor, GeoPoint, PersistentDeletion, TimestampSchema
+from ..core.schemas import Actor, GeoPoint, PersistentDeletion, StrongPassword, TimestampSchema
 from ..core.security import get_ip
 
 
@@ -174,6 +174,8 @@ class MobileActor(BaseModel):
 class MobileUserCreate(MobileUserBase):
     model_config = ConfigDict(extra="forbid")
 
+    password: Annotated[StrongPassword | None, Field(examples=["@MyPassword123"], default=None)]
+
 
 class MobileUserUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -295,17 +297,5 @@ class MobileUserTierUpdate(BaseModel):
 class MobileUserPasswordUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    current_password: Annotated[
-        SecretStr,
-        Field(
-            pattern=r"^.{8,}|[0-9]+|[A-Z]+|[a-z]+|[^a-zA-Z0-9]+$",
-            examples=["CurrentPass123!"],
-        ),
-    ]
-    new_password: Annotated[
-        SecretStr,
-        Field(
-            pattern=r"^.{8,}|[0-9]+|[A-Z]+|[a-z]+|[^a-zA-Z0-9]+$",
-            examples=["NewPass456@"],
-        ),
-    ]
+    current_password: Annotated[StrongPassword, Field(examples=["CurrentPass123!"])]
+    new_password: Annotated[StrongPassword, Field(examples=["NewPass456@"])]

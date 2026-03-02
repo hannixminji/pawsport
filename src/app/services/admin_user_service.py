@@ -22,12 +22,8 @@ from ..models._rbac_table import admin_user_permission, admin_user_role
 from ..models.admin_permission import AdminPermission
 from ..models.admin_role import AdminRole
 from ..models.admin_user import AdminUser
-from ..schemas.admin_user import (
-    AdminUserCreate,
-    AdminUserRead,
-    AdminUserReadWithRoles,
-    AdminUserUpdate,
-)
+from ..schemas.admin_role import AdminRoleRead
+from ..schemas.admin_user import AdminUserCreate, AdminUserRead, AdminUserUpdate
 
 LOGGER = logging.getLogger(__name__)
 
@@ -233,20 +229,46 @@ class AdminUserService:
             items_per_page=items_per_page,
         )
 
-    async def get_admin_user_with_roles(
+    async def get_admin_user_roles(
         self,
         *,
         actor: Actor,
         user_id: int,
-    ) -> AdminUserReadWithRoles:
-        if actor.actor_type == ActorType.ADMIN_USER and not actor.is_superuser and actor.id != user_id:
-            raise ForbiddenError("You do not have permission to view this admin user.")
+        page: int,
+        items_per_page: int,
+    ) -> PaginatedResponse[AdminRoleRead]:
+        if not actor.is_superuser:
+            raise ForbiddenError("Superuser privileges are required to view admin user roles.")
 
-        db_user = await self._get_admin_user_by_id(user_id, with_roles=True)
+        db_user = await self._get_admin_user_by_id(user_id)
         if db_user is None:
             raise NotFoundError("Admin user not found.")
 
-        return AdminUserReadWithRoles.model_validate(db_user)
+        db_roles = (
+            await self.db.execute(
+                select(AdminRole)
+                .join(admin_user_role, admin_user_role.c.admin_role_id == AdminRole.id)
+                .where(admin_user_role.c.admin_user_id == user_id)
+                .offset(compute_offset(page, items_per_page))
+                .limit(items_per_page)
+            )
+        ).scalars().all()
+
+        total_count = (
+            await self.db.execute(
+                select(func.count())
+                .select_from(admin_user_role)
+                .where(admin_user_role.c.admin_user_id == user_id)
+            )
+        ).scalar_one()
+
+        return PaginatedResponse[AdminRoleRead](
+            data=list(db_roles),
+            total_count=total_count,
+            has_more=(page * items_per_page) < total_count,
+            page=page,
+            items_per_page=items_per_page,
+        )
 
     async def get_admin_user(
         self,

@@ -95,11 +95,6 @@ class MobileUser(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         init=False,
     )
 
-    nearby_report_alert_location: Mapped[WKBElement | None] = mapped_column(
-        Geography(geometry_type="POINT", srid=4326, spatial_index=False),
-        nullable=True,
-    )
-
     tier_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("tier.id", ondelete="SET NULL"),
@@ -147,6 +142,12 @@ class MobileUser(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     postal_code: Mapped[str | None] = mapped_column(String, nullable=True, default=None, server_default=text("NULL"))
     last_active_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
+        nullable=True,
+        default=None,
+        server_default=text("NULL"),
+    )
+    nearby_report_alert_location: Mapped[WKBElement | None] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326, spatial_index=False),
         nullable=True,
         default=None,
         server_default=text("NULL"),

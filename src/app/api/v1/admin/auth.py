@@ -120,12 +120,14 @@ async def admin_login(
 
     user = await _get_admin_by_username(payload.username, db=db)
 
+    password = payload.password.get_secret_value()
+
     if user is None or not isinstance(user.hashed_password, str) or not user.hashed_password:
-        _verify_password(payload.password, _DUMMY_HASH)
+        _verify_password(password, _DUMMY_HASH)
         _log_failed_login(sm, request, payload.username, attempt_count)
         raise UnauthorizedException("Invalid credentials")
 
-    if not _verify_password(payload.password, user.hashed_password):
+    if not _verify_password(password, user.hashed_password):
         _log_failed_login(sm, request, payload.username, attempt_count)
         raise UnauthorizedException("Invalid credentials")
 
@@ -136,7 +138,7 @@ async def admin_login(
         raise ForbiddenException("Your account is inactive.")
 
     if _needs_rehash(user.hashed_password):
-        await _rehash_password(user.id, payload.password, db)
+        await _rehash_password(user.id, password, db)
 
     session_id, csrf_token, _ = await sm.create_session(
         request=request,

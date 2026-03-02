@@ -9,10 +9,10 @@ from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
 from app.core.utils.cache import cache
-from app.schemas.mobile_user import MobileUserPasswordUpdate, MobileUserRead, MobileUserUpdate
+from app.schemas.mobile_user import MobileUserCreate, MobileUserPasswordUpdate, MobileUserRead, MobileUserUpdate
 from app.services.mobile_user_service import MobileUserService
 
-router = CSRFProtectedRouter(prefix="/users", tags=["Mobile Users"])
+router = CSRFProtectedRouter(prefix="/mobile-users", tags=["Mobile Users"])
 
 
 def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> MobileUserService:
@@ -22,6 +22,16 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> MobileUse
 MobileUserServiceDependency = Annotated[MobileUserService, Depends(get_service)]
 SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
+
+
+@router.post("", response_model=MobileUserRead, status_code=status.HTTP_201_CREATED)
+async def create_mobile_user(
+    request: Request,
+    payload: MobileUserCreate,
+    actor: AdminActorDependency,
+    service: MobileUserServiceDependency,
+) -> MobileUserRead:
+    return await service.create(actor=actor, user_input=payload)
 
 
 @router.post("/search", response_model=PaginatedResponse[MobileUserRead], status_code=status.HTTP_200_OK)

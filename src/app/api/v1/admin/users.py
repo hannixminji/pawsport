@@ -9,6 +9,7 @@ from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
 from app.core.utils.cache import cache
+from app.schemas.admin_role import AdminRoleRead
 from app.schemas.admin_user import (
     AdminUserAssignPermissions,
     AdminUserAssignRoles,
@@ -16,7 +17,6 @@ from app.schemas.admin_user import (
     AdminUserCreate,
     AdminUserPasswordUpdate,
     AdminUserRead,
-    AdminUserReadWithRoles,
     AdminUserStatusUpdate,
     AdminUserUpdate,
 )
@@ -72,15 +72,27 @@ async def list_admin_users(
         items_per_page=items_per_page,
     )
 
-@router.get("/{user_id}/roles", response_model=AdminUserReadWithRoles, status_code=status.HTTP_200_OK)
-@cache(key_prefix="admin_user_roles", resource_id_name="user_id", expiration=60)
-async def get_admin_user_with_roles(
+
+@router.get("/{user_id}/roles", response_model=PaginatedResponse[AdminRoleRead], status_code=status.HTTP_200_OK)
+@cache(
+    key_prefix="admin_user_roles",
+    resource_id_name="user_id",
+    expiration=60,
+)
+async def get_admin_user_roles(
     request: Request,
     user_id: int,
-    actor: AdminActorDependency,
+    actor: SuperuserActorDependency,
     service: AdminUserServiceDependency,
-) -> AdminUserReadWithRoles:
-    return await service.get_admin_user_with_roles(actor=actor, user_id=user_id)
+    page: Annotated[int, Query(ge=1)] = 1,
+    items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
+) -> PaginatedResponse[AdminRoleRead]:
+    return await service.get_admin_user_roles(
+        actor=actor,
+        user_id=user_id,
+        page=page,
+        items_per_page=items_per_page,
+    )
 
 
 @router.get("/{user_id}", response_model=AdminUserRead, status_code=status.HTTP_200_OK)

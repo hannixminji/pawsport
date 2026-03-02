@@ -3,14 +3,13 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Request
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from pydantic_extra_types.phone_numbers import PhoneNumber
 
 from app.core.security import get_ip
 
 from ..core.enums import ActorType, AdminAccountStatus
-from ..core.schemas import Actor, PersistentDeletion, TimestampSchema, UUIDSchema
-from .admin_role import AdminRoleRead
+from ..core.schemas import Actor, PersistentDeletion, StrongPassword, TimestampSchema, UUIDSchema
 
 
 class AdminUserBase(BaseModel):
@@ -119,10 +118,6 @@ class AdminUserRead(BaseModel):
         return v
 
 
-class AdminUserReadWithRoles(AdminUserRead):
-    roles: list[AdminRoleRead]
-
-
 class AdminUserLoginResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -136,14 +131,14 @@ class AdminUserLoginResponse(BaseModel):
 class AdminUserCreate(AdminUserBase):
     model_config = ConfigDict(extra="forbid")
 
-    password: Annotated[SecretStr, Field(pattern=r"^.{8,}|[0-9]+|[A-Z]+|[a-z]+|[^a-zA-Z0-9]+$", examples=["Str1ngst!"])]
+    password: Annotated[StrongPassword, Field(examples=["Str1ngst!"])]
 
 
 class AdminUserLogin(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     username: Annotated[str, Field(min_length=3, max_length=20, pattern=r"^[a-z0-9]+$", examples=["admin"])]
-    password: Annotated[str, Field(pattern=r"^.{8,}|[0-9]+|[A-Z]+|[a-z]+|[^a-zA-Z0-9]+$", examples=["Str1ngst!"])]
+    password: Annotated[StrongPassword, Field(examples=["Str1ngst!"])]
 
 
 class AdminUserAssignRoles(BaseModel):
@@ -281,20 +276,8 @@ class AdminUserStatusUpdate(BaseModel):
 class AdminUserPasswordUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    current_password: Annotated[
-        SecretStr,
-        Field(
-            pattern=r"^.{8,}|[0-9]+|[A-Z]+|[a-z]+|[^a-zA-Z0-9]+$",
-            examples=["CurrentPass123!"],
-        ),
-    ]
-    new_password: Annotated[
-        SecretStr,
-        Field(
-            pattern=r"^.{8,}|[0-9]+|[A-Z]+|[a-z]+|[^a-zA-Z0-9]+$",
-            examples=["NewPass456@"],
-        ),
-    ]
+    current_password: Annotated[StrongPassword, Field(examples=["CurrentPass123!"])]
+    new_password: Annotated[StrongPassword, Field(examples=["NewPass456@"])]
 
 
 class AdminActor(BaseModel):

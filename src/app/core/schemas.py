@@ -2,10 +2,35 @@ import uuid as uuid_pkg
 from datetime import UTC, datetime
 from typing import Annotated, Any, Generic, TypeVar
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import AfterValidator, BaseModel, Field, SecretStr, field_serializer
 from uuid6 import uuid7
 
 from .enums import ActorType
+
+
+def validate_strong_password(v: SecretStr) -> SecretStr:
+    password = v.get_secret_value()
+    errors = []
+    if len(password) < 8:
+        errors.append("at least 8 characters")
+    if not any(c.isdigit() for c in password):
+        errors.append("at least one digit")
+    if not any(c.isupper() for c in password):
+        errors.append("at least one uppercase letter")
+    if not any(c.islower() for c in password):
+        errors.append("at least one lowercase letter")
+    if not any(not c.isalnum() for c in password):
+        errors.append("at least one special character")
+    if errors:
+        raise ValueError(f"Password must contain: {', '.join(errors)}")
+    return v
+
+
+StrongPassword = Annotated[
+    SecretStr,
+    AfterValidator(validate_strong_password),
+    Field(examples=["Str1ngst!"]),
+]
 
 
 class HealthCheck(BaseModel):

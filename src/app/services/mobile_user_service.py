@@ -20,7 +20,7 @@ from ..core.utils.google_cloud_storage import is_object_exists
 from ..core.utils.pagination import compute_offset
 from ..core.utils.update import apply_partial_update
 from ..models.mobile_user import MobileUser
-from ..schemas.mobile_user import MobileUserRead, MobileUserUpdate
+from ..schemas.mobile_user import MobileUserCreate, MobileUserRead, MobileUserUpdate
 
 LOGGER = logging.getLogger(__name__)
 
@@ -108,6 +108,60 @@ class MobileUserService:
             query = query.where(MobileUser.id == actor.id)
 
         return (await self.db.execute(query)).scalar_one_or_none()
+
+    async def create(
+        self,
+        *,
+        actor: Actor,
+        user_input: MobileUserCreate,
+    ) -> MobileUserRead:
+        if actor.actor_type != ActorType.ADMIN_USER:
+            raise ForbiddenError("Admin privileges are required to create a mobile user.")
+
+        if user_input.profile_image_object_key is not None:
+            if not is_object_exists(user_input.profile_image_object_key):
+                raise InvalidInputError("The profile image may not have been uploaded correctly.")
+
+        user_model = MobileUser(
+            **user_input.model_dump(exclude={"password"}),
+            hashed_password=get_password_hash(user_input.password.get_secret_value()),
+        )
+
+        self.db.add(user_model)
+
+        try:
+            await self.db.commit()
+
+        except IntegrityError as error:
+            await self.db.rollback()
+
+            if self._is_unique_constraint_violation(error, "uq_mobile_user_username_active"):
+                raise InvalidInputError("A user with this username already exists.")
+
+            if self._is_unique_constraint_violation(error, "uq_mobile_user_email_active"):
+                raise InvalidInputError("A user with this email already exists.")
+
+            if self._is_unique_constraint_violation(error, "uq_mobile_user_phone_number_active"):
+                raise InvalidInputError("A user with this phone number already exists.")
+
+            raise InvalidInputError("Unable to create the mobile user.")
+
+        except OperationalError as error:
+            await self.db.rollback()
+
+            raise TransientDatabaseError(
+                "Failed to create the mobile user. Please try again later."
+            ) from error
+
+        except SQLAlchemyError as error:
+            await self.db.rollback()
+
+            raise NonTransientDatabaseError(
+                "Failed to create the mobile user."
+            ) from error
+
+        await self.db.refresh(user_model)
+        return MobileUserRead.model_validate(user_model)
 
     async def search(
         self,
