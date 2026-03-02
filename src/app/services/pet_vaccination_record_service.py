@@ -2,7 +2,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Union
+from typing import ClassVar, Union
 
 from sqlalchemy import any_, delete, func, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
@@ -40,22 +40,23 @@ LOGGER = logging.getLogger(__name__)
 class PetVaccinationRecordService:
     db: AsyncSession
 
-    MAX_ATTACHMENTS_PER_RECORD = 5
+    MAX_ATTACHMENTS_PER_RECORD: ClassVar[int] = 5
+    MAX_TOTAL_ATTACHMENT_SIZE_BYTES: ClassVar[int] = 20 * 1024 * 1024
 
-    MOBILE_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    MOBILE_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "pet_id",
         "is_deleted",
         "updated_at",
         "deleted_at",
     })
-    ADMIN_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "is_deleted",
         "updated_at",
         "deleted_at",
     })
-    ALLOWED_FILTER_OPERATORS_BY_COLUMN = {
+    ALLOWED_FILTER_OPERATORS_BY_COLUMN: ClassVar[dict] = {
         "pet_id": frozenset({
             FilterOp.EQ,
         }),
@@ -86,14 +87,15 @@ class PetVaccinationRecordService:
             FilterOp.GTE,
         }),
     }
-    SEARCH_SORTABLE_COLUMNS = {
+    SEARCH_SORTABLE_COLUMNS: ClassVar[set[str]] = {
         "vaccine_name",
         "administered_date",
         "next_due_date",
         "created_at",
     }
 
-    def _is_unique_constraint_violation(self, error: IntegrityError, constraint_name: str) -> bool:
+    @staticmethod
+    def _is_unique_constraint_violation(error: IntegrityError, constraint_name: str) -> bool:
         original_exception = getattr(error, "orig", None)
         if original_exception is None:
             return False
@@ -178,7 +180,7 @@ class PetVaccinationRecordService:
 
         return (await self.db.execute(query)).scalar_one_or_none()
 
-    async def _check_object_keys_exist(self, object_keys: list[str]) -> dict[str, dict[str, str]]:
+    async def _check_object_keys_exist(self, object_keys: list[str]) -> dict[str, dict[str, str | int]]:
         if not object_keys:
             return {}
 
@@ -239,6 +241,20 @@ class PetVaccinationRecordService:
                 f"You can only have up to {self.MAX_ATTACHMENTS_PER_RECORD} attachments per vaccination record."
             )
 
+    def _check_total_attachment_size(
+        self,
+        new_attachments: list[PetVaccinationRecordAttachmentCreate],
+        attachment_object_metadata_map: dict[str, dict[str, str | int]],
+    ) -> None:
+        total_size = sum(
+            int(attachment_object_metadata_map.get(attachment.object_key, {}).get("_size", 0))
+            for attachment in new_attachments
+        )
+
+        if total_size > self.MAX_TOTAL_ATTACHMENT_SIZE_BYTES:
+            limit_mb = self.MAX_TOTAL_ATTACHMENT_SIZE_BYTES // (1024 * 1024)
+            raise InvalidInputError(f"Total size of uploaded attachments exceeds the {limit_mb}MB limit.")
+
     def _check_attachment_ids_exist(
         self,
         attachment_ids_from_input: set[int],
@@ -260,7 +276,7 @@ class PetVaccinationRecordService:
         self,
         db_record: PetVaccinationRecord,
         new_attachments: list[PetVaccinationRecordAttachmentCreate],
-        attachment_object_metadata_map: dict[str, dict[str, str]],
+        attachment_object_metadata_map: dict[str, dict[str, str | int]],
     ) -> None:
         for attachment in new_attachments:
             new_attachment = self._build_new_attachment(db_record.id, attachment, attachment_object_metadata_map)
@@ -289,6 +305,8 @@ class PetVaccinationRecordService:
         attachment_object_metadata_map = await self._check_object_keys_exist(
             [attachment.object_key for attachment in new_attachments]
         )
+
+        self._check_total_attachment_size(new_attachments, attachment_object_metadata_map)
 
         self._update_existing_attachments(existing_attachments_from_input, db_existing_attachments)
         await self._add_new_attachments(db_record, new_attachments, attachment_object_metadata_map)

@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from typing import ClassVar
 
 from sqlalchemy import any_, delete, func, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
@@ -25,7 +26,7 @@ LOGGER = logging.getLogger(__name__)
 class ArticleService:
     db: AsyncSession
 
-    ADMIN_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "content",
         "summary",
@@ -34,7 +35,7 @@ class ArticleService:
         "updated_at",
         "deleted_at",
     })
-    ALLOWED_FILTER_OPERATORS_BY_COLUMN = {
+    ALLOWED_FILTER_OPERATORS_BY_COLUMN: ClassVar[dict] = {
         "title": frozenset({
             FilterOp.EQ,
             FilterOp.ILIKE,
@@ -50,12 +51,13 @@ class ArticleService:
             FilterOp.GTE,
         }),
     }
-    SEARCH_SORTABLE_COLUMNS = {
+    SEARCH_SORTABLE_COLUMNS: ClassVar[set[str]] = {
         "title",
         "created_at",
     }
 
-    def _is_unique_constraint_violation(self, error: IntegrityError, constraint_name: str) -> bool:
+    @staticmethod
+    def _is_unique_constraint_violation(error: IntegrityError, constraint_name: str) -> bool:
         original_exception = getattr(error, "orig", None)
         if original_exception is None:
             return False

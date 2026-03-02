@@ -2,7 +2,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Union
+from typing import Any, ClassVar, Union
 from uuid import UUID
 
 from geoalchemy2 import Geometry
@@ -52,7 +52,7 @@ class SightingReportService:
 
     MAX_IMAGES_PER_REPORT = 5
 
-    MOBILE_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    MOBILE_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "sighting_location",
         "mobile_user_id",
@@ -62,7 +62,7 @@ class SightingReportService:
         "updated_at",
         "deleted_at",
     })
-    ADMIN_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "sighting_location",
         "description",
@@ -70,7 +70,7 @@ class SightingReportService:
         "updated_at",
         "deleted_at",
     })
-    ALLOWED_FILTER_OPERATORS_BY_COLUMN = {
+    ALLOWED_FILTER_OPERATORS_BY_COLUMN: ClassVar[dict] = {
         "mobile_user_id": frozenset({
             FilterOp.EQ,
         }),
@@ -95,12 +95,13 @@ class SightingReportService:
             FilterOp.GTE,
         }),
     }
-    SEARCH_SORTABLE_COLUMNS = {
+    SEARCH_SORTABLE_COLUMNS: ClassVar[set[str]] = {
         "sighted_at",
         "created_at",
     }
 
-    def _is_unique_constraint_violation(self, error: IntegrityError, constraint_name: str) -> bool:
+    @staticmethod
+    def _is_unique_constraint_violation(error: IntegrityError, constraint_name: str) -> bool:
         original_exception = getattr(error, "orig", None)
         if original_exception is None:
             return False

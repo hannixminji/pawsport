@@ -2,7 +2,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Union
+from typing import ClassVar, Union
 
 from sqlalchemy import any_, delete, func, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
@@ -32,9 +32,10 @@ LOGGER = logging.getLogger(__name__)
 class PetInventoryService:
     db: AsyncSession
 
-    MAX_IMAGES_PER_INVENTORY = 5
+    MAX_IMAGES_PER_INVENTORY: ClassVar[int] = 5
+    MAX_TOTAL_IMAGE_SIZE_BYTES: ClassVar[int] = 20 * 1024 * 1024
 
-    MOBILE_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    MOBILE_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "owner_id",
         "quantity",
@@ -44,7 +45,7 @@ class PetInventoryService:
         "updated_at",
         "deleted_at",
     })
-    ADMIN_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "quantity",
         "unit",
@@ -53,7 +54,7 @@ class PetInventoryService:
         "updated_at",
         "deleted_at",
     })
-    ALLOWED_FILTER_OPERATORS_BY_COLUMN = {
+    ALLOWED_FILTER_OPERATORS_BY_COLUMN: ClassVar[dict] = {
         "owner_id": frozenset({
             FilterOp.EQ,
         }),
@@ -78,13 +79,14 @@ class PetInventoryService:
             FilterOp.GTE,
         }),
     }
-    SEARCH_SORTABLE_COLUMNS = {
+    SEARCH_SORTABLE_COLUMNS: ClassVar[set[str]] = {
         "name",
         "expiration_date",
         "created_at",
     }
 
-    def _is_unique_constraint_violation(self, error: IntegrityError, constraint_name: str) -> bool:
+    @staticmethod
+    def _is_unique_constraint_violation(error: IntegrityError, constraint_name: str) -> bool:
         original_exception = getattr(error, "orig", None)
         if original_exception is None:
             return False
@@ -136,7 +138,7 @@ class PetInventoryService:
 
         return (await self.db.execute(query)).scalar_one_or_none()
 
-    async def _check_object_keys_exist(self, object_keys: list[str]) -> dict[str, dict[str, str]]:
+    async def _check_object_keys_exist(self, object_keys: list[str]) -> dict[str, dict[str, str | int]]:
         if not object_keys:
             return {}
 
@@ -194,6 +196,20 @@ class PetInventoryService:
                 f"You can only have up to {self.MAX_IMAGES_PER_INVENTORY} images per inventory item."
             )
 
+    def _check_total_image_size(
+        self,
+        new_images: list[PetInventoryImageCreate],
+        image_object_metadata_map: dict[str, dict[str, str | int]],
+    ) -> None:
+        total_size = sum(
+            int(image_object_metadata_map.get(image.object_key, {}).get("_size", 0))
+            for image in new_images
+        )
+
+        if total_size > self.MAX_TOTAL_IMAGE_SIZE_BYTES:
+            limit_mb = self.MAX_TOTAL_IMAGE_SIZE_BYTES // (1024 * 1024)
+            raise InvalidInputError(f"Total size of uploaded images exceeds the {limit_mb}MB limit.")
+
     def _check_image_ids_exist(
         self,
         image_ids_from_input: set[int],
@@ -215,7 +231,7 @@ class PetInventoryService:
         self,
         db_item: PetInventory,
         new_images: list[PetInventoryImageCreate],
-        image_object_metadata_map: dict[str, dict[str, str]],
+        image_object_metadata_map: dict[str, dict[str, str | int]],
     ) -> None:
         for image in new_images:
             new_image = self._build_new_image(db_item.id, image, image_object_metadata_map)
@@ -242,6 +258,8 @@ class PetInventoryService:
         image_object_metadata_map = await self._check_object_keys_exist(
             [image.object_key for image in new_images]
         )
+
+        self._check_total_image_size(new_images, image_object_metadata_map)
 
         self._update_existing_images(existing_images_from_input, db_existing_images)
         await self._add_new_images(db_item, new_images, image_object_metadata_map)

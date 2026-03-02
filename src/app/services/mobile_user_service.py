@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from typing import ClassVar
 
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
@@ -29,7 +30,7 @@ LOGGER = logging.getLogger(__name__)
 class MobileUserService:
     db: AsyncSession
 
-    MOBILE_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    MOBILE_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "hashed_password",
         "profile_image_object_key",
@@ -39,7 +40,7 @@ class MobileUserService:
         "updated_at",
         "deleted_at",
     })
-    ADMIN_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "hashed_password",
         "profile_image_object_key",
@@ -49,7 +50,7 @@ class MobileUserService:
         "updated_at",
         "deleted_at",
     })
-    ALLOWED_FILTER_OPERATORS_BY_COLUMN = {
+    ALLOWED_FILTER_OPERATORS_BY_COLUMN: ClassVar[dict] = {
         "username": frozenset({
             FilterOp.EQ,
             FilterOp.ILIKE,
@@ -80,7 +81,7 @@ class MobileUserService:
             FilterOp.GTE,
         }),
     }
-    SEARCH_SORTABLE_COLUMNS = {
+    SEARCH_SORTABLE_COLUMNS: ClassVar[set[str]] = {
         "username",
         "email",
         "first_name",
@@ -88,7 +89,8 @@ class MobileUserService:
         "created_at",
     }
 
-    def _is_unique_constraint_violation(self, error: IntegrityError, constraint_name: str) -> bool:
+    @staticmethod
+    def _is_unique_constraint_violation(error: IntegrityError, constraint_name: str) -> bool:
         original_exception = getattr(error, "orig", None)
         if original_exception is None:
             return False

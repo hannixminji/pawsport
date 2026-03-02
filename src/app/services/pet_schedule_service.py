@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from typing import ClassVar
 
 from sqlalchemy import any_, delete, func, select, update
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
@@ -30,7 +31,7 @@ LOGGER = logging.getLogger(__name__)
 class PetScheduleService:
     db: AsyncSession
 
-    MOBILE_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    MOBILE_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "pet_id",
         "recurrence_rule",
@@ -40,7 +41,7 @@ class PetScheduleService:
         "updated_at",
         "deleted_at",
     })
-    ADMIN_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "recurrence_rule",
         "description",
@@ -49,7 +50,7 @@ class PetScheduleService:
         "updated_at",
         "deleted_at",
     })
-    ALLOWED_FILTER_OPERATORS_BY_COLUMN = {
+    ALLOWED_FILTER_OPERATORS_BY_COLUMN: ClassVar[dict] = {
         "pet_id": frozenset({
             FilterOp.EQ,
         }),
@@ -80,7 +81,7 @@ class PetScheduleService:
             FilterOp.GTE,
         }),
     }
-    SEARCH_SORTABLE_COLUMNS = {
+    SEARCH_SORTABLE_COLUMNS: ClassVar[set[str]] = {
         "title",
         "scheduled_at",
         "next_schedule_at",

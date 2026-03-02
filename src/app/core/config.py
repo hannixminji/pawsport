@@ -200,6 +200,14 @@ class NotificationSettings(BaseSettings):
     NEARBY_ALERT_CENTER_RADIUS_METERS: int = 3_000
 
 
+class MLServiceSettings(BaseSettings):
+    ML_BASE_URL: str = "http://ml:9000"
+
+
+class PetSettings(BaseSettings):
+    QR_BASE_URL: str = "http://localhost:8000/api/v1/pet/qr"
+
+
 class Settings(
     AppSettings,
     SQLiteSettings,
@@ -221,6 +229,8 @@ class Settings(
     GCSSettings,
     QdrantCloudSettings,
     NotificationSettings,
+    MLServiceSettings,
+    PetSettings,
 ):
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", ".env"),

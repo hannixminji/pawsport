@@ -12,20 +12,34 @@ class AdminAccountStatus(StrEnum):
     SUSPENDED = "suspended"
 
 
-class ArticleCategory(StrEnum):
-    CARE = "care"
-    HEALTH = "health"
-    NUTRITION = "nutrition"
-    TRAINING = "training"
+class AuthProvider(StrEnum):
+    GOOGLE = "google"
+
+
+class PetSpecies(StrEnum):
+    DOG = "dog"
+    CAT = "cat"
+
+
+class PetSex(StrEnum):
+    MALE = "male"
+    FEMALE = "female"
+
+
+class PetScheduleType(StrEnum):
     VET_VISIT = "vet_visit"
+    VACCINATION = "vaccination"
+    GROOMING = "grooming"
+    FOOD = "food"
+    WALK = "walk"
+    MEDICINE = "medicine"
+    PLAY_TIME = "play_time"
+    OTHER = "other"
 
 
-class MissingReportStatus(StrEnum):
-    LOST = "lost"
-    FOUND = "found"
-    RETURNED = "returned"
-    FOSTERED = "fostered"
-    CASE_CLOSED = "case_closed"
+class VaccineType(StrEnum):
+    CORE = "core"
+    NON_CORE = "non_core"
 
 
 class AllergenType(StrEnum):
@@ -39,26 +53,6 @@ class AllergySeverity(StrEnum):
     MILD = "mild"
     MODERATE = "moderate"
     SEVERE = "severe"
-
-
-class MimeType(StrEnum):
-    JPEG = "image/jpeg"
-    PNG = "image/png"
-
-
-class InventoryType(StrEnum):
-    FOOD = "food"
-    MEDICINE = "medicine"
-
-
-class InventoryUnit(StrEnum):
-    KG = "kg"
-    G = "g"
-    LB = "lb"
-    PCS = "pcs"
-    BOTTLES = "bottles"
-    TABLETS = "tablets"
-    ML = "ml"
 
 
 class MedicalConditionSeverity(StrEnum):
@@ -100,31 +94,40 @@ class MedicationStatus(StrEnum):
     SCHEDULED = "scheduled"
 
 
-class PetScheduleType(StrEnum):
-    VET_VISIT = "vet_visit"
-    VACCINATION = "vaccination"
-    GROOMING = "grooming"
+class InventoryType(StrEnum):
     FOOD = "food"
-    WALK = "walk"
     MEDICINE = "medicine"
-    PLAY_TIME = "play_time"
-    OTHER = "other"
 
 
-class AttachmentMimeType(StrEnum):
-    PDF = "application/pdf"
-    JPEG = "image/jpeg"
-    PNG = "image/png"
+class InventoryUnit(StrEnum):
+    KG = "kg"
+    G = "g"
+    LB = "lb"
+    PCS = "pcs"
+    BOTTLES = "bottles"
+    TABLETS = "tablets"
+    ML = "ml"
 
 
-class PetSpecies(StrEnum):
-    DOG = "dog"
-    CAT = "cat"
+class ArticleCategory(StrEnum):
+    CARE = "care"
+    HEALTH = "health"
+    NUTRITION = "nutrition"
+    TRAINING = "training"
+    VET_VISIT = "vet_visit"
 
 
-class PetSex(StrEnum):
-    MALE = "male"
-    FEMALE = "female"
+class MissingReportStatus(StrEnum):
+    LOST = "lost"
+    FOUND = "found"
+    RETURNED = "returned"
+    FOSTERED = "fostered"
+    CASE_CLOSED = "case_closed"
+
+
+class NotificationFeature(StrEnum):
+    NEARBY_REPORT_ALERTS = "nearby_report_alerts"
+    PET_SCHEDULE_REMINDERS = "pet_schedule_reminders"
 
 
 class PushTokenPlatform(StrEnum):
@@ -139,15 +142,19 @@ class PushTokenProvider(StrEnum):
     WEBPUSH = "webpush"
 
 
-class AuthProvider(StrEnum):
-    GOOGLE = "google"
+class MimeType(StrEnum):
+    JPEG = "image/jpeg"
+    PNG = "image/png"
 
 
-class VaccineType(StrEnum):
-    CORE = "core"
-    NON_CORE = "non_core"
+class AttachmentMimeType(StrEnum):
+    PDF = "application/pdf"
+    JPEG = "image/jpeg"
+    PNG = "image/png"
 
 
-class NotificationFeature(StrEnum):
-    NEARBY_REPORT_ALERTS = "nearby_report_alerts"
-    PET_SCHEDULE_REMINDERS = "pet_schedule_reminders"
+class FileExtension(StrEnum):
+    JPG = "jpg"
+    JPEG = "jpeg"
+    PNG = "png"
+    PDF = "pdf"

@@ -3,7 +3,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal, Union
+from typing import Any, ClassVar, Literal, Union
 from uuid import UUID
 
 import httpx
@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..core.config import settings
 from ..core.enums import ActorType
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
@@ -47,8 +48,6 @@ from ..schemas.pet_vaccination_record import PetVaccinationRecordRead
 
 LOGGER = logging.getLogger(__name__)
 
-ML_BASE_URL = "http://ml:9000"
-QR_BASE_URL = "http://localhost:8000/api/v1/pet/qr"
 VALID_SPECIES = frozenset({"cat", "dog"})
 
 
@@ -56,7 +55,7 @@ VALID_SPECIES = frozenset({"cat", "dog"})
 class PetService:
     db: AsyncSession
 
-    MOBILE_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    MOBILE_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "owner_id",
         "color",
@@ -69,7 +68,7 @@ class PetService:
         "updated_at",
         "deleted_at",
     })
-    ADMIN_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "color",
         "markings",
@@ -81,7 +80,7 @@ class PetService:
         "updated_at",
         "deleted_at",
     })
-    ALLOWED_FILTER_OPERATORS_BY_COLUMN = {
+    ALLOWED_FILTER_OPERATORS_BY_COLUMN: ClassVar[dict] = {
         "owner_id": frozenset({
             FilterOp.EQ,
         }),
@@ -120,7 +119,7 @@ class PetService:
             FilterOp.GTE,
         }),
     }
-    SEARCH_SORTABLE_COLUMNS = {
+    SEARCH_SORTABLE_COLUMNS: ClassVar[set[str]] = {
         "name",
         "breed",
         "date_of_birth",
@@ -177,7 +176,7 @@ class PetService:
         async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 resp = await client.post(
-                    f"{ML_BASE_URL}/validate_detection",
+                    f"{settings.ML_BASE_URL}/validate_detection",
                     data={
                         "species": species_value,
                         "image_object_keys": json.dumps(validation_payload),
@@ -373,7 +372,7 @@ class PetService:
 
         qr_object_key = await asyncio.to_thread(
             generate_qr_and_upload_gcs,
-            data=f"{QR_BASE_URL}/{pet_model.uuid}",
+            data=f"{settings.QR_BASE_URL}/{pet_model.uuid}",
             object_key=f"qr_codes/{pet_model.uuid}.png",
             scale=10,
             error="H",
@@ -443,7 +442,9 @@ class PetService:
         async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 files = {"file": (filename, file_content, content_type)}
-                response = await client.post(f"{ML_BASE_URL}/search_pet", files=files, data={"species": species})
+                response = await client.post(
+                    f"{settings.ML_BASE_URL}/search_pet", files=files, data={"species": species}
+                )
                 response.raise_for_status()
                 ml_response = response.json()
 

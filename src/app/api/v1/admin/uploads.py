@@ -21,11 +21,21 @@ UploadServiceDependency = Annotated[UploadService, Depends(get_service)]
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
-@router.post("/signed-policies", response_model=SignedPostPolicyResponse, status_code=status.HTTP_200_OK)
-async def generate_signed_post_policies(
+@router.post("/signed-policies/images", response_model=SignedPostPolicyResponse, status_code=status.HTTP_200_OK)
+async def generate_image_upload_policies(
     request: Request,
     payload: SignedPostPolicyRequest,
     actor: AdminActorDependency,
     service: UploadServiceDependency,
 ) -> SignedPostPolicyResponse:
-    return await service.generate_signed_post_policies(actor=actor, filenames=payload.filenames)
+    return await service.generate_image_upload_policies(actor=actor, filenames=payload.filenames)
+
+
+@router.post("/signed-policies/documents", response_model=SignedPostPolicyResponse, status_code=status.HTTP_200_OK)
+async def generate_document_upload_policies(
+    request: Request,
+    payload: SignedPostPolicyRequest,
+    actor: AdminActorDependency,
+    service: UploadServiceDependency,
+) -> SignedPostPolicyResponse:
+    return await service.generate_document_upload_policies(actor=actor, filenames=payload.filenames)

@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from typing import ClassVar
 
 from sqlalchemy import any_, delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
@@ -27,12 +28,12 @@ LOGGER = logging.getLogger(__name__)
 class AdminRoleService:
     db: AsyncSession
 
-    ADMIN_SEARCH_BLACKLIST_COLUMNS = frozenset({
+    ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
         "description",
         "updated_at",
     })
-    ALLOWED_FILTER_OPERATORS_BY_COLUMN = {
+    ALLOWED_FILTER_OPERATORS_BY_COLUMN: ClassVar[dict] = {
         "name": frozenset({
             FilterOp.EQ,
             FilterOp.ILIKE,
@@ -44,12 +45,13 @@ class AdminRoleService:
             FilterOp.GTE,
         }),
     }
-    SEARCH_SORTABLE_COLUMNS = {
+    SEARCH_SORTABLE_COLUMNS: ClassVar[set[str]] = {
         "name",
         "created_at",
     }
 
-    def _is_unique_constraint_violation(self, error: IntegrityError, constraint_name: str) -> bool:
+    @staticmethod
+    def _is_unique_constraint_violation(error: IntegrityError, constraint_name: str) -> bool:
         original_exception = getattr(error, "orig", None)
         if original_exception is None:
             return False
