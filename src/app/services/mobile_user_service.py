@@ -127,6 +127,7 @@ class MobileUserService:
         user_model = MobileUser(
             **user_input.model_dump(exclude={"password"}),
             hashed_password=get_password_hash(user_input.password.get_secret_value()),
+            nearby_report_alert_location=None,
         )
 
         self.db.add(user_model)

@@ -2,6 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated
 from urllib.parse import urlparse
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field, field_validator
 
@@ -96,7 +97,7 @@ class PetRead(BaseModel):
     sex: str
     date_of_birth: date
     is_sterilized: bool
-    uuid: str
+    uuid: UUID
     photos: list[PetPhotoRead]
     created_at: datetime
     color: str | None

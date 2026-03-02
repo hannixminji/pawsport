@@ -18,24 +18,12 @@ from app.schemas.mobile_user import MobileUserRead
 router = APIRouter(tags=["login or signup"])
 
 
-def _is_unique_constraint_violation(
-    error: IntegrityError,
-    constraint_name: str
-) -> bool:
+def is_unique_constraint_violation(error: IntegrityError, constraint_name: str) -> bool:
     original_exception = getattr(error, "orig", None)
-    if not original_exception:
+    if original_exception is None:
         return False
 
-    violated_constraint_name = getattr(original_exception, "constraint_name", None)
-    if isinstance(violated_constraint_name, str) and violated_constraint_name:
-        return violated_constraint_name == constraint_name
-
-    diagnostic = getattr(original_exception, "diag", None)
-    diagnostic_constraint_name = getattr(diagnostic, "constraint_name", None)
-    if isinstance(diagnostic_constraint_name, str) and diagnostic_constraint_name:
-        return diagnostic_constraint_name == constraint_name
-
-    return False
+    return constraint_name in str(original_exception)
 
 
 @router.post("/login_or_signup", response_model=MobileUserRead)
@@ -111,7 +99,7 @@ async def login_or_signup(
         except IntegrityError as error:
             await db.rollback()
 
-            if _is_unique_constraint_violation(
+            if is_unique_constraint_violation(
                 error,
                 "uq_user_linked_account_provider_provider_user_id_active"
             ):
@@ -144,7 +132,7 @@ async def login_or_signup(
     except IntegrityError as error:
         await db.rollback()
 
-        if _is_unique_constraint_violation(
+        if is_unique_constraint_violation(
             error,
             "uq_user_linked_account_provider_provider_user_id_active"
         ):
@@ -153,7 +141,7 @@ async def login_or_signup(
                 return MobileUserRead.model_validate(linked_account.mobile_user)
             raise UnauthorizedException("Authentication failed due to conflicting account.")
 
-        if _is_unique_constraint_violation(
+        if is_unique_constraint_violation(
             error,
             "uq_mobile_user_email_active"
         ):
@@ -179,7 +167,7 @@ async def login_or_signup(
                 except IntegrityError as inner_error:
                     await db.rollback()
 
-                    if _is_unique_constraint_violation(
+                    if is_unique_constraint_violation(
                         inner_error,
                         "uq_user_linked_account_provider_provider_user_id_active"
                     ):
@@ -192,7 +180,7 @@ async def login_or_signup(
                 await db.refresh(existing_user)
                 return MobileUserRead.model_validate(existing_user)
 
-        if _is_unique_constraint_violation(
+        if is_unique_constraint_violation(
             error,
             "uq_mobile_user_username_active"
         ):

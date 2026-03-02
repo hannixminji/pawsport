@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Request
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -125,7 +126,7 @@ class MobileUserRead(BaseModel):
     id: int
     username: str
     email: EmailStr
-    uuid: str
+    uuid: UUID
     created_at: datetime
     first_name: str | None
     last_name: str | None
