@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.enums import ActorType
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
-from ..core.schemas import Actor, PaginatedResponse
+from ..core.schemas import Actor
 from ..core.utils.update import apply_partial_update
 from ..models.pet_qr_default import PetQRDefault
 from ..schemas.pet_qr_default import PetQRDefaultRead, PetQRDefaultUpsert
@@ -21,6 +21,7 @@ class PetQRDefaultService:
     db: AsyncSession
 
     DEFAULT_PREFERENCES = PetQRDefaultRead(
+        owner_id=None,
         show_owner_name=False,
         show_email=False,
         show_phone_number=False,

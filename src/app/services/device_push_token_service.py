@@ -10,7 +10,7 @@ from ..core.enums import ActorType
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
 from ..core.exceptions.domain_exceptions import NotFoundError
-from ..core.schemas import Actor, PaginatedResponse
+from ..core.schemas import Actor
 from ..models.device_push_token import DevicePushToken
 from ..schemas.device_push_token import DevicePushTokenUpsert
 

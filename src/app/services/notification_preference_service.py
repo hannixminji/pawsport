@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.enums import ActorType
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
-from ..core.schemas import Actor, PaginatedResponse
+from ..core.schemas import Actor
 from ..core.utils.update import apply_partial_update
 from ..models.notification_preference import NotificationPreference
-from ..schemas.notification_preference import NotificationPreferenceRead, NotificationPreferenceUpdate
+from ..schemas.notification_preference import NotificationPreferenceRead, NotificationPreferenceUpsert
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ class NotificationPreferenceService:
     db: AsyncSession
 
     DEFAULT_PREFERENCES = NotificationPreferenceRead(
+        mobile_user_id=None,
         nearby_report_alerts_enabled=True,
         pet_schedule_reminders_enabled=True,
     )
@@ -56,7 +57,7 @@ class NotificationPreferenceService:
         *,
         actor: Actor,
         user_id: int,
-        preference_input: NotificationPreferenceUpdate,
+        preference_input: NotificationPreferenceUpsert,
     ) -> NotificationPreferenceRead:
         if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
             raise ForbiddenError("You do not have permission to upsert notification preferences.")

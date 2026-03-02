@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid6 import uuid7
 
 from ..core.exceptions.domain_exceptions import InvalidInputError
-from ..core.schemas import Actor, PaginatedResponse
+from ..core.schemas import Actor
 from ..core.utils.google_cloud_storage import generate_upload_signed_post_policy
+from ..schemas.upload import SignedPostPolicyResponse
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class UploadService:
         *,
         actor: Actor,
         filenames: list[str],
-    ) -> dict[str, list[dict[str, Any]]]:
+    ) -> SignedPostPolicyResponse:
         if not filenames:
             raise InvalidInputError("At least one filename must be provided.")
 

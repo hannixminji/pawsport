@@ -37,8 +37,7 @@ from ..models.pet_photo import PetPhoto
 from ..models.pet_qr_preference import PetQRPreference
 from ..models.pet_schedule import PetSchedule
 from ..models.pet_vaccination_record import PetVaccinationRecord
-from ..schemas.owner import OwnerQR
-from ..schemas.pet import PetCreateWithPhotos, PetRead, PetReadByQR, PetSearch, PetUpdateWithPhotos
+from ..schemas.pet import OwnerQR, PetCreateWithPhotos, PetRead, PetReadByQR, PetSearch, PetUpdateWithPhotos
 from ..schemas.pet_allergy import PetAllergyRead
 from ..schemas.pet_medical_condition import PetMedicalConditionRead
 from ..schemas.pet_photo import PetPhotoCreate, PetPhotoRead, PetPhotoUpdate

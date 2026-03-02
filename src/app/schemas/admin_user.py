@@ -10,7 +10,7 @@ from app.core.security import get_ip
 
 from ..core.enums import ActorType, AdminAccountStatus
 from ..core.schemas import Actor, PersistentDeletion, TimestampSchema, UUIDSchema
-from .schemas.admin_role import AdminRoleRead
+from .admin_role import AdminRoleRead
 
 
 class AdminUserBase(BaseModel):

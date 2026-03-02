@@ -8,15 +8,6 @@ from ..core.schemas import GeoPoint, PersistentDeletion, TimestampSchema
 from .pet import PetReadWithPrimaryProfile
 
 
-class MapViewport(BaseModel):
-    north: Annotated[float, Field(ge=-90, le=90, examples=[37.423])]
-    south: Annotated[float, Field(ge=-90, le=90, examples=[37.419])]
-    east: Annotated[float, Field(ge=-180, le=180, examples=[-122.082])]
-    west: Annotated[float, Field(ge=-180, le=180, examples=[-122.087])]
-    user_latitude: Annotated[float | None, Field(default=None, ge=-90, le=90, examples=[37.4219999])]
-    user_longitude: Annotated[float | None, Field(default=None, ge=-180, le=180, examples=[-122.0840575])]
-
-
 class MissingReportBase(BaseModel):
     last_seen_at: Annotated[datetime, Field()]
     last_seen_location: Annotated[GeoPoint, Field()]

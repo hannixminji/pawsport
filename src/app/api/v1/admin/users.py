@@ -16,6 +16,7 @@ from app.schemas.admin_user import (
     AdminUserCreate,
     AdminUserPasswordUpdate,
     AdminUserRead,
+    AdminUserReadWithRoles,
     AdminUserStatusUpdate,
     AdminUserUpdate,
 )
@@ -70,6 +71,16 @@ async def list_admin_users(
         page=page,
         items_per_page=items_per_page,
     )
+
+@router.get("/{user_id}/roles", response_model=AdminUserReadWithRoles, status_code=status.HTTP_200_OK)
+@cache(key_prefix="admin_user_roles", resource_id_name="user_id", expiration=60)
+async def get_admin_user_with_roles(
+    request: Request,
+    user_id: int,
+    actor: AdminActorDependency,
+    service: AdminUserServiceDependency,
+) -> AdminUserReadWithRoles:
+    return await service.get_admin_user_with_roles(actor=actor, user_id=user_id)
 
 
 @router.get("/{user_id}", response_model=AdminUserRead, status_code=status.HTTP_200_OK)

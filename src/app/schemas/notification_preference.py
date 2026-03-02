@@ -17,9 +17,9 @@ class NotificationPreference(TimestampSchema, NotificationPreferenceBase):
 class NotificationPreferenceRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    mobile_user_id: int
     nearby_report_alerts_enabled: bool
     pet_schedule_reminders_enabled: bool
+    mobile_user_id: int | None
 
 
 class NotificationPreferenceUpsert(NotificationPreferenceBase):

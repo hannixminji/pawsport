@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import Request
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, field_validator
 from pydantic_extra_types.phone_numbers import PhoneNumber
 
 from ..core.enums import ActorType
@@ -290,3 +290,22 @@ class MobileUserUpdate(BaseModel):
 
 class MobileUserTierUpdate(BaseModel):
     tier_id: Annotated[int, Field(gt=0)]
+
+
+class MobileUserPasswordUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: Annotated[
+        SecretStr,
+        Field(
+            pattern=r"^.{8,}|[0-9]+|[A-Z]+|[a-z]+|[^a-zA-Z0-9]+$",
+            examples=["CurrentPass123!"],
+        ),
+    ]
+    new_password: Annotated[
+        SecretStr,
+        Field(
+            pattern=r"^.{8,}|[0-9]+|[A-Z]+|[a-z]+|[^a-zA-Z0-9]+$",
+            examples=["NewPass456@"],
+        ),
+    ]

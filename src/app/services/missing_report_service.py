@@ -22,7 +22,7 @@ from ..core.utils.pagination import compute_offset
 from ..core.utils.update import apply_partial_update
 from ..models.missing_report import MissingReport
 from ..models.pet import Pet
-from ..models.pet_profile_image import PetProfileImage
+from ..models.pet_photo import PetPhoto
 from ..schemas.missing_report import MissingReportCreate, MissingReportRead, MissingReportUpdate
 
 LOGGER = logging.getLogger(__name__)
@@ -103,10 +103,10 @@ class MissingReportService:
     async def _get_pet_photo_uuids_by_pet_id(self, pet_id: int) -> list[str]:
         uuids = (
             await self.db.execute(
-                select(PetProfileImage.uuid)
+                select(PetPhoto.uuid)
                 .where(
-                    PetProfileImage.pet_id == pet_id,
-                    PetProfileImage.is_deleted.is_(False),
+                    PetPhoto.pet_id == pet_id,
+                    PetPhoto.is_deleted.is_(False),
                 )
             )
         ).scalars().all()

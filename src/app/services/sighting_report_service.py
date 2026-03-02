@@ -20,7 +20,7 @@ from ..core.enums import ActorType, MimeType
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
 from ..core.exceptions.domain_exceptions import InvalidInputError, NotFoundError
-from ..core.schemas import Actor, PaginatedResponse
+from ..core.schemas import Actor, MapViewport, PaginatedResponse
 from ..core.search_engine.engine import SearchEngine
 from ..core.search_engine.enums import FilterOp
 from ..core.search_engine.schemas import SearchRequest
@@ -37,7 +37,6 @@ from ..models.sighting_report_image import SightingReportImage
 from ..schemas.missing_report import MissingReportRead
 from ..schemas.pet import PetRead
 from ..schemas.sighting_report import (
-    MapViewport,
     SightingReportCreateWithImages,
     SightingReportRead,
     SightingReportUpdateWithImages,
