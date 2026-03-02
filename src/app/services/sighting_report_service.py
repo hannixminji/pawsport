@@ -50,7 +50,8 @@ LOGGER = logging.getLogger(__name__)
 class SightingReportService:
     db: AsyncSession
 
-    MAX_IMAGES_PER_REPORT = 5
+    MAX_IMAGES_PER_REPORT: ClassVar[int] = 5
+    MAX_TOTAL_IMAGE_SIZE_BYTES: ClassVar[int] = 20 * 1024 * 1024
 
     MOBILE_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
@@ -221,6 +222,20 @@ class SightingReportService:
                 f"You can only have up to {self.MAX_IMAGES_PER_REPORT} images per sighting report."
             )
 
+    def _check_total_image_size(
+        self,
+        new_images: list,
+        image_object_metadata_map: dict[str, dict[str, str | int]],
+    ) -> None:
+        total_size = sum(
+            int(image_object_metadata_map.get(image.image_object_key, {}).get("_size", 0))
+            for image in new_images
+        )
+
+        if total_size > self.MAX_TOTAL_IMAGE_SIZE_BYTES:
+            limit_mb = self.MAX_TOTAL_IMAGE_SIZE_BYTES // (1024 * 1024)
+            raise InvalidInputError(f"Total size of uploaded images exceeds the {limit_mb}MB limit.")
+
     def _check_image_ids_exist(
         self,
         image_ids_from_input: set[int],
@@ -274,6 +289,8 @@ class SightingReportService:
             image_object_metadata_map = await self._check_object_keys_exist(
                 [image.image_object_key for image in new_images]
             )
+
+        self._check_total_image_size(new_images, image_object_metadata_map)
 
         self._update_existing_images(existing_images_from_input, db_existing_images)
         new_image_models = await self._add_new_images(db_report, new_images, image_object_metadata_map)

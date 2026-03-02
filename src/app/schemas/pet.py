@@ -410,4 +410,3 @@ class PetUpdateWithPhotos(PetUpdate):
             raise ValueError("photo sort_order must be unique")
 
         return photos
-

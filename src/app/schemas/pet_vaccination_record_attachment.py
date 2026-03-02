@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from ..core.enums import AttachmentMimeType
 from ..core.schemas import PersistentDeletion, TimestampSchema
+from ..core.validators import ALLOWED_ATTACHMENT_EXTENSIONS, validate_object_key_extension
 
 
 class PetVaccinationRecordAttachmentBase(BaseModel):
@@ -35,6 +36,8 @@ class PetVaccinationRecordAttachmentBase(BaseModel):
 
         if v.endswith("/"):
             raise ValueError("object_key must not end with '/'")
+
+        v = validate_object_key_extension(v, ALLOWED_ATTACHMENT_EXTENSIONS)
 
         return v
 
@@ -95,6 +98,8 @@ class PetVaccinationRecordAttachmentUpdate(BaseModel):
 
         if v.endswith("/"):
             raise ValueError("object_key must not end with '/'")
+
+        v = validate_object_key_extension(v, ALLOWED_ATTACHMENT_EXTENSIONS)
 
         return v
 

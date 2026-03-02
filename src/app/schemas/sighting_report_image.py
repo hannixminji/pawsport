@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from ..core.enums import MimeType
 from ..core.schemas import PersistentDeletion, TimestampSchema
+from ..core.validators import ALLOWED_IMAGE_EXTENSIONS, validate_object_key_extension
 
 
 class SightingReportImageBase(BaseModel):
@@ -35,6 +36,8 @@ class SightingReportImageBase(BaseModel):
 
         if v.endswith("/"):
             raise ValueError("object_key must not end with '/'")
+
+        v = validate_object_key_extension(v, ALLOWED_IMAGE_EXTENSIONS)
 
         return v
 
@@ -101,6 +104,8 @@ class SightingReportImageUpdate(BaseModel):
 
         if v.endswith("/"):
             raise ValueError("object_key must not end with '/'")
+
+        v = validate_object_key_extension(v, ALLOWED_IMAGE_EXTENSIONS)
 
         return v
 
