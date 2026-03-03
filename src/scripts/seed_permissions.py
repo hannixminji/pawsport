@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.db.database import AsyncSession, local_session
 from app.models.admin_permission import AdminPermission
@@ -429,39 +429,21 @@ PERMISSIONS: list[dict[str, str]] = [
 
 
 async def seed_permissions(session: AsyncSession) -> None:
-    existing_keys = set(
-        (await session.scalars(select(AdminPermission.key))).all()
-    )
+    if not PERMISSIONS:
+        logger.info("No permissions defined. Skipping.")
+        return
 
-    created = 0
-    skipped = 0
+    stmt = pg_insert(AdminPermission).values(PERMISSIONS)
+    stmt = stmt.on_conflict_do_nothing(index_elements=["key"])
 
-    for permission in PERMISSIONS:
-        if permission["key"] in existing_keys:
-            skipped += 1
-            continue
-
-        session.add(
-            AdminPermission(
-                key=permission["key"],
-                name=permission["name"],
-                description=permission["description"],
-            )
-        )
-        created += 1
-
-    if created > 0:
-        try:
-            await session.commit()
-            logger.info("Created %d permissions (%d already existed).", created, skipped)
-
-        except Exception:
-            await session.rollback()
-            logger.exception("Failed to seed permissions.")
-            raise
-
-    else:
-        logger.info("All %d permissions already exist. Nothing to do.", skipped)
+    try:
+        await session.execute(stmt)
+        await session.commit()
+        logger.info("Permissions seeding complete (duplicates skipped automatically).")
+    except Exception:
+        await session.rollback()
+        logger.exception("Failed to seed permissions.")
+        raise
 
 
 async def main() -> None:

@@ -29,3 +29,6 @@ gcloud run deploy <your-service> \
 ```
 
 After the exhibit, you may set `--min-instances=0` again to reduce costs.
+
+docker compose up -d
+docker compose run --rm bootstrap
