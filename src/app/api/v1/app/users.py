@@ -1,10 +1,9 @@
 from typing import Annotated
 
-from fastapi import Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import get_current_superuser_actor, require_permission
+from app.api.dependencies import rate_limiter_dependency
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -12,7 +11,7 @@ from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.mobile_user import MobileUserCreate, MobileUserPasswordUpdate, MobileUserRead, MobileUserUpdate
 from app.services.mobile_user_service import MobileUserService
 
-router = CSRFProtectedRouter(prefix="/mobile-users", tags=["Mobile Users"])
+router = APIRouter(prefix="/mobile-users", tags=["Mobile Users"])
 
 
 def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> MobileUserService:
@@ -20,25 +19,25 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> MobileUse
 
 
 MobileUserServiceDependency = Annotated[MobileUserService, Depends(get_service)]
-SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
+ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 
 
 @router.post("", response_model=MobileUserRead, status_code=status.HTTP_201_CREATED)
 async def create_mobile_user(
     request: Request,
     payload: MobileUserCreate,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:create"))],
+    actor: ActorDependency,
     service: MobileUserServiceDependency,
 ) -> MobileUserRead:
     result = await service.create(actor=actor, user_input=payload)
-    await invalidate_namespace("admin:mobile-users")
+    await invalidate_namespace("app:mobile-users")
     return result
 
 
 @router.post("/search", response_model=PaginatedResponse[MobileUserRead], status_code=status.HTTP_200_OK)
 async def search_mobile_users(
     search_request: SearchRequest,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:search"))],
+    actor: ActorDependency,
     service: MobileUserServiceDependency,
     user_id: Annotated[int | None, Query(alias="userId")] = None,
 ) -> PaginatedResponse[MobileUserRead]:
@@ -47,14 +46,14 @@ async def search_mobile_users(
 
 @router.get("", response_model=PaginatedResponse[MobileUserRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin:mobile-users:list",
+    key_prefix="app:mobile-users:list",
     resource_id_name=["page", "items_per_page"],
-    namespace="admin:mobile-users",
+    namespace="app:mobile-users",
     expiration=60,
 )
 async def list_mobile_users(
     request: Request,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:read"))],
+    actor: ActorDependency,
     service: MobileUserServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
@@ -68,32 +67,17 @@ async def list_mobile_users(
 
 @router.get("/{user_id}", response_model=MobileUserRead, status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin:mobile-users:detail",
+    key_prefix="app:mobile-users:detail",
     resource_id_name="user_id",
     expiration=60,
 )
 async def get_mobile_user(
     request: Request,
     user_id: int,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:read"))],
+    actor: ActorDependency,
     service: MobileUserServiceDependency,
 ) -> MobileUserRead:
     return await service.get_mobile_user(actor=actor, user_id=user_id)
-
-
-@router.patch("/{user_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:mobile-users:detail",
-    resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:mobile-users"],
-)
-async def soft_delete_mobile_user(
-    request: Request,
-    user_id: int,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:soft_delete"))],
-    service: MobileUserServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, user_id=user_id)
 
 
 @router.patch("/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
@@ -101,7 +85,7 @@ async def update_mobile_user_password(
     request: Request,
     user_id: int,
     payload: MobileUserPasswordUpdate,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:update_password"))],
+    actor: ActorDependency,
     service: MobileUserServiceDependency,
 ) -> None:
     await service.change_password(
@@ -114,14 +98,14 @@ async def update_mobile_user_password(
 
 @router.patch("/{user_id}/tier", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin:mobile-users:detail",
+    key_prefix="app:mobile-users:detail",
     resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:mobile-users"],
+    namespaces_to_invalidate=["app:mobile-users"],
 )
 async def update_mobile_user_tier(
     request: Request,
     user_id: int,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:update_tier"))],
+    actor: ActorDependency,
     service: MobileUserServiceDependency,
     tier_id: Annotated[int | None, Query(alias="tierId")] = None,
 ) -> None:
@@ -130,30 +114,15 @@ async def update_mobile_user_tier(
 
 @router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin:mobile-users:detail",
+    key_prefix="app:mobile-users:detail",
     resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:mobile-users"],
+    namespaces_to_invalidate=["app:mobile-users"],
 )
 async def update_mobile_user(
     request: Request,
     user_id: int,
     payload: MobileUserUpdate,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:update"))],
+    actor: ActorDependency,
     service: MobileUserServiceDependency,
 ) -> None:
     await service.update(actor=actor, user_id=user_id, user_input=payload)
-
-
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:mobile-users:detail",
-    resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:mobile-users"],
-)
-async def hard_delete_mobile_user(
-    request: Request,
-    user_id: int,
-    actor: SuperuserActorDependency,
-    service: MobileUserServiceDependency,
-) -> None:
-    await service.hard_delete(actor=actor, user_id=user_id)

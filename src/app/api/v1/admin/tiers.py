@@ -4,7 +4,7 @@ from fastapi import Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import get_current_admin_actor
+from app.api.dependencies import get_current_superuser_actor, require_permission
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -20,14 +20,14 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> TierServi
 
 
 TierServiceDependency = Annotated[TierService, Depends(get_service)]
-AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
+SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
 
 
 @router.post("", response_model=TierRead, status_code=status.HTTP_201_CREATED)
 async def create_tier(
     request: Request,
     payload: TierCreate,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("tier:create"))],
     service: TierServiceDependency,
 ) -> TierRead:
     result = await service.create(actor=actor, tier_input=payload)
@@ -38,7 +38,7 @@ async def create_tier(
 @router.post("/search", response_model=PaginatedResponse[TierRead], status_code=status.HTTP_200_OK)
 async def search_tiers(
     search_request: SearchRequest,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("tier:search"))],
     service: TierServiceDependency,
 ) -> PaginatedResponse[TierRead]:
     return await service.search(actor=actor, search_request=search_request)
@@ -53,7 +53,7 @@ async def search_tiers(
 )
 async def list_tiers(
     request: Request,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("tier:read"))],
     service: TierServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
@@ -74,7 +74,7 @@ async def list_tiers(
 async def get_tier(
     request: Request,
     tier_id: int,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("tier:read"))],
     service: TierServiceDependency,
 ) -> TierRead:
     return await service.get_tier(actor=actor, tier_id=tier_id)
@@ -83,7 +83,7 @@ async def get_tier(
 @router.patch("/bulk/delete", status_code=status.HTTP_204_NO_CONTENT)
 async def bulk_soft_delete_tiers(
     payload: TierBulkDelete,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("tier:bulk_soft_delete"))],
     service: TierServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, tier_ids=payload.ids)
@@ -99,7 +99,7 @@ async def bulk_soft_delete_tiers(
 async def soft_delete_tier(
     request: Request,
     tier_id: int,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("tier:soft_delete"))],
     service: TierServiceDependency,
 ) -> None:
     await service.soft_delete(actor=actor, tier_id=tier_id)
@@ -115,7 +115,7 @@ async def update_tier(
     request: Request,
     tier_id: int,
     payload: TierUpdate,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("tier:update"))],
     service: TierServiceDependency,
 ) -> None:
     await service.update(actor=actor, tier_id=tier_id, tier_input=payload)
@@ -124,7 +124,7 @@ async def update_tier(
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
 async def bulk_hard_delete_tiers(
     payload: TierBulkDelete,
-    actor: AdminActorDependency,
+    actor: SuperuserActorDependency,
     service: TierServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, tier_ids=payload.ids)
@@ -140,7 +140,7 @@ async def bulk_hard_delete_tiers(
 async def hard_delete_tier(
     request: Request,
     tier_id: int,
-    actor: AdminActorDependency,
+    actor: SuperuserActorDependency,
     service: TierServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, tier_id=tier_id)

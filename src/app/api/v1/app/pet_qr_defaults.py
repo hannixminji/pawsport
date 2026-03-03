@@ -1,17 +1,16 @@
 from typing import Annotated
 
-from fastapi import Depends, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import require_permission
+from app.api.dependencies import rate_limiter_dependency
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor
 from app.core.utils.cache import cache
 from app.schemas.pet_qr_default import PetQRDefaultRead, PetQRDefaultUpsert
 from app.services.pet_qr_default_service import PetQRDefaultService
 
-router = CSRFProtectedRouter(prefix="/qr-defaults", tags=["Pet QR Defaults"])
+router = APIRouter(prefix="/qr-defaults", tags=["Pet QR Defaults"])
 
 
 def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> PetQRDefaultService:
@@ -19,18 +18,19 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> PetQRDefa
 
 
 PetQRDefaultServiceDependency = Annotated[PetQRDefaultService, Depends(get_service)]
+ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 
 
 @router.get("/{owner_id}", response_model=PetQRDefaultRead, status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin:pet-qr-defaults:detail",
+    key_prefix="app:pet-qr-defaults:detail",
     resource_id_name="owner_id",
     expiration=60,
 )
 async def get_pet_qr_default(
     request: Request,
     owner_id: int,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:read"))],
+    actor: ActorDependency,
     service: PetQRDefaultServiceDependency,
 ) -> PetQRDefaultRead:
     return await service.get_default(actor=actor, owner_id=owner_id)
@@ -38,14 +38,14 @@ async def get_pet_qr_default(
 
 @router.put("/{owner_id}", response_model=PetQRDefaultRead, status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin:pet-qr-defaults:detail",
+    key_prefix="app:pet-qr-defaults:detail",
     resource_id_name="owner_id",
 )
 async def upsert_pet_qr_default(
     request: Request,
     owner_id: int,
     payload: PetQRDefaultUpsert,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:update"))],
+    actor: ActorDependency,
     service: PetQRDefaultServiceDependency,
 ) -> PetQRDefaultRead:
     return await service.upsert(actor=actor, owner_id=owner_id, default_input=payload)

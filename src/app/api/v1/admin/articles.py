@@ -4,7 +4,7 @@ from fastapi import Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import get_current_superuser_actor
+from app.api.dependencies import get_current_superuser_actor, require_permission
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -32,7 +32,7 @@ SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)
 async def create_article(
     request: Request,
     payload: ArticleCreate,
-    actor: SuperuserActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("article:create"))],
     service: ArticleServiceDependency,
 ) -> ArticleRead:
     result = await service.create(actor=actor, article_input=payload)
@@ -43,7 +43,7 @@ async def create_article(
 @router.post("/search", response_model=PaginatedResponse[ArticleRead], status_code=status.HTTP_200_OK)
 async def search_articles(
     search_request: SearchRequest,
-    actor: SuperuserActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("article:search"))],
     service: ArticleServiceDependency,
 ) -> PaginatedResponse[ArticleRead]:
     return await service.search(actor=actor, search_request=search_request)
@@ -58,7 +58,7 @@ async def search_articles(
 )
 async def list_articles(
     request: Request,
-    actor: SuperuserActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("article:read"))],
     service: ArticleServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
@@ -79,7 +79,7 @@ async def list_articles(
 async def get_article(
     request: Request,
     article_id: int,
-    actor: SuperuserActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("article:read"))],
     service: ArticleServiceDependency,
 ) -> ArticleRead:
     return await service.get_article(actor=actor, article_id=article_id)
@@ -88,7 +88,7 @@ async def get_article(
 @router.patch("/bulk/delete", status_code=status.HTTP_204_NO_CONTENT)
 async def bulk_soft_delete_articles(
     payload: ArticleBulkDelete,
-    actor: SuperuserActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("article:bulk_soft_delete"))],
     service: ArticleServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, article_ids=payload.ids)
@@ -104,7 +104,7 @@ async def bulk_soft_delete_articles(
 async def soft_delete_article(
     request: Request,
     article_id: int,
-    actor: SuperuserActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("article:soft_delete"))],
     service: ArticleServiceDependency,
 ) -> None:
     await service.soft_delete(actor=actor, article_id=article_id)
@@ -120,7 +120,7 @@ async def update_article(
     request: Request,
     article_id: int,
     payload: ArticleUpdate,
-    actor: SuperuserActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("article:update"))],
     service: ArticleServiceDependency,
 ) -> None:
     await service.update(actor=actor, article_id=article_id, article_input=payload)

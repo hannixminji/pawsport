@@ -1,23 +1,21 @@
 from typing import Annotated
 
-from fastapi import Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import get_current_superuser_actor, require_permission
+from app.api.dependencies import rate_limiter_dependency
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
 from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.pet_vaccination_record import (
-    PetVaccinationRecordBulkDelete,
     PetVaccinationRecordCreate,
     PetVaccinationRecordRead,
     PetVaccinationRecordUpdate,
 )
 from app.services.pet_vaccination_record_service import PetVaccinationRecordService
 
-router = CSRFProtectedRouter(prefix="/vaccination-records", tags=["Pet Vaccination Records"])
+router = APIRouter(prefix="/vaccination-records", tags=["Pet Vaccination Records"])
 
 
 def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> PetVaccinationRecordService:
@@ -25,13 +23,13 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> PetVaccin
 
 
 PetVaccinationRecordServiceDependency = Annotated[PetVaccinationRecordService, Depends(get_service)]
-SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
+ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 
 
 @router.post("/search", response_model=PaginatedResponse[PetVaccinationRecordRead], status_code=status.HTTP_200_OK)
 async def search_vaccination_records(
     search_request: SearchRequest,
-    actor: Annotated[Actor, Depends(require_permission("pet_vaccination_record:search"))],
+    actor: ActorDependency,
     service: PetVaccinationRecordServiceDependency,
     user_id: Annotated[int | None, Query(alias="userId")] = None,
     pet_id: Annotated[int | None, Query(alias="petId")] = None,
@@ -44,24 +42,24 @@ async def create_vaccination_record(
     request: Request,
     pet_id: int,
     payload: PetVaccinationRecordCreate,
-    actor: Annotated[Actor, Depends(require_permission("pet_vaccination_record:create"))],
+    actor: ActorDependency,
     service: PetVaccinationRecordServiceDependency,
 ) -> PetVaccinationRecordRead:
     result = await service.create(actor=actor, pet_id=pet_id, vaccination_record_input=payload)
-    await invalidate_namespace("admin:pet-vaccination-records")
+    await invalidate_namespace("app:pet-vaccination-records")
     return result
 
 
 @router.get("", response_model=PaginatedResponse[PetVaccinationRecordRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin:pet-vaccination-records:list",
+    key_prefix="app:pet-vaccination-records:list",
     resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
-    namespace="admin:pet-vaccination-records",
+    namespace="app:pet-vaccination-records",
     expiration=60,
 )
 async def list_vaccination_records(
     request: Request,
-    actor: Annotated[Actor, Depends(require_permission("pet_vaccination_record:read"))],
+    actor: ActorDependency,
     service: PetVaccinationRecordServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
@@ -79,39 +77,29 @@ async def list_vaccination_records(
 
 @router.get("/{vaccination_record_id}", response_model=PetVaccinationRecordRead, status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin:pet-vaccination-records:detail",
+    key_prefix="app:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
     expiration=60,
 )
 async def get_vaccination_record(
     request: Request,
     vaccination_record_id: int,
-    actor: Annotated[Actor, Depends(require_permission("pet_vaccination_record:read"))],
+    actor: ActorDependency,
     service: PetVaccinationRecordServiceDependency,
 ) -> PetVaccinationRecordRead:
     return await service.get_vaccination_record(actor=actor, vaccination_record_id=vaccination_record_id)
 
 
-@router.patch("/bulk/delete", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_vaccination_records(
-    payload: PetVaccinationRecordBulkDelete,
-    actor: Annotated[Actor, Depends(require_permission("pet_vaccination_record:bulk_soft_delete"))],
-    service: PetVaccinationRecordServiceDependency,
-) -> None:
-    await service.bulk_soft_delete(actor=actor, vaccination_record_ids=payload.ids)
-    await invalidate_namespace("admin:pet-vaccination-records")
-
-
 @router.patch("/{vaccination_record_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin:pet-vaccination-records:detail",
+    key_prefix="app:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
-    namespaces_to_invalidate=["admin:pet-vaccination-records"],
+    namespaces_to_invalidate=["app:pet-vaccination-records"],
 )
 async def soft_delete_vaccination_record(
     request: Request,
     vaccination_record_id: int,
-    actor: Annotated[Actor, Depends(require_permission("pet_vaccination_record:soft_delete"))],
+    actor: ActorDependency,
     service: PetVaccinationRecordServiceDependency,
 ) -> None:
     await service.soft_delete(actor=actor, vaccination_record_id=vaccination_record_id)
@@ -119,40 +107,15 @@ async def soft_delete_vaccination_record(
 
 @router.patch("/{vaccination_record_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin:pet-vaccination-records:detail",
+    key_prefix="app:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
-    namespaces_to_invalidate=["admin:pet-vaccination-records"],
+    namespaces_to_invalidate=["app:pet-vaccination-records"],
 )
 async def update_vaccination_record(
     request: Request,
     vaccination_record_id: int,
     payload: PetVaccinationRecordUpdate,
-    actor: Annotated[Actor, Depends(require_permission("pet_vaccination_record:update"))],
+    actor: ActorDependency,
     service: PetVaccinationRecordServiceDependency,
 ) -> None:
     await service.update(actor=actor, vaccination_record_id=vaccination_record_id, vaccination_record_input=payload)
-
-
-@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_vaccination_records(
-    payload: PetVaccinationRecordBulkDelete,
-    actor: SuperuserActorDependency,
-    service: PetVaccinationRecordServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, vaccination_record_ids=payload.ids)
-    await invalidate_namespace("admin:pet-vaccination-records")
-
-
-@router.delete("/{vaccination_record_id}", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:pet-vaccination-records:detail",
-    resource_id_name="vaccination_record_id",
-    namespaces_to_invalidate=["admin:pet-vaccination-records"],
-)
-async def hard_delete_vaccination_record(
-    request: Request,
-    vaccination_record_id: int,
-    actor: SuperuserActorDependency,
-    service: PetVaccinationRecordServiceDependency,
-) -> None:
-    await service.hard_delete(actor=actor, vaccination_record_id=vaccination_record_id)

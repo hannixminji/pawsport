@@ -1,10 +1,9 @@
 from typing import Annotated, Any, Union
 
-from fastapi import Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import get_current_superuser_actor, require_permission
+from app.api.dependencies import rate_limiter_dependency
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, MapViewport, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -17,7 +16,7 @@ from app.schemas.sighting_report import (
 )
 from app.services.sighting_report_service import SightingReportService
 
-router = CSRFProtectedRouter(prefix="/sighting-reports", tags=["Sighting Reports"])
+router = APIRouter(prefix="/sighting-reports", tags=["Sighting Reports"])
 
 
 def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> SightingReportService:
@@ -25,13 +24,13 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> SightingR
 
 
 SightingReportServiceDependency = Annotated[SightingReportService, Depends(get_service)]
-SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
+ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 
 
 @router.post("/viewport", response_model=list[dict[str, Any]], status_code=status.HTTP_200_OK)
 async def get_combined_reports_by_viewport(
     viewport: MapViewport,
-    actor: Annotated[Actor, Depends(require_permission("sighting_report:read"))],
+    actor: ActorDependency,
     service: SightingReportServiceDependency,
 ) -> list[dict[str, Any]]:
     return await service.get_combined_reports_by_viewport(viewport=viewport)
@@ -40,7 +39,7 @@ async def get_combined_reports_by_viewport(
 @router.post("/search", response_model=PaginatedResponse[SightingReportRead], status_code=status.HTTP_200_OK)
 async def search_sighting_reports(
     search_request: SearchRequest,
-    actor: Annotated[Actor, Depends(require_permission("sighting_report:search"))],
+    actor: ActorDependency,
     service: SightingReportServiceDependency,
     user_id: Annotated[int | None, Query(alias="userId")] = None,
 ) -> PaginatedResponse[SightingReportRead]:
@@ -52,24 +51,24 @@ async def create_sighting_report(
     request: Request,
     user_id: int,
     payload: SightingReportCreateWithImages,
-    actor: Annotated[Actor, Depends(require_permission("sighting_report:create"))],
+    actor: ActorDependency,
     service: SightingReportServiceDependency,
 ) -> SightingReportRead:
     result = await service.create(actor=actor, user_id=user_id, report_input=payload)
-    await invalidate_namespace("admin:sighting-reports")
+    await invalidate_namespace("app:sighting-reports")
     return result
 
 
 @router.get("", response_model=PaginatedResponse[SightingReportRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin:sighting-reports:list",
+    key_prefix="app:sighting-reports:list",
     resource_id_name=["page", "items_per_page", "user_id"],
-    namespace="admin:sighting-reports",
+    namespace="app:sighting-reports",
     expiration=60,
 )
 async def list_sighting_reports(
     request: Request,
-    actor: Annotated[Actor, Depends(require_permission("sighting_report:read"))],
+    actor: ActorDependency,
     service: SightingReportServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
@@ -86,17 +85,17 @@ async def list_sighting_reports(
 @router.get(
     "/{report_id}",
     response_model=Union[SightingReportRead, SightingReportWithMatches],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 @cache(
-    key_prefix="admin:sighting-reports:detail",
+    key_prefix="app:sighting-reports:detail",
     resource_id_name="report_id",
     expiration=60,
 )
 async def get_sighting_report(
     request: Request,
     report_id: int,
-    actor: Annotated[Actor, Depends(require_permission("sighting_report:read"))],
+    actor: ActorDependency,
     service: SightingReportServiceDependency,
     with_matches: Annotated[bool, Query(alias="withMatches")] = False,
 ) -> Union[SightingReportRead, SightingReportWithMatches]:
@@ -105,14 +104,14 @@ async def get_sighting_report(
 
 @router.patch("/{report_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin:sighting-reports:detail",
+    key_prefix="app:sighting-reports:detail",
     resource_id_name="report_id",
-    namespaces_to_invalidate=["admin:sighting-reports"],
+    namespaces_to_invalidate=["app:sighting-reports"],
 )
 async def soft_delete_sighting_report(
     request: Request,
     report_id: int,
-    actor: Annotated[Actor, Depends(require_permission("sighting_report:soft_delete"))],
+    actor: ActorDependency,
     service: SightingReportServiceDependency,
 ) -> None:
     await service.soft_delete(actor=actor, report_id=report_id)
@@ -120,30 +119,15 @@ async def soft_delete_sighting_report(
 
 @router.patch("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin:sighting-reports:detail",
+    key_prefix="app:sighting-reports:detail",
     resource_id_name="report_id",
-    namespaces_to_invalidate=["admin:sighting-reports"],
+    namespaces_to_invalidate=["app:sighting-reports"],
 )
 async def update_sighting_report(
     request: Request,
     report_id: int,
     payload: SightingReportUpdateWithImages,
-    actor: Annotated[Actor, Depends(require_permission("sighting_report:update"))],
+    actor: ActorDependency,
     service: SightingReportServiceDependency,
 ) -> None:
     await service.update(actor=actor, report_id=report_id, report_input=payload)
-
-
-@router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:sighting-reports:detail",
-    resource_id_name="report_id",
-    namespaces_to_invalidate=["admin:sighting-reports"],
-)
-async def hard_delete_sighting_report(
-    request: Request,
-    report_id: int,
-    actor: SuperuserActorDependency,
-    service: SightingReportServiceDependency,
-) -> None:
-    await service.hard_delete(actor=actor, report_id=report_id)

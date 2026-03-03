@@ -3,10 +3,10 @@ import logging
 
 from sqlalchemy import select
 
-from ..app.core.config import settings
-from ..app.core.db.database import AsyncSession, local_session
-from ..app.core.security import get_password_hash
-from ..app.models.admin_user import AdminUser
+from app.core.config import settings
+from app.core.db.database import AsyncSession, local_session
+from app.core.security import get_password_hash
+from app.models.admin_user import AdminUser
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

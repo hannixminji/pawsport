@@ -4,7 +4,7 @@ from fastapi import Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import get_current_admin_actor, get_current_superuser_actor
+from app.api.dependencies import get_current_superuser_actor
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -31,7 +31,6 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> AdminUser
 
 AdminUserServiceDependency = Annotated[AdminUserService, Depends(get_service)]
 SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
-AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
 @router.post("", response_model=AdminUserRead, status_code=status.HTTP_201_CREATED)
@@ -159,7 +158,7 @@ async def update_admin_user_password(
     request: Request,
     user_id: int,
     payload: AdminUserPasswordUpdate,
-    actor: AdminActorDependency,
+    actor: SuperuserActorDependency,
     service: AdminUserServiceDependency,
 ) -> None:
     await service.change_password(

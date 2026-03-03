@@ -4,7 +4,7 @@ from fastapi import Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import get_current_admin_actor
+from app.api.dependencies import get_current_superuser_actor, require_permission
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -20,13 +20,13 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> RateLimit
 
 
 RateLimitServiceDependency = Annotated[RateLimitService, Depends(get_service)]
-AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
+SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
 
 
 @router.post("/search", response_model=PaginatedResponse[RateLimitRead], status_code=status.HTTP_200_OK)
 async def search_rate_limits(
     search_request: SearchRequest,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("rate_limit:search"))],
     service: RateLimitServiceDependency,
     tier_name: Annotated[str | None, Query(alias="tierName")] = None,
 ) -> PaginatedResponse[RateLimitRead]:
@@ -38,7 +38,7 @@ async def create_rate_limit(
     request: Request,
     tier_name: str,
     payload: RateLimitCreate,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("rate_limit:create"))],
     service: RateLimitServiceDependency,
 ) -> RateLimitRead:
     result = await service.create(actor=actor, tier_name=tier_name, rate_limit_input=payload)
@@ -55,7 +55,7 @@ async def create_rate_limit(
 )
 async def list_rate_limits(
     request: Request,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("rate_limit:read"))],
     service: RateLimitServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
@@ -78,7 +78,7 @@ async def list_rate_limits(
 async def get_rate_limit(
     request: Request,
     rate_limit_id: int,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("rate_limit:read"))],
     service: RateLimitServiceDependency,
 ) -> RateLimitRead:
     return await service.get_rate_limit(actor=actor, rate_limit_id=rate_limit_id)
@@ -87,7 +87,7 @@ async def get_rate_limit(
 @router.patch("/bulk/delete", status_code=status.HTTP_204_NO_CONTENT)
 async def bulk_soft_delete_rate_limits(
     payload: RateLimitBulkDelete,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("rate_limit:bulk_soft_delete"))],
     service: RateLimitServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, rate_limit_ids=payload.ids)
@@ -103,7 +103,7 @@ async def bulk_soft_delete_rate_limits(
 async def soft_delete_rate_limit(
     request: Request,
     rate_limit_id: int,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("rate_limit:soft_delete"))],
     service: RateLimitServiceDependency,
 ) -> None:
     await service.soft_delete(actor=actor, rate_limit_id=rate_limit_id)
@@ -119,7 +119,7 @@ async def update_rate_limit(
     request: Request,
     rate_limit_id: int,
     payload: RateLimitUpdate,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("rate_limit:update"))],
     service: RateLimitServiceDependency,
 ) -> None:
     await service.update(actor=actor, rate_limit_id=rate_limit_id, rate_limit_input=payload)
@@ -128,7 +128,7 @@ async def update_rate_limit(
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
 async def bulk_hard_delete_rate_limits(
     payload: RateLimitBulkDelete,
-    actor: AdminActorDependency,
+    actor: SuperuserActorDependency,
     service: RateLimitServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, rate_limit_ids=payload.ids)
@@ -144,7 +144,7 @@ async def bulk_hard_delete_rate_limits(
 async def hard_delete_rate_limit(
     request: Request,
     rate_limit_id: int,
-    actor: AdminActorDependency,
+    actor: SuperuserActorDependency,
     service: RateLimitServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, rate_limit_id=rate_limit_id)

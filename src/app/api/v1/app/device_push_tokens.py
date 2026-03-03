@@ -1,16 +1,15 @@
 from typing import Annotated
 
-from fastapi import Depends, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import get_current_mobile_actor
+from app.api.dependencies import rate_limiter_dependency
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor
 from app.schemas.device_push_token import DevicePushTokenUpsert
 from app.services.device_push_token_service import DevicePushTokenService
 
-router = CSRFProtectedRouter(prefix="/push-tokens", tags=["Device Push Tokens"])
+router = APIRouter(prefix="/device-push-tokens", tags=["Device Push Tokens"])
 
 
 def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> DevicePushTokenService:
@@ -18,26 +17,26 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> DevicePus
 
 
 DevicePushTokenServiceDependency = Annotated[DevicePushTokenService, Depends(get_service)]
-MobileActorDependency = Annotated[Actor, Depends(get_current_mobile_actor)]
+ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 
 
 @router.put("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def upsert_push_token(
+async def upsert_device_push_token(
     request: Request,
     user_id: int,
     payload: DevicePushTokenUpsert,
-    actor: MobileActorDependency,
+    actor: ActorDependency,
     service: DevicePushTokenServiceDependency,
 ) -> None:
     await service.upsert(actor=actor, user_id=user_id, token_input=payload)
 
 
 @router.delete("/{user_id}/{token}", status_code=status.HTTP_204_NO_CONTENT)
-async def hard_delete_push_token(
+async def delete_device_push_token(
     request: Request,
     user_id: int,
     token: str,
-    actor: MobileActorDependency,
+    actor: ActorDependency,
     service: DevicePushTokenServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, user_id=user_id, token=token)
