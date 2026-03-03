@@ -192,7 +192,7 @@ def cache(
     return wrapper
 
 
-async def async_get_redis() -> AsyncGenerator[Redis, None]:
+async def async_get_redis() -> AsyncGenerator[Redis]:
     client = Redis(connection_pool=pool)
     try:
         yield client

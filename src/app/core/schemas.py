@@ -1,6 +1,6 @@
 import uuid as uuid_pkg
 from datetime import UTC, datetime
-from typing import Annotated, Any, Generic, TypeVar
+from typing import Annotated, Any, TypeVar
 
 from pydantic import AfterValidator, BaseModel, Field, SecretStr, field_serializer
 from uuid6 import uuid7
@@ -90,7 +90,7 @@ class PersistentDeletion(BaseModel):
 T = TypeVar("T")
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     data: list[T]
     total_count: int
     has_more: bool

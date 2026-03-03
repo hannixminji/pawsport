@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Final, Generic, TypeAlias, TypeVar, assert_never
+from typing import Any, Final, TypeVar, assert_never
 
 from sqlalchemy import Select, and_, case, func, not_, null, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +11,8 @@ from ..exceptions.domain_exceptions import InvalidInputError
 from .enums import FilterOp, GroupOp, SortOrder
 from .schemas import SearchRequest, WhereGroup, WhereNode, WhereNot, WhereRule
 
-ColumnMap: TypeAlias = dict[str, Any]
-SqlExpr: TypeAlias = Any
+type ColumnMap = dict[str, Any]
+type SqlExpr = Any
 
 _T = TypeVar("_T", bound=DeclarativeBase)
 _S = TypeVar("_S")
@@ -31,8 +31,8 @@ _DEFAULT_SORT_ORDER: Final[SortOrder] = SortOrder.DESC
 
 
 @dataclass(slots=True, frozen=True)
-class SearchResult(Generic[_S]):
-    data: list[_S]
+class SearchResult[S]:
+    data: list[S]
     total_count: int
     page: int
     items_per_page: int
@@ -46,7 +46,7 @@ class SearchResult(Generic[_S]):
         }
 
 
-class SearchEngine(Generic[_T]):
+class SearchEngine[T: DeclarativeBase]:
     __slots__ = (
         "_allowed_ops",
         "_blacklisted",
@@ -64,7 +64,7 @@ class SearchEngine(Generic[_T]):
     def __init__(
         self,
         db: AsyncSession,
-        model: type[_T],
+        model: type[T],
         *,
         blacklisted_columns: frozenset[str] | set[str] = frozenset(),
         allowed_ops: dict[str, frozenset[FilterOp]] | None = None,
@@ -108,7 +108,7 @@ class SearchEngine(Generic[_T]):
         *,
         base_query: Select[Any],
         values: SearchRequest,
-        serializer: Callable[[_T], _S],
+        serializer: Callable[[T], _S],
     ) -> SearchResult[_S]:
         query = self._apply_filters(base_query, values.where, depth=0)
         count_query = select(func.count()).select_from(query.subquery())
@@ -276,7 +276,7 @@ class SearchEngine(Generic[_T]):
             case _ as unreachable:
                 assert_never(unreachable)
 
-    async def _fetch(self, paginated_query: Select[Any], count_query: Select[Any]) -> tuple[Sequence[_T], int]:
+    async def _fetch(self, paginated_query: Select[Any], count_query: Select[Any]) -> tuple[Sequence[T], int]:
         data_result, count_result = await asyncio.gather(
             self.db.execute(paginated_query),
             self.db.execute(count_query),

@@ -143,8 +143,13 @@ class PetService:
     ) -> Pet | None:
         query = select(Pet)
 
+        load_options = []
         if with_photos:
-            query = query.options(selectinload(Pet.photos))
+             load_options.append(selectinload(Pet.photos))
+        load_options.append(selectinload(Pet.qr_preference))
+
+        if load_options:
+            query = query.options(*load_options)
 
         query = query.where(
             Pet.id == pet_id,
@@ -351,8 +356,8 @@ class PetService:
         if actor.actor_type == ActorType.MOBILE_USER:
             user_id = actor.id
 
-        photos = pet_input.photos if pet_input.photos is not None else []
-        object_keys = [photo.object_key for photo in photos if photo.object_key]
+        photos = pet_input.photos or []
+        object_keys = [p.object_key for p in photos if p.object_key]
 
         await self._validate_photo_object_keys_exist(object_keys)
 
@@ -362,38 +367,47 @@ class PetService:
 
         await self._validate_photos_with_ml(species_value, object_keys)
 
-        pet_model = Pet(
-            **pet_input.model_dump(exclude={"photos", "qr_preference"}),
-            owner_id=user_id,
-        )
-        self.db.add(pet_model)
-        await self.db.flush()
-
-        qr_object_key = await asyncio.to_thread(
-            generate_qr_and_upload_gcs,
-            data=f"{settings.QR_BASE_URL}/{pet_model.uuid}",
-            object_key=f"qr_codes/{pet_model.uuid}.png",
-            scale=10,
-            error="H",
-            kind="png",
-        )
-        pet_model.qr_code_object_key = qr_object_key
-
-        new_photo_models = self._add_new_photos(pet_model, photos)
-
-        qr_preference_model = self._build_qr_preference(pet_model.id, pet_input.qr_preference)
-        self.db.add(qr_preference_model)
-
-        await self.db.flush()
-
-        new_photos_payload = self._build_embedding_payload(
-            pet_uuid=pet_model.uuid,
-            species_value=species_value,
-            is_missing=False,
-            photo_models=new_photo_models,
-        )
-
         try:
+            pet_model = Pet(
+                **pet_input.model_dump(exclude={"photos", "qr_preference"}),
+                owner_id=user_id,
+            )
+            self.db.add(pet_model)
+            await self.db.flush()
+
+            qr_object_key = await asyncio.to_thread(
+                generate_qr_and_upload_gcs,
+                data=f"{settings.QR_BASE_URL}/{pet_model.uuid}",
+                object_key=f"qr_codes/{pet_model.uuid}.png",
+                scale=10,
+                error="H",
+                kind="png",
+            )
+            pet_model.qr_code_object_key = qr_object_key
+
+            photo_models = [
+                PetPhoto(
+                    pet_id=pet_model.id,
+                    object_key=photo.object_key,
+                    sort_order=photo.sort_order,
+                )
+                for photo in photos
+            ]
+            self.db.add_all(photo_models)
+
+            qr_preference_model = PetQRPreference(**pet_input.qr_preference.model_dump())
+            self.db.add(qr_preference_model)
+            pet_model.qr_preference = qr_preference_model
+
+            await self.db.flush()
+
+            new_photos_payload = self._build_embedding_payload(
+                pet_uuid=pet_model.uuid,
+                species_value=species_value,
+                is_missing=False,
+                photo_models=photo_models,
+            )
+
             await self.db.commit()
 
         except IntegrityError:
@@ -420,8 +434,18 @@ class PetService:
         except Exception as error:
             LOGGER.warning("Failed to enqueue extract_features_task for pet %s: %s", pet_model.id, error)
 
-        await self.db.refresh(pet_model)
-        return PetRead.model_validate(pet_model)
+        db_fresh_pet = (
+            await self.db.execute(
+                select(Pet)
+                .options(
+                    selectinload(Pet.photos),
+                    selectinload(Pet.qr_preference),
+                )
+                .where(Pet.id == pet_model.id)
+            )
+        ).scalar_one()
+
+        return PetRead.model_validate(db_fresh_pet)
 
     async def search_by_image(
         self,
@@ -507,7 +531,10 @@ class PetService:
         db_pets = (
             await self.db.execute(
                 select(Pet)
-                .options(selectinload(Pet.photos))
+                .options(
+                    selectinload(Pet.photos),
+                    selectinload(Pet.qr_preference),
+                )
                 .where(
                     Pet.uuid.in_(pet_scores.keys()),
                     Pet.is_deleted.is_(False),
@@ -551,13 +578,24 @@ class PetService:
         ):
             base_query = (
                 select(Pet)
+                .options(
+                    selectinload(Pet.photos),
+                    selectinload(Pet.qr_preference),
+                )
                 .where(
                     Pet.owner_id == user_id,
                     Pet.is_deleted.is_(False),
                 )
             )
         else:
-            base_query = select(Pet).where(Pet.is_deleted.is_(False))
+            base_query = (
+                select(Pet)
+                .options(
+                    selectinload(Pet.photos),
+                    selectinload(Pet.qr_preference),
+                )
+                .where(Pet.is_deleted.is_(False))
+            )
 
         engine = SearchEngine(
             db=self.db,
@@ -609,7 +647,10 @@ class PetService:
         db_pets = (
             await self.db.execute(
                 base_query
-                .options(selectinload(Pet.photos))
+                .options(
+                    selectinload(Pet.photos),
+                    selectinload(Pet.qr_preference),
+                )
                 .offset(compute_offset(page, items_per_page))
                 .limit(items_per_page)
             )
