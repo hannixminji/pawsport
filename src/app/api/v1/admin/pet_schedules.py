@@ -29,17 +29,6 @@ SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
-@router.post("/search", response_model=PaginatedResponse[PetScheduleRead], status_code=status.HTTP_200_OK)
-async def search_pet_schedules(
-    search_request: SearchRequest,
-    actor: AdminActorDependency,
-    service: PetScheduleServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
-    pet_id: Annotated[int | None, Query(alias="petId")] = None,
-) -> PaginatedResponse[PetScheduleRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
-
-
 @router.post("/{pet_id}", response_model=PetScheduleRead, status_code=status.HTTP_201_CREATED)
 async def create_pet_schedule(
     request: Request,
@@ -51,6 +40,17 @@ async def create_pet_schedule(
     result = await service.create(actor=actor, pet_id=pet_id, schedule_input=payload)
     await invalidate_namespace("admin:pet-schedules")
     return result
+
+
+@router.post("/search", response_model=PaginatedResponse[PetScheduleRead], status_code=status.HTTP_200_OK)
+async def search_pet_schedules(
+    search_request: SearchRequest,
+    actor: AdminActorDependency,
+    service: PetScheduleServiceDependency,
+    user_id: Annotated[int | None, Query(alias="userId")] = None,
+    pet_id: Annotated[int | None, Query(alias="petId")] = None,
+) -> PaginatedResponse[PetScheduleRead]:
+    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
 
 
 @router.get("", response_model=PaginatedResponse[PetScheduleRead], status_code=status.HTTP_200_OK)
@@ -109,26 +109,6 @@ async def update_pet_schedule(
     await service.update(actor=actor, schedule_id=schedule_id, schedule_input=payload)
 
 
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_pet_schedules(
-    payload: PetScheduleBulkDelete,
-    actor: AdminActorDependency,
-    service: PetScheduleServiceDependency,
-) -> None:
-    await service.bulk_soft_delete(actor=actor, schedule_ids=payload.ids)
-    await invalidate_namespace("admin:pet-schedules")
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_pet_schedules(
-    payload: PetScheduleBulkDelete,
-    actor: SuperuserActorDependency,
-    service: PetScheduleServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, schedule_ids=payload.ids)
-    await invalidate_namespace("admin:pet-schedules")
-
-
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-schedules:detail",
@@ -144,6 +124,16 @@ async def soft_delete_pet_schedule(
     await service.soft_delete(actor=actor, schedule_id=schedule_id)
 
 
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_soft_delete_pet_schedules(
+    payload: PetScheduleBulkDelete,
+    actor: AdminActorDependency,
+    service: PetScheduleServiceDependency,
+) -> None:
+    await service.bulk_soft_delete(actor=actor, schedule_ids=payload.ids)
+    await invalidate_namespace("admin:pet-schedules")
+
+
 @router.delete("/{schedule_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-schedules:detail",
@@ -157,3 +147,13 @@ async def hard_delete_pet_schedule(
     service: PetScheduleServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, schedule_id=schedule_id)
+
+
+@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_pet_schedules(
+    payload: PetScheduleBulkDelete,
+    actor: SuperuserActorDependency,
+    service: PetScheduleServiceDependency,
+) -> None:
+    await service.bulk_hard_delete(actor=actor, schedule_ids=payload.ids)
+    await invalidate_namespace("admin:pet-schedules")

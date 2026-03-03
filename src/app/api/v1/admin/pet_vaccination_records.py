@@ -29,17 +29,6 @@ SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
-@router.post("/search", response_model=PaginatedResponse[PetVaccinationRecordRead], status_code=status.HTTP_200_OK)
-async def search_vaccination_records(
-    search_request: SearchRequest,
-    actor: AdminActorDependency,
-    service: PetVaccinationRecordServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
-    pet_id: Annotated[int | None, Query(alias="petId")] = None,
-) -> PaginatedResponse[PetVaccinationRecordRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
-
-
 @router.post("/{pet_id}", response_model=PetVaccinationRecordRead, status_code=status.HTTP_201_CREATED)
 async def create_vaccination_record(
     request: Request,
@@ -51,6 +40,17 @@ async def create_vaccination_record(
     result = await service.create(actor=actor, pet_id=pet_id, vaccination_record_input=payload)
     await invalidate_namespace("admin:pet-vaccination-records")
     return result
+
+
+@router.post("/search", response_model=PaginatedResponse[PetVaccinationRecordRead], status_code=status.HTTP_200_OK)
+async def search_vaccination_records(
+    search_request: SearchRequest,
+    actor: AdminActorDependency,
+    service: PetVaccinationRecordServiceDependency,
+    user_id: Annotated[int | None, Query(alias="userId")] = None,
+    pet_id: Annotated[int | None, Query(alias="petId")] = None,
+) -> PaginatedResponse[PetVaccinationRecordRead]:
+    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
 
 
 @router.get("", response_model=PaginatedResponse[PetVaccinationRecordRead], status_code=status.HTTP_200_OK)
@@ -109,26 +109,6 @@ async def update_vaccination_record(
     await service.update(actor=actor, vaccination_record_id=vaccination_record_id, vaccination_record_input=payload)
 
 
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_vaccination_records(
-    payload: PetVaccinationRecordBulkDelete,
-    actor: AdminActorDependency,
-    service: PetVaccinationRecordServiceDependency,
-) -> None:
-    await service.bulk_soft_delete(actor=actor, vaccination_record_ids=payload.ids)
-    await invalidate_namespace("admin:pet-vaccination-records")
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_vaccination_records(
-    payload: PetVaccinationRecordBulkDelete,
-    actor: SuperuserActorDependency,
-    service: PetVaccinationRecordServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, vaccination_record_ids=payload.ids)
-    await invalidate_namespace("admin:pet-vaccination-records")
-
-
 @router.delete("/{vaccination_record_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-vaccination-records:detail",
@@ -144,6 +124,16 @@ async def soft_delete_vaccination_record(
     await service.soft_delete(actor=actor, vaccination_record_id=vaccination_record_id)
 
 
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_soft_delete_vaccination_records(
+    payload: PetVaccinationRecordBulkDelete,
+    actor: AdminActorDependency,
+    service: PetVaccinationRecordServiceDependency,
+) -> None:
+    await service.bulk_soft_delete(actor=actor, vaccination_record_ids=payload.ids)
+    await invalidate_namespace("admin:pet-vaccination-records")
+
+
 @router.delete("/{vaccination_record_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-vaccination-records:detail",
@@ -157,3 +147,13 @@ async def hard_delete_vaccination_record(
     service: PetVaccinationRecordServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, vaccination_record_id=vaccination_record_id)
+
+
+@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_vaccination_records(
+    payload: PetVaccinationRecordBulkDelete,
+    actor: SuperuserActorDependency,
+    service: PetVaccinationRecordServiceDependency,
+) -> None:
+    await service.bulk_hard_delete(actor=actor, vaccination_record_ids=payload.ids)
+    await invalidate_namespace("admin:pet-vaccination-records")

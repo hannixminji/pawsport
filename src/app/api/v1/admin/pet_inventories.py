@@ -29,16 +29,6 @@ SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
-@router.post("/search", response_model=PaginatedResponse[PetInventoryRead], status_code=status.HTTP_200_OK)
-async def search_inventory_items(
-    search_request: SearchRequest,
-    actor: AdminActorDependency,
-    service: PetInventoryServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
-) -> PaginatedResponse[PetInventoryRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id)
-
-
 @router.post("/{user_id}", response_model=PetInventoryRead, status_code=status.HTTP_201_CREATED)
 async def create_inventory_item(
     request: Request,
@@ -50,6 +40,16 @@ async def create_inventory_item(
     result = await service.create(actor=actor, user_id=user_id, inventory_input=payload)
     await invalidate_namespace("admin:pet-inventory")
     return result
+
+
+@router.post("/search", response_model=PaginatedResponse[PetInventoryRead], status_code=status.HTTP_200_OK)
+async def search_inventory_items(
+    search_request: SearchRequest,
+    actor: AdminActorDependency,
+    service: PetInventoryServiceDependency,
+    user_id: Annotated[int | None, Query(alias="userId")] = None,
+) -> PaginatedResponse[PetInventoryRead]:
+    return await service.search(actor=actor, search_request=search_request, user_id=user_id)
 
 
 @router.get("", response_model=PaginatedResponse[PetInventoryRead], status_code=status.HTTP_200_OK)
@@ -102,26 +102,6 @@ async def update_inventory_item(
     await service.update(actor=actor, inventory_id=inventory_id, inventory_input=payload)
 
 
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_inventory_items(
-    payload: PetInventoryBulkDelete,
-    actor: AdminActorDependency,
-    service: PetInventoryServiceDependency,
-) -> None:
-    await service.bulk_soft_delete(actor=actor, inventory_ids=payload.ids)
-    await invalidate_namespace("admin:pet-inventory")
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_inventory_items(
-    payload: PetInventoryBulkDelete,
-    actor: SuperuserActorDependency,
-    service: PetInventoryServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, inventory_ids=payload.ids)
-    await invalidate_namespace("admin:pet-inventory")
-
-
 @router.delete("/{inventory_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-inventory:detail",
@@ -137,6 +117,16 @@ async def soft_delete_inventory_item(
     await service.soft_delete(actor=actor, inventory_id=inventory_id)
 
 
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_soft_delete_inventory_items(
+    payload: PetInventoryBulkDelete,
+    actor: AdminActorDependency,
+    service: PetInventoryServiceDependency,
+) -> None:
+    await service.bulk_soft_delete(actor=actor, inventory_ids=payload.ids)
+    await invalidate_namespace("admin:pet-inventory")
+
+
 @router.delete("/{inventory_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-inventory:detail",
@@ -150,3 +140,13 @@ async def hard_delete_inventory_item(
     service: PetInventoryServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, inventory_id=inventory_id)
+
+
+@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_inventory_items(
+    payload: PetInventoryBulkDelete,
+    actor: SuperuserActorDependency,
+    service: PetInventoryServiceDependency,
+) -> None:
+    await service.bulk_hard_delete(actor=actor, inventory_ids=payload.ids)
+    await invalidate_namespace("admin:pet-inventory")

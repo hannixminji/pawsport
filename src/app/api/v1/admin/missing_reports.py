@@ -25,17 +25,6 @@ AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
 
 
-@router.post("/search", response_model=PaginatedResponse[MissingReportRead], status_code=status.HTTP_200_OK)
-async def search_missing_reports(
-    search_request: SearchRequest,
-    actor: AdminActorDependency,
-    service: MissingReportServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
-    pet_id: Annotated[int | None, Query(alias="petId")] = None,
-) -> PaginatedResponse[MissingReportRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
-
-
 @router.post("/{pet_id}", response_model=MissingReportRead, status_code=status.HTTP_201_CREATED)
 async def create_missing_report(
     request: Request,
@@ -47,6 +36,17 @@ async def create_missing_report(
     result = await service.create(actor=actor, pet_id=pet_id, report_input=payload)
     await invalidate_namespace("admin:missing-reports")
     return result
+
+
+@router.post("/search", response_model=PaginatedResponse[MissingReportRead], status_code=status.HTTP_200_OK)
+async def search_missing_reports(
+    search_request: SearchRequest,
+    actor: AdminActorDependency,
+    service: MissingReportServiceDependency,
+    user_id: Annotated[int | None, Query(alias="userId")] = None,
+    pet_id: Annotated[int | None, Query(alias="petId")] = None,
+) -> PaginatedResponse[MissingReportRead]:
+    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
 
 
 @router.get("", response_model=PaginatedResponse[MissingReportRead], status_code=status.HTTP_200_OK)

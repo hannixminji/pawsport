@@ -23,16 +23,6 @@ RateLimitServiceDependency = Annotated[RateLimitService, Depends(get_service)]
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
-@router.post("/search", response_model=PaginatedResponse[RateLimitRead], status_code=status.HTTP_200_OK)
-async def search_rate_limits(
-    search_request: SearchRequest,
-    actor: AdminActorDependency,
-    service: RateLimitServiceDependency,
-    tier_name: Annotated[str | None, Query(alias="tierName")] = None,
-) -> PaginatedResponse[RateLimitRead]:
-    return await service.search(actor=actor, search_request=search_request, tier_name=tier_name)
-
-
 @router.post("/{tier_name}", response_model=RateLimitRead, status_code=status.HTTP_201_CREATED)
 async def create_rate_limit(
     request: Request,
@@ -44,6 +34,16 @@ async def create_rate_limit(
     result = await service.create(actor=actor, tier_name=tier_name, rate_limit_input=payload)
     await invalidate_namespace("admin:rate-limits")
     return result
+
+
+@router.post("/search", response_model=PaginatedResponse[RateLimitRead], status_code=status.HTTP_200_OK)
+async def search_rate_limits(
+    search_request: SearchRequest,
+    actor: AdminActorDependency,
+    service: RateLimitServiceDependency,
+    tier_name: Annotated[str | None, Query(alias="tierName")] = None,
+) -> PaginatedResponse[RateLimitRead]:
+    return await service.search(actor=actor, search_request=search_request, tier_name=tier_name)
 
 
 @router.get("", response_model=PaginatedResponse[RateLimitRead], status_code=status.HTTP_200_OK)
@@ -100,26 +100,6 @@ async def update_rate_limit(
     await service.update(actor=actor, rate_limit_id=rate_limit_id, rate_limit_input=payload)
 
 
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_rate_limits(
-    payload: RateLimitBulkDelete,
-    actor: AdminActorDependency,
-    service: RateLimitServiceDependency,
-) -> None:
-    await service.bulk_soft_delete(actor=actor, rate_limit_ids=payload.ids)
-    await invalidate_namespace("admin:rate-limits")
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_rate_limits(
-    payload: RateLimitBulkDelete,
-    actor: AdminActorDependency,
-    service: RateLimitServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, rate_limit_ids=payload.ids)
-    await invalidate_namespace("admin:rate-limits")
-
-
 @router.delete("/{rate_limit_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:rate-limits:detail",
@@ -135,6 +115,16 @@ async def soft_delete_rate_limit(
     await service.soft_delete(actor=actor, rate_limit_id=rate_limit_id)
 
 
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_soft_delete_rate_limits(
+    payload: RateLimitBulkDelete,
+    actor: AdminActorDependency,
+    service: RateLimitServiceDependency,
+) -> None:
+    await service.bulk_soft_delete(actor=actor, rate_limit_ids=payload.ids)
+    await invalidate_namespace("admin:rate-limits")
+
+
 @router.delete("/{rate_limit_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:rate-limits:detail",
@@ -148,3 +138,13 @@ async def hard_delete_rate_limit(
     service: RateLimitServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, rate_limit_id=rate_limit_id)
+
+
+@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_rate_limits(
+    payload: RateLimitBulkDelete,
+    actor: AdminActorDependency,
+    service: RateLimitServiceDependency,
+) -> None:
+    await service.bulk_hard_delete(actor=actor, rate_limit_ids=payload.ids)
+    await invalidate_namespace("admin:rate-limits")
