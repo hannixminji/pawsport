@@ -1,11 +1,6 @@
-from datetime import date
-from pathlib import Path
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import Depends, File, Form, Query, Request, UploadFile, status
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.csrf_router import CSRFProtectedRouter
@@ -18,9 +13,6 @@ from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.pet import PetCreateWithPhotos, PetRead, PetSearch, PetUpdateWithPhotos
 from app.services.pet_service import PetService
 
-TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "core" / "templates"
-templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
-
 router = CSRFProtectedRouter(prefix="/pets", tags=["Pets"])
 
 
@@ -31,19 +23,6 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> PetServic
 PetServiceDependency = Annotated[PetService, Depends(get_service)]
 SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
-
-
-@router.post("/{user_id}", response_model=PetRead, status_code=status.HTTP_201_CREATED)
-async def create_pet(
-    request: Request,
-    user_id: int,
-    payload: PetCreateWithPhotos,
-    actor: AdminActorDependency,
-    service: PetServiceDependency,
-) -> PetRead:
-    result = await service.create(actor=actor, user_id=user_id, pet_input=payload)
-    await invalidate_namespace("admin:pets")
-    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[PetRead], status_code=status.HTTP_200_OK)
@@ -73,6 +52,19 @@ async def search_pets_by_image(
     )
 
 
+@router.post("/{user_id}", response_model=PetRead, status_code=status.HTTP_201_CREATED)
+async def create_pet(
+    request: Request,
+    user_id: int,
+    payload: PetCreateWithPhotos,
+    actor: AdminActorDependency,
+    service: PetServiceDependency,
+) -> PetRead:
+    result = await service.create(actor=actor, user_id=user_id, pet_input=payload)
+    await invalidate_namespace("admin:pets")
+    return result
+
+
 @router.get("", response_model=PaginatedResponse[PetRead], status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="admin:pets:list",
@@ -93,29 +85,6 @@ async def list_pets(
         page=page,
         items_per_page=items_per_page,
         user_id=user_id,
-    )
-
-
-@router.get("/qr/{pet_uuid}", response_model=None, response_class=HTMLResponse, status_code=status.HTTP_200_OK)
-async def get_pet_by_qr(
-    request: Request,
-    pet_uuid: UUID,
-    service: PetServiceDependency,
-) -> HTMLResponse | JSONResponse:
-    pet = await service.get_pet_by_qr(pet_uuid=pet_uuid)
-
-    accept = (request.headers.get("accept") or "").lower()
-
-    if "application/json" in accept:
-        return JSONResponse(content=pet.model_dump(mode="json"))
-
-    return templates.TemplateResponse(
-        "pet_qr.html",
-        {
-            "request": request,
-            "pet": pet.model_dump(mode="python"),
-            "today": date.today(),
-        },
     )
 
 

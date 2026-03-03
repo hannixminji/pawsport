@@ -29,6 +29,17 @@ SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
+@router.post("/search", response_model=PaginatedResponse[PetMedicationRead], status_code=status.HTTP_200_OK)
+async def search_pet_medications(
+    search_request: SearchRequest,
+    actor: AdminActorDependency,
+    service: PetMedicationServiceDependency,
+    user_id: Annotated[int | None, Query(alias="userId")] = None,
+    pet_id: Annotated[int | None, Query(alias="petId")] = None,
+) -> PaginatedResponse[PetMedicationRead]:
+    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
+
+
 @router.post("/{pet_id}", response_model=PetMedicationRead, status_code=status.HTTP_201_CREATED)
 async def create_pet_medication(
     request: Request,
@@ -40,17 +51,6 @@ async def create_pet_medication(
     result = await service.create(actor=actor, pet_id=pet_id, medication_input=payload)
     await invalidate_namespace("admin:pet-medications")
     return result
-
-
-@router.post("/search", response_model=PaginatedResponse[PetMedicationRead], status_code=status.HTTP_200_OK)
-async def search_pet_medications(
-    search_request: SearchRequest,
-    actor: AdminActorDependency,
-    service: PetMedicationServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
-    pet_id: Annotated[int | None, Query(alias="petId")] = None,
-) -> PaginatedResponse[PetMedicationRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
 
 
 @router.get("", response_model=PaginatedResponse[PetMedicationRead], status_code=status.HTTP_200_OK)
@@ -109,6 +109,26 @@ async def update_pet_medication(
     await service.update(actor=actor, medication_id=medication_id, medication_input=payload)
 
 
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_soft_delete_pet_medications(
+    payload: PetMedicationBulkDelete,
+    actor: AdminActorDependency,
+    service: PetMedicationServiceDependency,
+) -> None:
+    await service.bulk_soft_delete(actor=actor, medication_ids=payload.ids)
+    await invalidate_namespace("admin:pet-medications")
+
+
+@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_pet_medications(
+    payload: PetMedicationBulkDelete,
+    actor: SuperuserActorDependency,
+    service: PetMedicationServiceDependency,
+) -> None:
+    await service.bulk_hard_delete(actor=actor, medication_ids=payload.ids)
+    await invalidate_namespace("admin:pet-medications")
+
+
 @router.delete("/{medication_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-medications:detail",
@@ -124,16 +144,6 @@ async def soft_delete_pet_medication(
     await service.soft_delete(actor=actor, medication_id=medication_id)
 
 
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_pet_medications(
-    payload: PetMedicationBulkDelete,
-    actor: AdminActorDependency,
-    service: PetMedicationServiceDependency,
-) -> None:
-    await service.bulk_soft_delete(actor=actor, medication_ids=payload.ids)
-    await invalidate_namespace("admin:pet-medications")
-
-
 @router.delete("/{medication_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-medications:detail",
@@ -147,13 +157,3 @@ async def hard_delete_pet_medication(
     service: PetMedicationServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, medication_id=medication_id)
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_pet_medications(
-    payload: PetMedicationBulkDelete,
-    actor: SuperuserActorDependency,
-    service: PetMedicationServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, medication_ids=payload.ids)
-    await invalidate_namespace("admin:pet-medications")

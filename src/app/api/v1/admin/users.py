@@ -177,6 +177,26 @@ async def assign_roles_to_admin_user(
     await service.assign_roles(actor=actor, user_id=user_id, role_ids=set(payload.role_ids))
 
 
+@router.delete("/soft", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_soft_delete_admin_users(
+    payload: AdminUserBulkDelete,
+    actor: SuperuserActorDependency,
+    service: AdminUserServiceDependency,
+) -> None:
+    await service.bulk_soft_delete(actor=actor, user_ids=payload.ids)
+    await invalidate_namespace("admin:users")
+
+
+@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_admin_users(
+    payload: AdminUserBulkDelete,
+    actor: SuperuserActorDependency,
+    service: AdminUserServiceDependency,
+) -> None:
+    await service.bulk_hard_delete(actor=actor, user_ids=payload.ids)
+    await invalidate_namespace("admin:users")
+
+
 @router.delete("/{user_id}/roles", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:users:detail",
@@ -238,16 +258,6 @@ async def soft_delete_admin_user(
     await service.soft_delete(actor=actor, user_id=user_id)
 
 
-@router.delete("/soft", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_admin_users(
-    payload: AdminUserBulkDelete,
-    actor: SuperuserActorDependency,
-    service: AdminUserServiceDependency,
-) -> None:
-    await service.bulk_soft_delete(actor=actor, user_ids=payload.ids)
-    await invalidate_namespace("admin:users")
-
-
 @router.delete("/{user_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:users:detail",
@@ -261,13 +271,3 @@ async def hard_delete_admin_user(
     service: AdminUserServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, user_id=user_id)
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_admin_users(
-    payload: AdminUserBulkDelete,
-    actor: SuperuserActorDependency,
-    service: AdminUserServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, user_ids=payload.ids)
-    await invalidate_namespace("admin:users")

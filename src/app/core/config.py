@@ -218,7 +218,7 @@ class MLServiceSettings(BaseSettings):
 
 
 class PetSettings(BaseSettings):
-    QR_BASE_URL: str = "http://localhost:8000/api/v1/pet/qr"
+    QR_BASE_URL: str = "http://localhost:8000/api/v1/pets/qr"
 
 
 class Settings(
