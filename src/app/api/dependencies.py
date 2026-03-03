@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from fastapi import Depends, Request, Response
@@ -10,6 +11,8 @@ from sqlalchemy import any_, exists, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only, selectinload
+
+import app.core.utils.cache as cache_store
 
 from ..core.config import settings
 from ..core.db.database import async_get_db
@@ -51,6 +54,12 @@ from ..schemas.rate_limit import sanitize_path
 LOGGER = logging.getLogger(__name__)
 
 _perm_index_reload_lock = asyncio.Lock()
+
+
+async def get_redis_client() -> AsyncGenerator[Redis]:
+    if cache_store.client is None:
+        raise RuntimeError("Redis client not initialized")
+    yield cache_store.client
 
 
 async def get_redis_safe(request: Request) -> Redis:

@@ -1,10 +1,11 @@
 from typing import Annotated
 
 from fastapi import Depends, Query, Request, status
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import get_current_superuser_actor
+from app.api.dependencies import get_current_superuser_actor, get_redis_client
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -22,8 +23,11 @@ from app.services.admin_role_service import AdminRoleService
 router = CSRFProtectedRouter(prefix="/roles", tags=["Admin Roles"])
 
 
-def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> AdminRoleService:
-    return AdminRoleService(db=db, redis=cache.client)
+async def get_service(
+    db: AsyncSession = Depends(async_get_db),
+    redis: Redis = Depends(get_redis_client),
+) -> AdminRoleService:
+    return AdminRoleService(db=db, redis=redis)
 
 
 AdminRoleServiceDependency = Annotated[AdminRoleService, Depends(get_service)]
