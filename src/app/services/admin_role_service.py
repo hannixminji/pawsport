@@ -61,13 +61,21 @@ class AdminRoleService:
 
         return constraint_name in str(original_exception)
 
-    async def _get_role_by_id(self, role_id: int) -> AdminRole | None:
-        return (
-            await self.db.execute(
-                select(AdminRole)
-                .where(AdminRole.id == role_id)
-            )
-        ).scalar_one_or_none()
+    async def _get_role_by_id(
+        self,
+        role_id: int,
+        *,
+        with_permissions: bool = False,
+    ) -> AdminRole | None:
+        query = (
+            select(AdminRole)
+            .where(AdminRole.id == role_id)
+        )
+
+        if with_permissions:
+            query = query.options(selectinload(AdminRole.permissions))
+
+        return (await self.db.execute(query)).scalar_one_or_none()
 
     async def create(
         self,
@@ -335,7 +343,7 @@ class AdminRoleService:
         if not actor.is_superuser:
             raise ForbiddenError("Superuser privileges are required to assign permissions to a role.")
 
-        db_role = await self._get_role_by_id(role_id)
+        db_role = await self._get_role_by_id(role_id, with_permissions=True)
         if db_role is None:
             raise NotFoundError("Admin role not found.")
 

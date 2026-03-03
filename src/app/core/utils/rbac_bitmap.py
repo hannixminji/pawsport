@@ -205,8 +205,8 @@ async def _rebuild_roleset_bitmap(
 
         perm_ids = (
             await db.execute(
-                select(admin_role_permission.c.permission_id).where(
-                    admin_role_permission.c.role_id.in_(ids_set)
+                select(admin_role_permission.c.admin_permission_id).where(
+                    admin_role_permission.c.admin_role_id.in_(ids_set)
                 )
             )
         ).scalars().all()

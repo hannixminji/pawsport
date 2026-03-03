@@ -135,7 +135,11 @@ async def assign_permissions(
     actor: SuperuserActorDependency,
     service: AdminRoleServiceDependency,
 ) -> None:
-    await service.assign_permissions(actor=actor, role_id=role_id, permission_ids=payload.ids)
+    await service.assign_permissions(
+        actor=actor,
+        role_id=role_id,
+        permission_ids=set(payload.permission_ids),
+    )
 
 
 @router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)

@@ -158,7 +158,7 @@ def require_permission(permission_key: str):
         if admin_user.is_superuser:
             return admin_user.to_actor(request)
 
-        role_ids = set(admin_user.roles)
+        role_ids = set(admin_user.role_ids)
         if not role_ids:
             raise ForbiddenException("You do not have any roles assigned.")
 

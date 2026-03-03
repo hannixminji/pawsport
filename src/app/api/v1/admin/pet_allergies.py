@@ -4,7 +4,7 @@ from fastapi import Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.csrf_router import CSRFProtectedRouter
-from app.api.dependencies import get_current_admin_actor, get_current_superuser_actor
+from app.api.dependencies import get_current_admin_actor, get_current_superuser_actor, require_permission
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -40,7 +40,7 @@ async def create_pet_allergy(
     request: Request,
     pet_id: int,
     payload: PetAllergyCreate,
-    actor: AdminActorDependency,
+    actor: Annotated[Actor, Depends(require_permission("pet_allergy:create"))],
     service: PetAllergyServiceDependency,
 ) -> PetAllergyRead:
     result = await service.create(actor=actor, pet_id=pet_id, allergy_input=payload)

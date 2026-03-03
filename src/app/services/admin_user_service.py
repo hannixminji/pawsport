@@ -94,7 +94,12 @@ class AdminUserService:
 
         return constraint_name in str(original_exception)
 
-    async def _get_admin_user_by_id(self, user_id: int, with_roles: bool = False) -> AdminUser | None:
+    async def _get_admin_user_by_id(
+        self,
+        user_id: int,
+        with_roles: bool = False,
+        with_permissions: bool = False,
+    ) -> AdminUser | None:
             query = (
                 select(AdminUser)
                 .where(
@@ -105,6 +110,9 @@ class AdminUserService:
 
             if with_roles:
                 query = query.options(selectinload(AdminUser.roles))
+
+            if with_permissions:
+                query = query.options(selectinload(AdminUser.direct_permissions))
 
             return (await self.db.execute(query)).scalar_one_or_none()
 
@@ -590,7 +598,7 @@ class AdminUserService:
         if not actor.is_superuser:
             raise ForbiddenError("Superuser privileges are required to assign roles to an admin user.")
 
-        db_user = await self._get_admin_user_by_id(user_id)
+        db_user = await self._get_admin_user_by_id(user_id, with_roles=True)
         if db_user is None:
             raise NotFoundError("Admin user not found.")
 
@@ -672,7 +680,7 @@ class AdminUserService:
         if not actor.is_superuser:
             raise ForbiddenError("Superuser privileges are required to assign direct permissions to an admin user.")
 
-        db_user = await self._get_admin_user_by_id(user_id)
+        db_user = await self._get_admin_user_by_id(user_id, with_permissions=True)
         if db_user is None:
             raise NotFoundError("Admin user not found.")
 
