@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import ClassVar
 
+from redis.asyncio import Redis
 from sqlalchemy import any_, delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,7 @@ from ..core.search_engine.engine import SearchEngine
 from ..core.search_engine.enums import FilterOp
 from ..core.search_engine.schemas import SearchRequest
 from ..core.utils.pagination import compute_offset
+from ..core.utils.rbac_bitmap import on_permission_schema_changed
 from ..core.utils.update import apply_partial_update
 from ..models.admin_permission import AdminPermission
 from ..schemas.admin_permission import (
@@ -28,6 +30,7 @@ LOGGER = logging.getLogger(__name__)
 @dataclass(slots=True)
 class AdminPermissionService:
     db: AsyncSession
+    redis: Redis
 
     ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
@@ -268,6 +271,8 @@ class AdminPermissionService:
                 "Failed to permanently delete the admin permission."
             ) from error
 
+        await on_permission_schema_changed(self.redis)
+
     async def bulk_hard_delete(
         self,
         *,
@@ -302,3 +307,5 @@ class AdminPermissionService:
             raise NonTransientDatabaseError(
                 "Failed to permanently delete admin permissions."
             ) from error
+
+        await on_permission_schema_changed(self.redis)

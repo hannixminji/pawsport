@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.tier import TierBulkDelete, TierCreate, TierRead, TierUpdate
 from app.services.tier_service import TierService
 
@@ -30,7 +30,9 @@ async def create_tier(
     actor: AdminActorDependency,
     service: TierServiceDependency,
 ) -> TierRead:
-    return await service.create(actor=actor, tier_input=payload)
+    result = await service.create(actor=actor, tier_input=payload)
+    await invalidate_namespace("admin:tiers")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[TierRead], status_code=status.HTTP_200_OK)
@@ -44,8 +46,9 @@ async def search_tiers(
 
 @router.get("", response_model=PaginatedResponse[TierRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="tiers:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:tiers:list",
+    resource_id_name=["page", "items_per_page"],
+    namespace="admin:tiers",
     expiration=60,
 )
 async def list_tiers(
@@ -63,7 +66,11 @@ async def list_tiers(
 
 
 @router.get("/{tier_id}", response_model=TierRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="tier", resource_id_name="tier_id", expiration=60)
+@cache(
+    key_prefix="admin:tiers:detail",
+    resource_id_name="tier_id",
+    expiration=60,
+)
 async def get_tier(
     request: Request,
     tier_id: int,
@@ -75,9 +82,9 @@ async def get_tier(
 
 @router.patch("/{tier_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="tier",
+    key_prefix="admin:tiers:detail",
     resource_id_name="tier_id",
-    pattern_to_invalidate_extra=["tiers:*"],
+    namespaces_to_invalidate=["admin:tiers"],
 )
 async def update_tier(
     request: Request,
@@ -91,9 +98,9 @@ async def update_tier(
 
 @router.delete("/{tier_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="tier",
+    key_prefix="admin:tiers:detail",
     resource_id_name="tier_id",
-    pattern_to_invalidate_extra=["tiers:*"],
+    namespaces_to_invalidate=["admin:tiers"],
 )
 async def soft_delete_tier(
     request: Request,
@@ -111,13 +118,14 @@ async def bulk_soft_delete_tiers(
     service: TierServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, tier_ids=payload.ids)
+    await invalidate_namespace("admin:tiers")
 
 
 @router.delete("/{tier_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="tier",
+    key_prefix="admin:tiers:detail",
     resource_id_name="tier_id",
-    pattern_to_invalidate_extra=["tiers:*"],
+    namespaces_to_invalidate=["admin:tiers"],
 )
 async def hard_delete_tier(
     request: Request,
@@ -135,3 +143,4 @@ async def bulk_hard_delete_tiers(
     service: TierServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, tier_ids=payload.ids)
+    await invalidate_namespace("admin:tiers")

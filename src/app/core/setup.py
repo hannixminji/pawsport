@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator, Callable
 from contextlib import _AsyncGeneratorContextManager, asynccontextmanager
 from typing import Any
+from urllib.parse import urlparse
 
 import anyio
 import fastapi
@@ -54,7 +55,7 @@ async def close_redis_cache_pool() -> None:
 
 # -------------- admin session --------------
 async def create_redis_admin_session_pool() -> None:
-    admin_session_store.pool = redis.ConnectionPool.from_url(settings.REDIS_ADMIN_SESSION_URL)
+    admin_session_store.pool = redis.ConnectionPool.from_url(settings.REDIS_CACHE_URL)
     admin_session_store.client = redis.Redis.from_pool(admin_session_store.pool)  # type: ignore
 
 
@@ -65,7 +66,15 @@ async def close_redis_admin_session_pool() -> None:
 
 # -------------- queue --------------
 async def create_redis_queue_pool() -> None:
-    queue.pool = await create_pool(RedisSettings(host=settings.REDIS_QUEUE_HOST, port=settings.REDIS_QUEUE_PORT))
+    parsed = urlparse(str(settings.REDIS_CACHE_URL))
+    queue.pool = await create_pool(
+        RedisSettings(
+            host=parsed.hostname or "localhost",
+            port=parsed.port or 6379,
+            password=parsed.password,
+            ssl=parsed.scheme == "rediss",
+        )
+    )
 
 
 async def close_redis_queue_pool() -> None:
@@ -75,7 +84,7 @@ async def close_redis_queue_pool() -> None:
 
 # -------------- rate limit --------------
 async def create_redis_rate_limit_pool() -> None:
-    rate_limiter.initialize(settings.REDIS_RATE_LIMIT_URL)  # type: ignore
+    rate_limiter.initialize(settings.REDIS_CACHE_URL)  # type: ignore
 
 
 async def close_redis_rate_limit_pool() -> None:
@@ -130,8 +139,9 @@ def lifespan_factory(
             if create_tables_on_start:
                 await create_tables()
 
-            async with local_session() as db:
-                app.state.perm_index = await load_permission_index(db)
+            if not hasattr(app.state, "perm_index"):
+                async with local_session() as db:
+                    app.state.perm_index = await load_permission_index(db)
 
             initialization_complete.set()
 
@@ -174,7 +184,7 @@ def create_application(
     """Creates and configures a FastAPI application based on the provided settings.
 
     This function initializes a FastAPI application and configures it with various settings
-    and handlers based on the type of the `settings` object provided.
+    and handlers based on the type of the settings object provided.
 
     Parameters
     ----------

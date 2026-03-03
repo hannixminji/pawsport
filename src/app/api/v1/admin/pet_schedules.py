@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor, get_current_superuser_
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.pet_schedule import (
     PetScheduleBulkDelete,
     PetScheduleCreate,
@@ -37,7 +37,9 @@ async def create_pet_schedule(
     actor: AdminActorDependency,
     service: PetScheduleServiceDependency,
 ) -> PetScheduleRead:
-    return await service.create(actor=actor, pet_id=pet_id, schedule_input=payload)
+    result = await service.create(actor=actor, pet_id=pet_id, schedule_input=payload)
+    await invalidate_namespace("admin:pet-schedules")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[PetScheduleRead], status_code=status.HTTP_200_OK)
@@ -53,8 +55,9 @@ async def search_pet_schedules(
 
 @router.get("", response_model=PaginatedResponse[PetScheduleRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="pet_schedules:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:pet-schedules:list",
+    resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
+    namespace="admin:pet-schedules",
     expiration=60,
 )
 async def list_pet_schedules(
@@ -76,7 +79,11 @@ async def list_pet_schedules(
 
 
 @router.get("/{schedule_id}", response_model=PetScheduleRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="pet_schedule", resource_id_name="schedule_id", expiration=60)
+@cache(
+    key_prefix="admin:pet-schedules:detail",
+    resource_id_name="schedule_id",
+    expiration=60,
+)
 async def get_pet_schedule(
     request: Request,
     schedule_id: int,
@@ -88,9 +95,9 @@ async def get_pet_schedule(
 
 @router.patch("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_schedule",
+    key_prefix="admin:pet-schedules:detail",
     resource_id_name="schedule_id",
-    pattern_to_invalidate_extra=["pet_schedules:*"],
+    namespaces_to_invalidate=["admin:pet-schedules"],
 )
 async def update_pet_schedule(
     request: Request,
@@ -104,9 +111,9 @@ async def update_pet_schedule(
 
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_schedule",
+    key_prefix="admin:pet-schedules:detail",
     resource_id_name="schedule_id",
-    pattern_to_invalidate_extra=["pet_schedules:*"],
+    namespaces_to_invalidate=["admin:pet-schedules"],
 )
 async def soft_delete_pet_schedule(
     request: Request,
@@ -124,13 +131,14 @@ async def bulk_soft_delete_pet_schedules(
     service: PetScheduleServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, schedule_ids=payload.ids)
+    await invalidate_namespace("admin:pet-schedules")
 
 
 @router.delete("/{schedule_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_schedule",
+    key_prefix="admin:pet-schedules:detail",
     resource_id_name="schedule_id",
-    pattern_to_invalidate_extra=["pet_schedules:*"],
+    namespaces_to_invalidate=["admin:pet-schedules"],
 )
 async def hard_delete_pet_schedule(
     request: Request,
@@ -148,3 +156,4 @@ async def bulk_hard_delete_pet_schedules(
     service: PetScheduleServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, schedule_ids=payload.ids)
+    await invalidate_namespace("admin:pet-schedules")

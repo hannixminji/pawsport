@@ -227,9 +227,8 @@ class PetService:
     def _build_new_photo(self, pet_id: int, photo: PetPhotoCreate) -> PetPhoto:
         return PetPhoto(
             pet_id=pet_id,
-            image_object_key=photo.image_object_key,
+            object_key=photo.object_key,
             sort_order=photo.sort_order,
-            is_primary=photo.is_primary,
         )
 
     def _check_photo_ids_exist(
@@ -289,7 +288,7 @@ class PetService:
 
         self._check_photo_ids_exist(photo_ids_from_input, db_existing_photos)
 
-        new_object_keys = [p.image_object_key for p in new_photos if p.image_object_key]
+        new_object_keys = [new_photo.object_key for new_photo in new_photos if new_photo.object_key]
         if not skip_existence_check and new_object_keys:
             await self._validate_photo_object_keys_exist(new_object_keys)
 
@@ -328,7 +327,7 @@ class PetService:
         return [
             {
                 "id": str(photo.uuid),
-                "image_object_key": photo.image_object_key,
+                "image_object_key": photo.object_key,
                 "payload": {
                     "pet_id": str(pet_uuid),
                     "species": species_value,
@@ -353,7 +352,7 @@ class PetService:
             user_id = actor.id
 
         photos = pet_input.photos if pet_input.photos is not None else []
-        object_keys = [photo.image_object_key for photo in photos if photo.image_object_key]
+        object_keys = [photo.object_key for photo in photos if photo.object_key]
 
         await self._validate_photo_object_keys_exist(object_keys)
 
@@ -725,7 +724,7 @@ class PetService:
 
         if pet_input.photos is not None:
             new_photos = [p for p in pet_input.photos if getattr(p, "id", None) is None]
-            new_object_keys = [p.image_object_key for p in new_photos if p.image_object_key]
+            new_object_keys = [new_photo.object_key for new_photo in new_photos if new_photo.object_key]
             if new_object_keys:
                 await self._validate_photo_object_keys_exist(new_object_keys)
                 await self._validate_photos_with_ml(pet_species, new_object_keys)

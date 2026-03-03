@@ -23,7 +23,11 @@ AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
 @router.get("/{owner_id}", response_model=PetQRDefaultRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="pet_qr_default", resource_id_name="owner_id", expiration=60)
+@cache(
+    key_prefix="admin:pet-qr-defaults:detail",
+    resource_id_name="owner_id",
+    expiration=60,
+)
 async def get_pet_qr_default(
     request: Request,
     owner_id: int,
@@ -35,9 +39,8 @@ async def get_pet_qr_default(
 
 @router.put("/{owner_id}", response_model=PetQRDefaultRead, status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="pet_qr_default",
+    key_prefix="admin:pet-qr-defaults:detail",
     resource_id_name="owner_id",
-    pattern_to_invalidate_extra=["pet_qr_default:*"],
 )
 async def upsert_pet_qr_default(
     request: Request,

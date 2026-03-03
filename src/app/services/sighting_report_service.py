@@ -181,7 +181,7 @@ class SightingReportService:
         image: Union[SightingReportCreateWithImages, SightingReportUpdateWithImages],
         image_object_metadata_map: dict,
     ) -> SightingReportImage:
-        metadata = image_object_metadata_map.get(image.image_object_key, {})
+        metadata = image_object_metadata_map.get(image.object_key, {})
         mime_type_raw = metadata.get("mime_type")
 
         mime_type_enum = None
@@ -193,7 +193,7 @@ class SightingReportService:
 
         return SightingReportImage(
             sighting_report_id=report_id,
-            object_key=image.image_object_key,
+            object_key=image.object_key,
             sort_order=image.sort_order,
             mime_type=mime_type_enum,
         )
@@ -228,7 +228,7 @@ class SightingReportService:
         image_object_metadata_map: dict[str, dict[str, str | int]],
     ) -> None:
         total_size = sum(
-            int(image_object_metadata_map.get(image.image_object_key, {}).get("_size", 0))
+            int(image_object_metadata_map.get(image.object_key, {}).get("_size", 0))
             for image in new_images
         )
 
@@ -287,7 +287,7 @@ class SightingReportService:
         image_object_metadata_map = {}
         if new_images:
             image_object_metadata_map = await self._check_object_keys_exist(
-                [image.image_object_key for image in new_images]
+                [image.object_key for image in new_images]
             )
 
         self._check_total_image_size(new_images, image_object_metadata_map)
@@ -476,7 +476,7 @@ class SightingReportService:
 
         images = report_input.images or []
         if images:
-            await self._check_object_keys_exist([image.image_object_key for image in images])
+            await self._check_object_keys_exist([image.object_key for image in images])
 
         wkb_location = from_shape(
             Point(
@@ -497,7 +497,7 @@ class SightingReportService:
         new_image_models = []
         if images:
             image_object_metadata_map = await self._check_object_keys_exist(
-                [image.image_object_key for image in images]
+                [image.object_key for image in images]
             )
             for image in images:
                 new_image = self._build_new_image(report_model.id, image, image_object_metadata_map)

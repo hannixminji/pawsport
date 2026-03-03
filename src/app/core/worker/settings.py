@@ -23,7 +23,7 @@ class WorkerSettings:
         qdrant_soft_delete_embeddings_task,
         qdrant_hard_delete_embeddings_task,
     ]
-    redis_settings = RedisSettings(host=REDIS_QUEUE_HOST, port=REDIS_QUEUE_PORT)
+    redis_settings = RedisSettings.from_dsn(settings.REDIS_CACHE_URL)
     on_startup = startup
     on_shutdown = shutdown
     handle_signals = False

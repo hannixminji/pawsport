@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor, get_current_superuser_
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.pet_inventory import (
     PetInventoryBulkDelete,
     PetInventoryCreateWithImages,
@@ -37,7 +37,9 @@ async def create_inventory_item(
     actor: AdminActorDependency,
     service: PetInventoryServiceDependency,
 ) -> PetInventoryRead:
-    return await service.create(actor=actor, user_id=user_id, inventory_input=payload)
+    result = await service.create(actor=actor, user_id=user_id, inventory_input=payload)
+    await invalidate_namespace("admin:pet-inventory")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[PetInventoryRead], status_code=status.HTTP_200_OK)
@@ -52,8 +54,9 @@ async def search_inventory_items(
 
 @router.get("", response_model=PaginatedResponse[PetInventoryRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="pet_inventory:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:pet-inventory:list",
+    resource_id_name=["page", "items_per_page", "user_id"],
+    namespace="admin:pet-inventory",
     expiration=60,
 )
 async def list_inventory_items(
@@ -73,7 +76,7 @@ async def list_inventory_items(
 
 
 @router.get("/{inventory_id}", response_model=PetInventoryRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="pet_inventory_item", resource_id_name="inventory_id", expiration=60)
+@cache(key_prefix="admin:pet-inventory:detail", resource_id_name="inventory_id", expiration=60)
 async def get_inventory_item(
     request: Request,
     inventory_id: int,
@@ -85,9 +88,9 @@ async def get_inventory_item(
 
 @router.patch("/{inventory_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_inventory_item",
+    key_prefix="admin:pet-inventory:detail",
     resource_id_name="inventory_id",
-    pattern_to_invalidate_extra=["pet_inventory:*"],
+    namespaces_to_invalidate=["admin:pet-inventory"],
 )
 async def update_inventory_item(
     request: Request,
@@ -101,9 +104,9 @@ async def update_inventory_item(
 
 @router.delete("/{inventory_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_inventory_item",
+    key_prefix="admin:pet-inventory:detail",
     resource_id_name="inventory_id",
-    pattern_to_invalidate_extra=["pet_inventory:*"],
+    namespaces_to_invalidate=["admin:pet-inventory"],
 )
 async def soft_delete_inventory_item(
     request: Request,
@@ -121,13 +124,14 @@ async def bulk_soft_delete_inventory_items(
     service: PetInventoryServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, inventory_ids=payload.ids)
+    await invalidate_namespace("admin:pet-inventory")
 
 
 @router.delete("/{inventory_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_inventory_item",
+    key_prefix="admin:pet-inventory:detail",
     resource_id_name="inventory_id",
-    pattern_to_invalidate_extra=["pet_inventory:*"],
+    namespaces_to_invalidate=["admin:pet-inventory"],
 )
 async def hard_delete_inventory_item(
     request: Request,
@@ -145,3 +149,4 @@ async def bulk_hard_delete_inventory_items(
     service: PetInventoryServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, inventory_ids=payload.ids)
+    await invalidate_namespace("admin:pet-inventory")

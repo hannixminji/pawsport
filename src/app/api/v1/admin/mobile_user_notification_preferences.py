@@ -23,7 +23,11 @@ AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
 @router.get("/{user_id}", response_model=NotificationPreferenceRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="notification_preference", resource_id_name="user_id", expiration=60)
+@cache(
+    key_prefix="admin:notification-preferences:detail",
+    resource_id_name="user_id",
+    expiration=60,
+)
 async def get_notification_preference(
     request: Request,
     user_id: int,
@@ -35,9 +39,8 @@ async def get_notification_preference(
 
 @router.put("/{user_id}", response_model=NotificationPreferenceRead, status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="notification_preference",
+    key_prefix="admin:notification-preferences:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["notification_preference:*"],
 )
 async def upsert_notification_preference(
     request: Request,

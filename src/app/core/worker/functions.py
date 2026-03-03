@@ -9,6 +9,7 @@ import uvloop
 from arq.worker import Worker
 from qdrant_client.http.models import PointStruct
 
+from ...core.config import settings
 from ...core.db.database import async_engine, local_session
 from ...core.enums import NotificationFeature
 from ...core.notifications.service import notify_users_near_event_using_alert_center_radius
@@ -51,7 +52,7 @@ async def extract_features_task(ctx, data: list[dict], collection_name: str = "p
             species = str(species_raw).lower().strip()
 
             response = await client.post(
-                "http://ml:9000/extract_features",
+                f"{settings.ML_BASE_URL}/extract_features",
                 data={"species": species, "image_object_keys": payload},
             )
             response.raise_for_status()

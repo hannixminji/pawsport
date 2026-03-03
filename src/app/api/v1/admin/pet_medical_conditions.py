@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor, get_current_superuser_
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.pet_medical_condition import (
     PetMedicalConditionBulkDelete,
     PetMedicalConditionCreate,
@@ -37,7 +37,9 @@ async def create_pet_medical_condition(
     actor: AdminActorDependency,
     service: PetMedicalConditionServiceDependency,
 ) -> PetMedicalConditionRead:
-    return await service.create(actor=actor, pet_id=pet_id, medical_condition_input=payload)
+    result = await service.create(actor=actor, pet_id=pet_id, medical_condition_input=payload)
+    await invalidate_namespace("admin:pet-medical-conditions")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[PetMedicalConditionRead], status_code=status.HTTP_200_OK)
@@ -53,8 +55,9 @@ async def search_pet_medical_conditions(
 
 @router.get("", response_model=PaginatedResponse[PetMedicalConditionRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="pet_medical_conditions:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:pet-medical-conditions:list",
+    resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
+    namespace="admin:pet-medical-conditions",
     expiration=60,
 )
 async def list_pet_medical_conditions(
@@ -76,7 +79,11 @@ async def list_pet_medical_conditions(
 
 
 @router.get("/{medical_condition_id}", response_model=PetMedicalConditionRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="pet_medical_condition", resource_id_name="medical_condition_id", expiration=60)
+@cache(
+    key_prefix="admin:pet-medical-conditions:detail",
+    resource_id_name="medical_condition_id",
+    expiration=60,
+)
 async def get_pet_medical_condition(
     request: Request,
     medical_condition_id: int,
@@ -88,9 +95,9 @@ async def get_pet_medical_condition(
 
 @router.patch("/{medical_condition_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_medical_condition",
+    key_prefix="admin:pet-medical-conditions:detail",
     resource_id_name="medical_condition_id",
-    pattern_to_invalidate_extra=["pet_medical_conditions:*"],
+    namespaces_to_invalidate=["admin:pet-medical-conditions"],
 )
 async def update_pet_medical_condition(
     request: Request,
@@ -104,9 +111,9 @@ async def update_pet_medical_condition(
 
 @router.delete("/{medical_condition_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_medical_condition",
+    key_prefix="admin:pet-medical-conditions:detail",
     resource_id_name="medical_condition_id",
-    pattern_to_invalidate_extra=["pet_medical_conditions:*"],
+    namespaces_to_invalidate=["admin:pet-medical-conditions"],
 )
 async def soft_delete_pet_medical_condition(
     request: Request,
@@ -124,13 +131,14 @@ async def bulk_soft_delete_pet_medical_conditions(
     service: PetMedicalConditionServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, medical_condition_ids=payload.ids)
+    await invalidate_namespace("admin:pet-medical-conditions")
 
 
 @router.delete("/{medical_condition_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_medical_condition",
+    key_prefix="admin:pet-medical-conditions:detail",
     resource_id_name="medical_condition_id",
-    pattern_to_invalidate_extra=["pet_medical_conditions:*"],
+    namespaces_to_invalidate=["admin:pet-medical-conditions"],
 )
 async def hard_delete_pet_medical_condition(
     request: Request,
@@ -148,3 +156,4 @@ async def bulk_hard_delete_pet_medical_conditions(
     service: PetMedicalConditionServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, medical_condition_ids=payload.ids)
+    await invalidate_namespace("admin:pet-medical-conditions")

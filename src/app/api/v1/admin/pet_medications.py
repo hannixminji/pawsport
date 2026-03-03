@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor, get_current_superuser_
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.pet_medication import (
     PetMedicationBulkDelete,
     PetMedicationCreate,
@@ -37,7 +37,9 @@ async def create_pet_medication(
     actor: AdminActorDependency,
     service: PetMedicationServiceDependency,
 ) -> PetMedicationRead:
-    return await service.create(actor=actor, pet_id=pet_id, medication_input=payload)
+    result = await service.create(actor=actor, pet_id=pet_id, medication_input=payload)
+    await invalidate_namespace("admin:pet-medications")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[PetMedicationRead], status_code=status.HTTP_200_OK)
@@ -53,8 +55,9 @@ async def search_pet_medications(
 
 @router.get("", response_model=PaginatedResponse[PetMedicationRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="pet_medications:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:pet-medications:list",
+    resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
+    namespace="admin:pet-medications",
     expiration=60,
 )
 async def list_pet_medications(
@@ -76,7 +79,11 @@ async def list_pet_medications(
 
 
 @router.get("/{medication_id}", response_model=PetMedicationRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="pet_medication", resource_id_name="medication_id", expiration=60)
+@cache(
+    key_prefix="admin:pet-medications:detail",
+    resource_id_name="medication_id",
+    expiration=60,
+)
 async def get_pet_medication(
     request: Request,
     medication_id: int,
@@ -88,9 +95,9 @@ async def get_pet_medication(
 
 @router.patch("/{medication_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_medication",
+    key_prefix="admin:pet-medications:detail",
     resource_id_name="medication_id",
-    pattern_to_invalidate_extra=["pet_medications:*"],
+    namespaces_to_invalidate=["admin:pet-medications"],
 )
 async def update_pet_medication(
     request: Request,
@@ -104,9 +111,9 @@ async def update_pet_medication(
 
 @router.delete("/{medication_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_medication",
+    key_prefix="admin:pet-medications:detail",
     resource_id_name="medication_id",
-    pattern_to_invalidate_extra=["pet_medications:*"],
+    namespaces_to_invalidate=["admin:pet-medications"],
 )
 async def soft_delete_pet_medication(
     request: Request,
@@ -124,13 +131,14 @@ async def bulk_soft_delete_pet_medications(
     service: PetMedicationServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, medication_ids=payload.ids)
+    await invalidate_namespace("admin:pet-medications")
 
 
 @router.delete("/{medication_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_medication",
+    key_prefix="admin:pet-medications:detail",
     resource_id_name="medication_id",
-    pattern_to_invalidate_extra=["pet_medications:*"],
+    namespaces_to_invalidate=["admin:pet-medications"],
 )
 async def hard_delete_pet_medication(
     request: Request,
@@ -148,3 +156,4 @@ async def bulk_hard_delete_pet_medications(
     service: PetMedicationServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, medication_ids=payload.ids)
+    await invalidate_namespace("admin:pet-medications")

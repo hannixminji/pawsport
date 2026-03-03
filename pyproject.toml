@@ -5,13 +5,13 @@ description = "Smart Digital Pet Passport"
 authors = [{ name = "PawsPort", email = "pawsport.thesis@gmail.com" }]
 license = { text = "Proprietary" }
 readme = "README.md"
-requires-python = ">=3.11, <4"
+requires-python = ">=3.13, <4"
 dependencies = [
     "python-dotenv>=1.0.0",
     "pydantic[email]>=2.6.1",
-    "fastapi>=0.109.1",
+    "fastapi>=0.135.1",
     "uvicorn>=0.27.0",
-    "uvloop>=0.19.0",
+    "uvloop>=0.22.1",
     "httptools>=0.6.1",
     "uuid>=1.30",
     "uuid6>=2024.1.12",
@@ -25,14 +25,12 @@ dependencies = [
     "httpx>=0.26.0",
     "pydantic-settings>=2.0.3",
     "redis>=5.0.1",
-    "arq>=0.25.0",
+    "arq>=0.27.0",
     "bcrypt>=4.1.1",
     "psycopg2-binary>=2.9.9",
     "fastcrud>=0.19.2",
     "crudadmin>=0.4.2",
     "gunicorn>=23.0.0",
-    "ruff>=0.11.13",
-    "mypy>=1.16.0",
 
     "argon2-cffi>=25.1.0",
     "firebase-admin>=7.1.0",
@@ -48,14 +46,16 @@ dependencies = [
     "shapely>=2.1.2",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
+    "pre-commit>=4.3.0",
+    "pytest-asyncio>=1.0.0",
     "pytest>=7.4.2",
     "pytest-mock>=3.14.0",
     "faker>=26.0.0",
-    "mypy>=1.8.0",
+    "mypy>=1.16.0",
     "types-redis>=4.6.0",
-    "ruff>=0.1.0",
+    "ruff>=0.11.13",
 ]
 
 [build-system]
@@ -70,7 +70,7 @@ include = ["src/"]
 packages = ["src"]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length = 120
 fix = true
 
@@ -116,14 +116,8 @@ filterwarnings = [
     "ignore::PendingDeprecationWarning:starlette.formparsers",
 ]
 
-[dependency-groups]
-dev = [
-    "pre-commit>=4.3.0",
-    "pytest-asyncio>=1.0.0",
-]
-
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true

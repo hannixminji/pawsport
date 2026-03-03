@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor, get_current_superuser_
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.pet_vaccination_record import (
     PetVaccinationRecordBulkDelete,
     PetVaccinationRecordCreate,
@@ -37,7 +37,9 @@ async def create_vaccination_record(
     actor: AdminActorDependency,
     service: PetVaccinationRecordServiceDependency,
 ) -> PetVaccinationRecordRead:
-    return await service.create(actor=actor, pet_id=pet_id, vaccination_record_input=payload)
+    result = await service.create(actor=actor, pet_id=pet_id, vaccination_record_input=payload)
+    await invalidate_namespace("admin:pet-vaccination-records")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[PetVaccinationRecordRead], status_code=status.HTTP_200_OK)
@@ -53,8 +55,9 @@ async def search_vaccination_records(
 
 @router.get("", response_model=PaginatedResponse[PetVaccinationRecordRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="pet_vaccination_records:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:pet-vaccination-records:list",
+    resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
+    namespace="admin:pet-vaccination-records",
     expiration=60,
 )
 async def list_vaccination_records(
@@ -76,7 +79,11 @@ async def list_vaccination_records(
 
 
 @router.get("/{vaccination_record_id}", response_model=PetVaccinationRecordRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="pet_vaccination_record", resource_id_name="vaccination_record_id", expiration=60)
+@cache(
+    key_prefix="admin:pet-vaccination-records:detail",
+    resource_id_name="vaccination_record_id",
+    expiration=60,
+)
 async def get_vaccination_record(
     request: Request,
     vaccination_record_id: int,
@@ -88,9 +95,9 @@ async def get_vaccination_record(
 
 @router.patch("/{vaccination_record_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_vaccination_record",
+    key_prefix="admin:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
-    pattern_to_invalidate_extra=["pet_vaccination_records:*"],
+    namespaces_to_invalidate=["admin:pet-vaccination-records"],
 )
 async def update_vaccination_record(
     request: Request,
@@ -104,9 +111,9 @@ async def update_vaccination_record(
 
 @router.delete("/{vaccination_record_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_vaccination_record",
+    key_prefix="admin:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
-    pattern_to_invalidate_extra=["pet_vaccination_records:*"],
+    namespaces_to_invalidate=["admin:pet-vaccination-records"],
 )
 async def soft_delete_vaccination_record(
     request: Request,
@@ -124,13 +131,14 @@ async def bulk_soft_delete_vaccination_records(
     service: PetVaccinationRecordServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, vaccination_record_ids=payload.ids)
+    await invalidate_namespace("admin:pet-vaccination-records")
 
 
 @router.delete("/{vaccination_record_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_vaccination_record",
+    key_prefix="admin:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
-    pattern_to_invalidate_extra=["pet_vaccination_records:*"],
+    namespaces_to_invalidate=["admin:pet-vaccination-records"],
 )
 async def hard_delete_vaccination_record(
     request: Request,
@@ -148,3 +156,4 @@ async def bulk_hard_delete_vaccination_records(
     service: PetVaccinationRecordServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, vaccination_record_ids=payload.ids)
+    await invalidate_namespace("admin:pet-vaccination-records")

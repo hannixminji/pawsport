@@ -23,7 +23,10 @@ INDEX_FIELDS = {
         "species": PayloadSchemaType.KEYWORD,
         "is_missing": PayloadSchemaType.BOOL,
         "is_deleted": PayloadSchemaType.BOOL,
-    }
+    },
+    "report_sightings": {
+        "is_deleted": PayloadSchemaType.BOOL,
+    },
 }
 
 client = QdrantClient(

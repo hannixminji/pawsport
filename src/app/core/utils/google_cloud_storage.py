@@ -14,6 +14,14 @@ from ...core.type_aliases import HttpMethod, ImageMimeType, SignedUrlVersion
 
 @lru_cache(maxsize=1)
 def get_storage_client() -> storage.Client:
+    if settings.GOOGLE_APPLICATION_CREDENTIALS_JSON:
+        import json
+
+        from google.oauth2 import service_account
+
+        info = json.loads(settings.GOOGLE_APPLICATION_CREDENTIALS_JSON.get_secret_value())
+        return storage.Client(credentials=service_account.Credentials.from_service_account_info(info))
+
     return storage.Client()
 
 
@@ -203,5 +211,38 @@ def get_objects_metadata(
             results[blob_name] = blob.metadata or {}
         except NotFound:
             results[blob_name] = {}
+
+    return results
+
+
+def delete_object(blob_name: str, bucket_name: str | None = None) -> bool:
+    bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+
+    storage_client = get_storage_client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+
+    try:
+        blob.delete()
+        return True
+
+    except NotFound:
+        return False
+
+
+def delete_objects(blob_names: list[str], bucket_name: str | None = None) -> dict[str, bool]:
+    bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+
+    storage_client = get_storage_client()
+    bucket = storage_client.bucket(bucket_name)
+
+    results: dict[str, bool] = {}
+    for blob_name in blob_names:
+        try:
+            bucket.blob(blob_name).delete()
+            results[blob_name] = True
+
+        except NotFound:
+            results[blob_name] = False
 
     return results

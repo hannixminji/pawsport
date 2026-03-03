@@ -3,7 +3,7 @@ from enum import StrEnum
 
 from argon2 import PasswordHasher
 from argon2.low_level import Type
-from pydantic import SecretStr, computed_field
+from pydantic import RedisDsn, SecretStr, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -87,6 +87,12 @@ class PostgresSettings(DatabaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def POSTGRES_URI(self) -> str:
+        if self.POSTGRES_URL:
+            uri = self.POSTGRES_URL
+            if "://" in uri:
+                uri = uri.split("://", 1)[1]
+            return uri
+
         credentials = f"{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
         location = f"{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         return f"{credentials}@{location}"
@@ -96,7 +102,7 @@ class FirstUserSettings(BaseSettings):
     ADMIN_NAME: str = "admin"
     ADMIN_EMAIL: str = "admin@admin.com"
     ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD: str = "!Ch4ng3Th1sP4ssW0rd!"
+    ADMIN_PASSWORD: SecretStr = SecretStr("!Ch4ng3Th1sP4ssW0rd!")
 
 
 class TestSettings(BaseSettings):
@@ -106,11 +112,17 @@ class TestSettings(BaseSettings):
 class RedisCacheSettings(BaseSettings):
     REDIS_CACHE_HOST: str = "localhost"
     REDIS_CACHE_PORT: int = 6379
+    REDIS_CACHE_URL: str | None = None
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def REDIS_CACHE_URL(self) -> str:
-        return f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}"
+    @model_validator(mode="after")
+    def set_cache_url(self) -> "RedisCacheSettings":
+        if self.REDIS_CACHE_URL is None:
+            object.__setattr__(
+                self,
+                "REDIS_CACHE_URL",
+                str(RedisDsn(f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}")),
+            )
+        return self
 
 
 class RedisAdminSessionSettings(BaseSettings):
@@ -189,6 +201,7 @@ class GCSSettings(BaseSettings):
     GCS_DOWNLOAD_SIGNED_URL_EXPIRATION_MINUTES: int = 60
     GCS_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES: int = 60
     GCS_RESUMABLE_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES: int = 60
+    GOOGLE_APPLICATION_CREDENTIALS_JSON: SecretStr | None = None
 
 
 class QdrantCloudSettings(BaseSettings):

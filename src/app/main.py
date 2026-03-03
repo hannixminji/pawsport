@@ -15,7 +15,7 @@ from .core.utils.qdrant_cloud import init_collections
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     init_collections()
 
     default_lifespan = lifespan_factory(settings)

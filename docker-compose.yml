@@ -1,5 +1,6 @@
 services:
-  web:
+  api:
+    container_name: api-service
     build:
       context: .
       dockerfile: Dockerfile
@@ -19,10 +20,10 @@ services:
       - ./secrets/google-service-account.json:/secrets/google-service-account.json:ro
 
   ml:
+    container_name: ml-service
     build:
       context: ./ml
       dockerfile: Dockerfile
-    container_name: pawsport-ml
     ports:
       - "9000:9000"
     volumes:
@@ -33,10 +34,12 @@ services:
     restart: unless-stopped
 
   worker:
+    container_name: worker-service
     build:
       context: .
       dockerfile: Dockerfile
-    command: arq app.core.worker.settings.WorkerSettings
+    command: python -m app.core.worker.entry
+    working_dir: /code
     env_file:
       - ./src/.env
     environment:
@@ -50,6 +53,7 @@ services:
       - ./secrets/google-service-account.json:/secrets/google-service-account.json:ro
 
   db:
+    container_name: postgis-db
     image: postgis/postgis:18-3.6-alpine
     env_file:
       - ./src/.env
@@ -59,6 +63,7 @@ services:
       - "5432"
 
   redis:
+    container_name: redis-cache
     image: redis:8.6.0-alpine3.23
     volumes:
       - redis-data:/data
@@ -66,6 +71,7 @@ services:
       - "6379"
 
   create_superuser:
+    container_name: create-superuser
     build:
       context: .
       dockerfile: Dockerfile
@@ -73,7 +79,7 @@ services:
       - ./src/.env
     depends_on:
       - db
-      - web
+      - api
     command: python -m src.scripts.create_first_superuser
     volumes:
       - ./src:/code/src

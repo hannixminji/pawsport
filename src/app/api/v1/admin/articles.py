@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_superuser_actor
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.article import (
     ArticleBulkDelete,
     ArticleCreate,
@@ -35,7 +35,9 @@ async def create_article(
     actor: SuperuserActorDependency,
     service: ArticleServiceDependency,
 ) -> ArticleRead:
-    return await service.create(actor=actor, article_input=payload)
+    result = await service.create(actor=actor, article_input=payload)
+    await invalidate_namespace("admin:articles")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[ArticleRead], status_code=status.HTTP_200_OK)
@@ -49,8 +51,9 @@ async def search_articles(
 
 @router.get("", response_model=PaginatedResponse[ArticleRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="articles:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:articles:list",
+    resource_id_name=["page", "items_per_page"],
+    namespace="admin:articles",
     expiration=60,
 )
 async def list_articles(
@@ -68,7 +71,11 @@ async def list_articles(
 
 
 @router.get("/{article_id}", response_model=ArticleRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="article", resource_id_name="article_id", expiration=60)
+@cache(
+    key_prefix="admin:articles:detail",
+    resource_id_name="article_id",
+    expiration=60,
+)
 async def get_article(
     request: Request,
     article_id: int,
@@ -80,9 +87,9 @@ async def get_article(
 
 @router.patch("/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="article",
+    key_prefix="admin:articles:detail",
     resource_id_name="article_id",
-    pattern_to_invalidate_extra=["articles:*"],
+    namespaces_to_invalidate=["admin:articles"],
 )
 async def update_article(
     request: Request,
@@ -96,9 +103,9 @@ async def update_article(
 
 @router.delete("/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="article",
+    key_prefix="admin:articles:detail",
     resource_id_name="article_id",
-    pattern_to_invalidate_extra=["articles:*"],
+    namespaces_to_invalidate=["admin:articles"],
 )
 async def soft_delete_article(
     request: Request,
@@ -116,13 +123,14 @@ async def bulk_soft_delete_articles(
     service: ArticleServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, article_ids=payload.ids)
+    await invalidate_namespace("admin:articles")
 
 
 @router.delete("/{article_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="article",
+    key_prefix="admin:articles:detail",
     resource_id_name="article_id",
-    pattern_to_invalidate_extra=["articles:*"],
+    namespaces_to_invalidate=["admin:articles"],
 )
 async def hard_delete_article(
     request: Request,
@@ -140,3 +148,4 @@ async def bulk_hard_delete_articles(
     service: ArticleServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, article_ids=payload.ids)
+    await invalidate_namespace("admin:articles")

@@ -9,7 +9,7 @@ from app.core.db.database import async_get_db
 from app.core.enums import MissingReportStatus
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.missing_report import MissingReportCreate, MissingReportRead, MissingReportUpdate
 from app.services.missing_report_service import MissingReportService
 
@@ -33,7 +33,9 @@ async def create_missing_report(
     actor: AdminActorDependency,
     service: MissingReportServiceDependency,
 ) -> MissingReportRead:
-    return await service.create(actor=actor, pet_id=pet_id, report_input=payload)
+    result = await service.create(actor=actor, pet_id=pet_id, report_input=payload)
+    await invalidate_namespace("admin:missing-reports")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[MissingReportRead], status_code=status.HTTP_200_OK)
@@ -49,8 +51,9 @@ async def search_missing_reports(
 
 @router.get("", response_model=PaginatedResponse[MissingReportRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="missing_reports:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:missing-reports:list",
+    resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
+    namespace="admin:missing-reports",
     expiration=60,
 )
 async def list_missing_reports(
@@ -72,7 +75,11 @@ async def list_missing_reports(
 
 
 @router.get("/{missing_report_id}", response_model=MissingReportRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="missing_report", resource_id_name="missing_report_id", expiration=60)
+@cache(
+    key_prefix="admin:missing-reports:detail",
+    resource_id_name="missing_report_id",
+    expiration=60,
+)
 async def get_missing_report(
     request: Request,
     missing_report_id: int,
@@ -84,9 +91,9 @@ async def get_missing_report(
 
 @router.patch("/{missing_report_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="missing_report",
+    key_prefix="admin:missing-reports:detail",
     resource_id_name="missing_report_id",
-    pattern_to_invalidate_extra=["missing_reports:*"],
+    namespaces_to_invalidate=["admin:missing-reports"],
 )
 async def update_missing_report(
     request: Request,
@@ -100,9 +107,9 @@ async def update_missing_report(
 
 @router.patch("/{missing_report_id}/status", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="missing_report",
+    key_prefix="admin:missing-reports:detail",
     resource_id_name="missing_report_id",
-    pattern_to_invalidate_extra=["missing_reports:*"],
+    namespaces_to_invalidate=["admin:missing-reports"],
 )
 async def update_missing_report_status(
     request: Request,
@@ -116,9 +123,9 @@ async def update_missing_report_status(
 
 @router.delete("/{missing_report_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="missing_report",
+    key_prefix="admin:missing-reports:detail",
     resource_id_name="missing_report_id",
-    pattern_to_invalidate_extra=["missing_reports:*"],
+    namespaces_to_invalidate=["admin:missing-reports"],
 )
 async def soft_delete_missing_report(
     request: Request,
@@ -131,9 +138,9 @@ async def soft_delete_missing_report(
 
 @router.delete("/{missing_report_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="missing_report",
+    key_prefix="admin:missing-reports:detail",
     resource_id_name="missing_report_id",
-    pattern_to_invalidate_extra=["missing_reports:*"],
+    namespaces_to_invalidate=["admin:missing-reports"],
 )
 async def hard_delete_missing_report(
     request: Request,

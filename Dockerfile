@@ -33,6 +33,8 @@ FROM python:3.13.12-slim-trixie
 RUN groupadd --gid 1000 app \
     && useradd --uid 1000 --gid app --shell /bin/bash --create-home app
 
+RUN pip install --upgrade "pip>=26.0"
+
 # Copy the virtual environment from the builder stage
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 

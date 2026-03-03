@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_superuser_actor
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.admin_permission import (
     AdminPermissionBulkDelete,
     AdminPermissionCreate,
@@ -21,7 +21,7 @@ router = CSRFProtectedRouter(prefix="/permissions", tags=["Admin Permissions"])
 
 
 def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> AdminPermissionService:
-    return AdminPermissionService(db=db)
+    return AdminPermissionService(db=db, redis=cache.client)
 
 
 AdminPermissionServiceDependency = Annotated[AdminPermissionService, Depends(get_service)]
@@ -35,7 +35,9 @@ async def create_permission(
     actor: SuperuserActorDependency,
     service: AdminPermissionServiceDependency,
 ) -> AdminPermissionRead:
-    return await service.create(actor=actor, permission_input=payload)
+    result = await service.create(actor=actor, permission_input=payload)
+    await invalidate_namespace("admin:permissions")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[AdminPermissionRead], status_code=status.HTTP_200_OK)
@@ -49,8 +51,9 @@ async def search_permissions(
 
 @router.get("", response_model=PaginatedResponse[AdminPermissionRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin_permissions:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:permissions:list",
+    resource_id_name=["page", "items_per_page"],
+    namespace="admin:permissions",
     expiration=60,
 )
 async def list_permissions(
@@ -68,7 +71,11 @@ async def list_permissions(
 
 
 @router.get("/{permission_id}", response_model=AdminPermissionRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="admin_permission", resource_id_name="permission_id", expiration=60)
+@cache(
+    key_prefix="admin:permissions:detail",
+    resource_id_name="permission_id",
+    expiration=60,
+)
 async def get_permission(
     request: Request,
     permission_id: int,
@@ -80,9 +87,9 @@ async def get_permission(
 
 @router.patch("/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_permission",
+    key_prefix="admin:permissions:detail",
     resource_id_name="permission_id",
-    pattern_to_invalidate_extra=["admin_permissions:*"],
+    namespaces_to_invalidate=["admin:permissions"],
 )
 async def update_permission(
     request: Request,
@@ -96,9 +103,9 @@ async def update_permission(
 
 @router.delete("/{permission_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_permission",
+    key_prefix="admin:permissions:detail",
     resource_id_name="permission_id",
-    pattern_to_invalidate_extra=["admin_permissions:*"],
+    namespaces_to_invalidate=["admin:permissions"],
 )
 async def hard_delete_permission(
     request: Request,
@@ -116,3 +123,4 @@ async def bulk_hard_delete_permissions(
     service: AdminPermissionServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, permission_ids=payload.ids)
+    await invalidate_namespace("admin:permissions")

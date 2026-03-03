@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor, get_current_superuser_
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.mobile_user import MobileUserCreate, MobileUserPasswordUpdate, MobileUserRead, MobileUserUpdate
 from app.services.mobile_user_service import MobileUserService
 
@@ -31,7 +31,9 @@ async def create_mobile_user(
     actor: AdminActorDependency,
     service: MobileUserServiceDependency,
 ) -> MobileUserRead:
-    return await service.create(actor=actor, user_input=payload)
+    result = await service.create(actor=actor, user_input=payload)
+    await invalidate_namespace("admin:mobile-users")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[MobileUserRead], status_code=status.HTTP_200_OK)
@@ -46,8 +48,9 @@ async def search_mobile_users(
 
 @router.get("", response_model=PaginatedResponse[MobileUserRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="mobile_users:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:mobile-users:list",
+    resource_id_name=["page", "items_per_page"],
+    namespace="admin:mobile-users",
     expiration=60,
 )
 async def list_mobile_users(
@@ -65,7 +68,11 @@ async def list_mobile_users(
 
 
 @router.get("/{user_id}", response_model=MobileUserRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="mobile_user", resource_id_name="user_id", expiration=60)
+@cache(
+    key_prefix="admin:mobile-users:detail",
+    resource_id_name="user_id",
+    expiration=60,
+)
 async def get_mobile_user(
     request: Request,
     user_id: int,
@@ -77,9 +84,9 @@ async def get_mobile_user(
 
 @router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="mobile_user",
+    key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["mobile_users:*"],
+    namespaces_to_invalidate=["admin:mobile-users"],
 )
 async def update_mobile_user(
     request: Request,
@@ -109,9 +116,9 @@ async def update_mobile_user_password(
 
 @router.patch("/{user_id}/tier", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="mobile_user",
+    key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["mobile_users:*"],
+    namespaces_to_invalidate=["admin:mobile-users"],
 )
 async def update_mobile_user_tier(
     request: Request,
@@ -125,9 +132,9 @@ async def update_mobile_user_tier(
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="mobile_user",
+    key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["mobile_users:*"],
+    namespaces_to_invalidate=["admin:mobile-users"],
 )
 async def soft_delete_mobile_user(
     request: Request,
@@ -140,9 +147,9 @@ async def soft_delete_mobile_user(
 
 @router.delete("/{user_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="mobile_user",
+    key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["mobile_users:*"],
+    namespaces_to_invalidate=["admin:mobile-users"],
 )
 async def hard_delete_mobile_user(
     request: Request,

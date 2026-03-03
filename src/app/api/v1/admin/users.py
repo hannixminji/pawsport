@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor, get_current_superuser_
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.admin_role import AdminRoleRead
 from app.schemas.admin_user import (
     AdminUserAssignPermissions,
@@ -41,7 +41,9 @@ async def create_admin_user(
     actor: SuperuserActorDependency,
     service: AdminUserServiceDependency,
 ) -> AdminUserRead:
-    return await service.create(actor=actor, user_input=payload)
+    result = await service.create(actor=actor, user_input=payload)
+    await invalidate_namespace("admin:users")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[AdminUserRead], status_code=status.HTTP_200_OK)
@@ -55,8 +57,9 @@ async def search_admin_users(
 
 @router.get("", response_model=PaginatedResponse[AdminUserRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin_users:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:users:list",
+    resource_id_name=["page", "items_per_page"],
+    namespace="admin:users",
     expiration=60,
 )
 async def list_admin_users(
@@ -75,7 +78,7 @@ async def list_admin_users(
 
 @router.get("/{user_id}/roles", response_model=PaginatedResponse[AdminRoleRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin_user_roles",
+    key_prefix="admin:users:roles:detail",
     resource_id_name="user_id",
     expiration=60,
 )
@@ -96,7 +99,11 @@ async def get_admin_user_roles(
 
 
 @router.get("/{user_id}", response_model=AdminUserRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="admin_user", resource_id_name="user_id", expiration=60)
+@cache(
+    key_prefix="admin:users:detail",
+    resource_id_name="user_id",
+    expiration=60,
+)
 async def get_admin_user(
     request: Request,
     user_id: int,
@@ -108,9 +115,9 @@ async def get_admin_user(
 
 @router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_user",
+    key_prefix="admin:users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["admin_users:*"],
+    namespaces_to_invalidate=["admin:users"],
 )
 async def update_admin_user(
     request: Request,
@@ -124,9 +131,9 @@ async def update_admin_user(
 
 @router.patch("/{user_id}/status", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_user",
+    key_prefix="admin:users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["admin_users:*"],
+    namespaces_to_invalidate=["admin:users"],
 )
 async def update_admin_user_status(
     request: Request,
@@ -156,9 +163,9 @@ async def update_admin_user_password(
 
 @router.put("/{user_id}/roles", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_user",
+    key_prefix="admin:users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["admin_users:*"],
+    namespaces_to_invalidate=["admin:users"],
 )
 async def assign_roles_to_admin_user(
     request: Request,
@@ -172,9 +179,9 @@ async def assign_roles_to_admin_user(
 
 @router.delete("/{user_id}/roles", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_user",
+    key_prefix="admin:users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["admin_users:*"],
+    namespaces_to_invalidate=["admin:users"],
 )
 async def remove_all_roles_from_admin_user(
     request: Request,
@@ -187,9 +194,9 @@ async def remove_all_roles_from_admin_user(
 
 @router.put("/{user_id}/permissions", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_user",
+    key_prefix="admin:users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["admin_users:*"],
+    namespaces_to_invalidate=["admin:users"],
 )
 async def assign_direct_permissions_to_admin_user(
     request: Request,
@@ -203,9 +210,9 @@ async def assign_direct_permissions_to_admin_user(
 
 @router.delete("/{user_id}/permissions", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_user",
+    key_prefix="admin:users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["admin_users:*"],
+    namespaces_to_invalidate=["admin:users"],
 )
 async def remove_all_direct_permissions_from_admin_user(
     request: Request,
@@ -218,9 +225,9 @@ async def remove_all_direct_permissions_from_admin_user(
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_user",
+    key_prefix="admin:users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["admin_users:*"],
+    namespaces_to_invalidate=["admin:users"],
 )
 async def soft_delete_admin_user(
     request: Request,
@@ -238,13 +245,14 @@ async def bulk_soft_delete_admin_users(
     service: AdminUserServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, user_ids=payload.ids)
+    await invalidate_namespace("admin:users")
 
 
 @router.delete("/{user_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_user",
+    key_prefix="admin:users:detail",
     resource_id_name="user_id",
-    pattern_to_invalidate_extra=["admin_users:*"],
+    namespaces_to_invalidate=["admin:users"],
 )
 async def hard_delete_admin_user(
     request: Request,
@@ -262,3 +270,4 @@ async def bulk_hard_delete_admin_users(
     service: AdminUserServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, user_ids=payload.ids)
+    await invalidate_namespace("admin:users")

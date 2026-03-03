@@ -14,7 +14,7 @@ from app.core.db.database import async_get_db
 from app.core.enums import PetSpecies
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.pet import PetCreateWithPhotos, PetRead, PetSearch, PetUpdateWithPhotos
 from app.services.pet_service import PetService
 
@@ -41,7 +41,9 @@ async def create_pet(
     actor: AdminActorDependency,
     service: PetServiceDependency,
 ) -> PetRead:
-    return await service.create(actor=actor, user_id=user_id, pet_input=payload)
+    result = await service.create(actor=actor, user_id=user_id, pet_input=payload)
+    await invalidate_namespace("admin:pets")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[PetRead], status_code=status.HTTP_200_OK)
@@ -73,8 +75,9 @@ async def search_pets_by_image(
 
 @router.get("", response_model=PaginatedResponse[PetRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="pets:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:pets:list",
+    resource_id_name=["page", "items_per_page", "user_id"],
+    namespace="admin:pets",
     expiration=60,
 )
 async def list_pets(
@@ -117,7 +120,11 @@ async def get_pet_by_qr(
 
 
 @router.get("/{pet_id}", response_model=PetRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="pet", resource_id_name="pet_id", expiration=60)
+@cache(
+    key_prefix="admin:pets:detail",
+    resource_id_name="pet_id",
+    expiration=60,
+)
 async def get_pet(
     request: Request,
     pet_id: int,
@@ -129,9 +136,9 @@ async def get_pet(
 
 @router.patch("/{pet_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet",
+    key_prefix="admin:pets:detail",
     resource_id_name="pet_id",
-    pattern_to_invalidate_extra=["pets:*"],
+    namespaces_to_invalidate=["admin:pets"],
 )
 async def update_pet(
     request: Request,
@@ -145,9 +152,9 @@ async def update_pet(
 
 @router.delete("/{pet_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet",
+    key_prefix="admin:pets:detail",
     resource_id_name="pet_id",
-    pattern_to_invalidate_extra=["pets:*"],
+    namespaces_to_invalidate=["admin:pets"],
 )
 async def soft_delete_pet(
     request: Request,
@@ -160,9 +167,9 @@ async def soft_delete_pet(
 
 @router.delete("/{pet_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet",
+    key_prefix="admin:pets:detail",
     resource_id_name="pet_id",
-    pattern_to_invalidate_extra=["pets:*"],
+    namespaces_to_invalidate=["admin:pets"],
 )
 async def hard_delete_pet(
     request: Request,

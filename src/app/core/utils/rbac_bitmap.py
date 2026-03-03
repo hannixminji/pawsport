@@ -151,11 +151,11 @@ async def _check_bitmap(
 ) -> tuple[bool, bool]:
     schema_version, version = await _fetch_versions(redis, roles_hash)
     key = roleset_bitmap_key(schema_version=schema_version, roles_hash=roles_hash, version=version)
-    pipe = redis.pipeline(transaction=False)
-    pipe.exists(key)
-    pipe.getbit(key, bit)
-    exists, bitval = await pipe.execute()
-    return bool(exists), bool(bitval)
+    bitval = await redis.getbit(key, bit)
+    if bitval:
+        return True, True
+    exists = await redis.exists(key)
+    return bool(exists), False
 
 
 async def _rebuild_roleset_bitmap(
@@ -322,6 +322,29 @@ async def on_role_permission_changed(redis: Redis, role_id: int) -> None:
     pipe = redis.pipeline(transaction=False)
     for rh in roles_hashes:
         roles_hash = rh if isinstance(rh, str) else rh.decode()
+        ver_key = f"{ROLESET_VER_PREFIX}{roles_hash}"
+        pipe.incr(ver_key)
+        pipe.expire(ver_key, ROLESET_INDEX_TTL_SECONDS)
+
+    await pipe.execute()
+
+
+async def on_bulk_roles_permission_changed(redis: Redis, role_ids: set[int]) -> None:
+    results = await asyncio.gather(*[
+        redis.smembers(f"{ROLE_ROLESETS_PREFIX}{int(rid)}")
+        for rid in role_ids
+    ])
+
+    all_roles_hashes: set[str] = set()
+    for members in results:
+        for rh in members:
+            all_roles_hashes.add(rh if isinstance(rh, str) else rh.decode())
+
+    if not all_roles_hashes:
+        return
+
+    pipe = redis.pipeline(transaction=False)
+    for roles_hash in all_roles_hashes:
         ver_key = f"{ROLESET_VER_PREFIX}{roles_hash}"
         pipe.incr(ver_key)
         pipe.expire(ver_key, ROLESET_INDEX_TTL_SECONDS)

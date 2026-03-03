@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor, get_current_superuser_
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.pet_allergy import PetAllergyBulkDelete, PetAllergyCreate, PetAllergyRead, PetAllergyUpdate
 from app.services.pet_allergy_service import PetAllergyService
 
@@ -32,7 +32,9 @@ async def create_pet_allergy(
     actor: AdminActorDependency,
     service: PetAllergyServiceDependency,
 ) -> PetAllergyRead:
-    return await service.create(actor=actor, pet_id=pet_id, allergy_input=payload)
+    result = await service.create(actor=actor, pet_id=pet_id, allergy_input=payload)
+    await invalidate_namespace("admin:pet-allergies")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[PetAllergyRead], status_code=status.HTTP_200_OK)
@@ -48,8 +50,9 @@ async def search_pet_allergies(
 
 @router.get("", response_model=PaginatedResponse[PetAllergyRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="pet_allergies:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:pet-allergies:list",
+    resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
+    namespace="admin:pet-allergies",
     expiration=60,
 )
 async def list_pet_allergies(
@@ -71,7 +74,11 @@ async def list_pet_allergies(
 
 
 @router.get("/{allergy_id}", response_model=PetAllergyRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="pet_allergy", resource_id_name="allergy_id", expiration=60)
+@cache(
+    key_prefix="admin:pet-allergies:detail",
+    resource_id_name="allergy_id",
+    expiration=60,
+)
 async def get_pet_allergy(
     request: Request,
     allergy_id: int,
@@ -83,9 +90,9 @@ async def get_pet_allergy(
 
 @router.patch("/{allergy_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_allergy",
+    key_prefix="admin:pet-allergies:detail",
     resource_id_name="allergy_id",
-    pattern_to_invalidate_extra=["pet_allergies:*"],
+    namespaces_to_invalidate=["admin:pet-allergies"],
 )
 async def update_pet_allergy(
     request: Request,
@@ -99,9 +106,9 @@ async def update_pet_allergy(
 
 @router.delete("/{allergy_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_allergy",
+    key_prefix="admin:pet-allergies:detail",
     resource_id_name="allergy_id",
-    pattern_to_invalidate_extra=["pet_allergies:*"],
+    namespaces_to_invalidate=["admin:pet-allergies"],
 )
 async def soft_delete_pet_allergy(
     request: Request,
@@ -119,13 +126,14 @@ async def bulk_soft_delete_pet_allergies(
     service: PetAllergyServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, allergy_ids=payload.ids)
+    await invalidate_namespace("admin:pet-allergies")
 
 
 @router.delete("/{allergy_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="pet_allergy",
+    key_prefix="admin:pet-allergies:detail",
     resource_id_name="allergy_id",
-    pattern_to_invalidate_extra=["pet_allergies:*"],
+    namespaces_to_invalidate=["admin:pet-allergies"],
 )
 async def hard_delete_pet_allergy(
     request: Request,
@@ -143,3 +151,4 @@ async def bulk_hard_delete_pet_allergies(
     service: PetAllergyServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, allergy_ids=payload.ids)
+    await invalidate_namespace("admin:pet-allergies")

@@ -140,13 +140,14 @@ async def check_permission_direct_db(
 
 def require_permission(permission_key: str):
     async def dependency(
+        request: Request,
         admin_user: Annotated[AdminActor, Depends(get_current_admin_user)],
         redis: Annotated[Redis, Depends(get_redis_cache_client)],
         db: Annotated[AsyncSession, Depends(async_get_db)],
         perm_index: Annotated[PermissionIndex, Depends(get_permission_index)],
-    ) -> None:
+    ) -> Actor:
         if admin_user.is_superuser:
-            return
+            return admin_user.to_actor(request)
 
         role_ids = set(admin_user.roles)
         if not role_ids:
@@ -160,6 +161,7 @@ def require_permission(permission_key: str):
                 role_ids=role_ids,
                 permission_key=permission_key,
             )
+
         except (TimeoutError, RedisError, ConnectionError) as e:
             LOGGER.warning(
                 (
@@ -170,6 +172,7 @@ def require_permission(permission_key: str):
                 admin_user.id,
                 permission_key,
             )
+
             try:
                 has_perm = await check_permission_direct_db(db, role_ids, permission_key)
             except Exception:
@@ -179,6 +182,7 @@ def require_permission(permission_key: str):
                     permission_key,
                 )
                 raise CustomException(status_code=503, detail="Unable to verify permissions at this time.")
+
         except Exception:
             LOGGER.exception(
                 "Unexpected error during permission check for user_id=%d, permission=%s",
@@ -189,6 +193,8 @@ def require_permission(permission_key: str):
 
         if not has_perm:
             raise ForbiddenException("You do not have permission to perform this action.")
+
+        return admin_user.to_actor(request)
 
     return dependency
 

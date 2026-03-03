@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import ClassVar
 
+from redis.asyncio import Redis
 from sqlalchemy import any_, delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from ..core.search_engine.engine import SearchEngine
 from ..core.search_engine.enums import FilterOp
 from ..core.search_engine.schemas import SearchRequest
 from ..core.utils.pagination import compute_offset
+from ..core.utils.rbac_bitmap import on_bulk_roles_permission_changed, on_role_permission_changed
 from ..core.utils.update import apply_partial_update
 from ..models._rbac_table import admin_role_permission
 from ..models.admin_permission import AdminPermission
@@ -27,6 +29,7 @@ LOGGER = logging.getLogger(__name__)
 @dataclass(slots=True)
 class AdminRoleService:
     db: AsyncSession
+    redis: Redis
 
     ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
@@ -283,6 +286,8 @@ class AdminRoleService:
                 "Failed to permanently delete the admin role."
             ) from error
 
+        await on_role_permission_changed(self.redis, role_id)
+
     async def bulk_hard_delete(
         self,
         *,
@@ -317,6 +322,8 @@ class AdminRoleService:
             raise NonTransientDatabaseError(
                 "Failed to permanently delete admin roles."
             ) from error
+
+        await on_bulk_roles_permission_changed(self.redis, role_ids)
 
     async def assign_permissions(
         self,
@@ -364,6 +371,8 @@ class AdminRoleService:
                 "Failed to assign permissions."
             ) from error
 
+        await on_role_permission_changed(self.redis, role_id)
+
     async def remove_all_permissions(
         self,
         *,
@@ -399,3 +408,5 @@ class AdminRoleService:
             raise NonTransientDatabaseError(
                 "Failed to remove permissions."
             ) from error
+
+        await on_role_permission_changed(self.redis, role_id)

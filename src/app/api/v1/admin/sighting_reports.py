@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor, get_current_superuser_
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, MapViewport, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.sighting_report import (
     SightingReportCreateWithImages,
     SightingReportRead,
@@ -37,7 +37,9 @@ async def create_sighting_report(
     actor: AdminActorDependency,
     service: SightingReportServiceDependency,
 ) -> SightingReportRead:
-    return await service.create(actor=actor, user_id=user_id, report_input=payload)
+    result = await service.create(actor=actor, user_id=user_id, report_input=payload)
+    await invalidate_namespace("admin:sighting-reports")
+    return result
 
 
 @router.post("/viewport", response_model=list[dict[str, Any]], status_code=status.HTTP_200_OK)
@@ -60,8 +62,9 @@ async def search_sighting_reports(
 
 @router.get("", response_model=PaginatedResponse[SightingReportRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="sighting_reports:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:sighting-reports:list",
+    resource_id_name=["page", "items_per_page", "user_id"],
+    namespace="admin:sighting-reports",
     expiration=60,
 )
 async def list_sighting_reports(
@@ -85,7 +88,11 @@ async def list_sighting_reports(
     response_model=Union[SightingReportRead, SightingReportWithMatches],
     status_code=status.HTTP_200_OK
 )
-@cache(key_prefix="sighting_report", resource_id_name="report_id", expiration=60)
+@cache(
+    key_prefix="admin:sighting-reports:detail",
+    resource_id_name="report_id",
+    expiration=60,
+)
 async def get_sighting_report(
     request: Request,
     report_id: int,
@@ -98,9 +105,9 @@ async def get_sighting_report(
 
 @router.patch("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="sighting_report",
+    key_prefix="admin:sighting-reports:detail",
     resource_id_name="report_id",
-    pattern_to_invalidate_extra=["sighting_reports:*"],
+    namespaces_to_invalidate=["admin:sighting-reports"],
 )
 async def update_sighting_report(
     request: Request,
@@ -114,9 +121,9 @@ async def update_sighting_report(
 
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="sighting_report",
+    key_prefix="admin:sighting-reports:detail",
     resource_id_name="report_id",
-    pattern_to_invalidate_extra=["sighting_reports:*"],
+    namespaces_to_invalidate=["admin:sighting-reports"],
 )
 async def soft_delete_sighting_report(
     request: Request,
@@ -129,9 +136,9 @@ async def soft_delete_sighting_report(
 
 @router.delete("/{report_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="sighting_report",
+    key_prefix="admin:sighting-reports:detail",
     resource_id_name="report_id",
-    pattern_to_invalidate_extra=["sighting_reports:*"],
+    namespaces_to_invalidate=["admin:sighting-reports"],
 )
 async def hard_delete_sighting_report(
     request: Request,

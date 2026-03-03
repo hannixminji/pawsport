@@ -22,6 +22,8 @@ RUN python -m venv /opt/venv
 ENV VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:$PATH"
 
+RUN pip install --upgrade "pip>=26.0"
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

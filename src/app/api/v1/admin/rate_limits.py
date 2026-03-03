@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin_actor
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.rate_limit import RateLimitBulkDelete, RateLimitCreate, RateLimitRead, RateLimitUpdate
 from app.services.rate_limit_service import RateLimitService
 
@@ -31,7 +31,9 @@ async def create_rate_limit(
     actor: AdminActorDependency,
     service: RateLimitServiceDependency,
 ) -> RateLimitRead:
-    return await service.create(actor=actor, tier_name=tier_name, rate_limit_input=payload)
+    result = await service.create(actor=actor, tier_name=tier_name, rate_limit_input=payload)
+    await invalidate_namespace("admin:rate-limits")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[RateLimitRead], status_code=status.HTTP_200_OK)
@@ -46,8 +48,9 @@ async def search_rate_limits(
 
 @router.get("", response_model=PaginatedResponse[RateLimitRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="rate_limits:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:rate-limits:list",
+    resource_id_name=["page", "items_per_page", "tier_name"],
+    namespace="admin:rate-limits",
     expiration=60,
 )
 async def list_rate_limits(
@@ -67,7 +70,11 @@ async def list_rate_limits(
 
 
 @router.get("/{rate_limit_id}", response_model=RateLimitRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="rate_limit", resource_id_name="rate_limit_id", expiration=60)
+@cache(
+    key_prefix="admin:rate-limits:detail",
+    resource_id_name="rate_limit_id",
+    expiration=60,
+)
 async def get_rate_limit(
     request: Request,
     rate_limit_id: int,
@@ -79,9 +86,9 @@ async def get_rate_limit(
 
 @router.patch("/{rate_limit_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="rate_limit",
+    key_prefix="admin:rate-limits:detail",
     resource_id_name="rate_limit_id",
-    pattern_to_invalidate_extra=["rate_limits:*"],
+    namespaces_to_invalidate=["admin:rate-limits"],
 )
 async def update_rate_limit(
     request: Request,
@@ -95,9 +102,9 @@ async def update_rate_limit(
 
 @router.delete("/{rate_limit_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="rate_limit",
+    key_prefix="admin:rate-limits:detail",
     resource_id_name="rate_limit_id",
-    pattern_to_invalidate_extra=["rate_limits:*"],
+    namespaces_to_invalidate=["admin:rate-limits"],
 )
 async def soft_delete_rate_limit(
     request: Request,
@@ -115,13 +122,14 @@ async def bulk_soft_delete_rate_limits(
     service: RateLimitServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, rate_limit_ids=payload.ids)
+    await invalidate_namespace("admin:rate-limits")
 
 
 @router.delete("/{rate_limit_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="rate_limit",
+    key_prefix="admin:rate-limits:detail",
     resource_id_name="rate_limit_id",
-    pattern_to_invalidate_extra=["rate_limits:*"],
+    namespaces_to_invalidate=["admin:rate-limits"],
 )
 async def hard_delete_rate_limit(
     request: Request,
@@ -139,3 +147,4 @@ async def bulk_hard_delete_rate_limits(
     service: RateLimitServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, rate_limit_ids=payload.ids)
+    await invalidate_namespace("admin:rate-limits")

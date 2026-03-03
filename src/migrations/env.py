@@ -3,7 +3,9 @@ import importlib
 import pkgutil
 from logging.config import fileConfig
 
+import geoalchemy2  # noqa: F401
 from alembic import context
+from geoalchemy2 import alembic_helpers
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -48,6 +50,10 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=alembic_helpers.include_object,        # skip PostGIS system tables/schemas
+        process_revision_directives=alembic_helpers.writer,   # render spatial indexes correctly
+        render_item=alembic_helpers.render_item,              # render Geometry/Geography types correctly
+        include_schemas=True,                                 # needed to scan across schemas
     )
 
     with context.begin_transaction():
@@ -55,7 +61,14 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_object=alembic_helpers.include_object,        # skip PostGIS system tables/schemas
+        process_revision_directives=alembic_helpers.writer,   # render spatial indexes correctly
+        render_item=alembic_helpers.render_item,              # render Geometry/Geography types correctly
+        include_schemas=True,                                 # needed to scan across schemas
+    )
 
     with context.begin_transaction():
         context.run_migrations()

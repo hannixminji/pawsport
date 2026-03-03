@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_superuser_actor
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
-from app.core.utils.cache import cache
+from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.admin_role import (
     AdminRoleAssignPermissions,
     AdminRoleBulkDelete,
@@ -23,7 +23,7 @@ router = CSRFProtectedRouter(prefix="/roles", tags=["Admin Roles"])
 
 
 def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> AdminRoleService:
-    return AdminRoleService(db=db)
+    return AdminRoleService(db=db, redis=cache.client)
 
 
 AdminRoleServiceDependency = Annotated[AdminRoleService, Depends(get_service)]
@@ -37,7 +37,9 @@ async def create_role(
     actor: SuperuserActorDependency,
     service: AdminRoleServiceDependency,
 ) -> AdminRoleRead:
-    return await service.create(actor=actor, role_input=payload)
+    result = await service.create(actor=actor, role_input=payload)
+    await invalidate_namespace("admin:roles")
+    return result
 
 
 @router.post("/search", response_model=PaginatedResponse[AdminRoleRead], status_code=status.HTTP_200_OK)
@@ -51,8 +53,9 @@ async def search_roles(
 
 @router.get("", response_model=PaginatedResponse[AdminRoleRead], status_code=status.HTTP_200_OK)
 @cache(
-    key_prefix="admin_roles:page_{page}:size_{items_per_page}",
-    resource_id_name="page",
+    key_prefix="admin:roles:list",
+    resource_id_name=["page", "items_per_page"],
+    namespace="admin:roles",
     expiration=60,
 )
 async def list_roles(
@@ -70,7 +73,11 @@ async def list_roles(
 
 
 @router.get("/{role_id}", response_model=AdminRoleRead, status_code=status.HTTP_200_OK)
-@cache(key_prefix="admin_role", resource_id_name="role_id", expiration=60)
+@cache(
+    key_prefix="admin:roles:detail",
+    resource_id_name="role_id",
+    expiration=60,
+)
 async def get_role(
     request: Request,
     role_id: int,
@@ -81,7 +88,11 @@ async def get_role(
 
 
 @router.get("/{role_id}/permissions", response_model=AdminRoleReadWithPermissions, status_code=status.HTTP_200_OK)
-@cache(key_prefix="admin_role_with_permissions", resource_id_name="role_id", expiration=60)
+@cache(
+    key_prefix="admin:roles:with-permissions:detail",
+    resource_id_name="role_id",
+    expiration=60,
+)
 async def get_role_with_permissions(
     request: Request,
     role_id: int,
@@ -93,9 +104,9 @@ async def get_role_with_permissions(
 
 @router.patch("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_role",
+    key_prefix="admin:roles:detail",
     resource_id_name="role_id",
-    pattern_to_invalidate_extra=["admin_roles:*"],
+    namespaces_to_invalidate=["admin:roles"],
 )
 async def update_role(
     request: Request,
@@ -109,9 +120,9 @@ async def update_role(
 
 @router.put("/{role_id}/permissions", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_role_with_permissions",
+    key_prefix="admin:roles:with-permissions:detail",
     resource_id_name="role_id",
-    pattern_to_invalidate_extra=["admin_roles:*"],
+    namespaces_to_invalidate=["admin:roles"],
 )
 async def assign_permissions(
     request: Request,
@@ -125,9 +136,9 @@ async def assign_permissions(
 
 @router.delete("/{role_id}/permissions", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_role_with_permissions",
+    key_prefix="admin:roles:with-permissions:detail",
     resource_id_name="role_id",
-    pattern_to_invalidate_extra=["admin_roles:*"],
+    namespaces_to_invalidate=["admin:roles"],
 )
 async def remove_all_permissions(
     request: Request,
@@ -140,9 +151,9 @@ async def remove_all_permissions(
 
 @router.delete("/{role_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
-    key_prefix="admin_role",
+    key_prefix="admin:roles:detail",
     resource_id_name="role_id",
-    pattern_to_invalidate_extra=["admin_roles:*"],
+    namespaces_to_invalidate=["admin:roles"],
 )
 async def hard_delete_role(
     request: Request,
@@ -160,3 +171,4 @@ async def bulk_hard_delete_roles(
     service: AdminRoleServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, role_ids=payload.ids)
+    await invalidate_namespace("admin:roles")

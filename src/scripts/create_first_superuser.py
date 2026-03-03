@@ -13,42 +13,37 @@ logger = logging.getLogger(__name__)
 
 
 async def create_first_superuser(session: AsyncSession) -> None:
-    try:
-        email = settings.ADMIN_EMAIL
-        username = settings.ADMIN_USERNAME
-        hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
+    email = settings.ADMIN_EMAIL
+    username = settings.ADMIN_USERNAME
 
-        stmt = select(AdminUser).where(
+    if await session.scalar(
+        select(AdminUser).where(
             AdminUser.email == email,
             AdminUser.is_deleted.is_(False),
         )
-        result = await session.execute(stmt)
-        existing_user = result.scalar_one_or_none()
+    ):
+        logger.info("Admin superuser '%s' already exists.", username)
+        return
 
-        if existing_user is None:
-            new_admin = AdminUser(
+    try:
+        session.add(
+            AdminUser(
                 username=username,
                 email=email,
-                hashed_password=hashed_password,
+                hashed_password = get_password_hash(settings.ADMIN_PASSWORD.get_secret_value()),
                 is_superuser=True,
-                first_name=None,
-                last_name=None,
-                phone_number=None,
-                profile_image_object_key=None,
-                last_active_at=None,
             )
-            session.add(new_admin)
-            await session.commit()
-            logger.info(f"Admin superuser {username} created successfully.")
-        else:
-            logger.info(f"Admin superuser {username} already exists.")
+        )
+        await session.commit()
+        logger.info("Admin superuser '%s' created successfully.", username)
 
-    except Exception as e:
-        logger.error(f"Error creating admin superuser: {e}")
+    except Exception:
+        logger.exception("Failed to create admin superuser '%s'.", username)
         await session.rollback()
+        raise
 
 
-async def main():
+async def main() -> None:
     async with local_session() as session:
         await create_first_superuser(session)
 
