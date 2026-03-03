@@ -113,20 +113,29 @@ async def get_admin_user(
     return await service.get_admin_user(actor=actor, user_id=user_id)
 
 
-@router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/bulk/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_soft_delete_admin_users(
+    payload: AdminUserBulkDelete,
+    actor: SuperuserActorDependency,
+    service: AdminUserServiceDependency,
+) -> None:
+    await service.bulk_soft_delete(actor=actor, user_ids=payload.ids)
+    await invalidate_namespace("admin:users")
+
+
+@router.patch("/{user_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:users:detail",
     resource_id_name="user_id",
     namespaces_to_invalidate=["admin:users"],
 )
-async def update_admin_user(
+async def soft_delete_admin_user(
     request: Request,
     user_id: int,
-    payload: AdminUserUpdate,
     actor: SuperuserActorDependency,
     service: AdminUserServiceDependency,
 ) -> None:
-    await service.update(actor=actor, user_id=user_id, user_input=payload)
+    await service.soft_delete(actor=actor, user_id=user_id)
 
 
 @router.patch("/{user_id}/status", status_code=status.HTTP_204_NO_CONTENT)
@@ -161,6 +170,22 @@ async def update_admin_user_password(
     )
 
 
+@router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@cache(
+    key_prefix="admin:users:detail",
+    resource_id_name="user_id",
+    namespaces_to_invalidate=["admin:users"],
+)
+async def update_admin_user(
+    request: Request,
+    user_id: int,
+    payload: AdminUserUpdate,
+    actor: SuperuserActorDependency,
+    service: AdminUserServiceDependency,
+) -> None:
+    await service.update(actor=actor, user_id=user_id, user_input=payload)
+
+
 @router.put("/{user_id}/roles", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:users:detail",
@@ -177,21 +202,6 @@ async def assign_roles_to_admin_user(
     await service.assign_roles(actor=actor, user_id=user_id, role_ids=set(payload.role_ids))
 
 
-@router.delete("/{user_id}/roles", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:users:detail",
-    resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:users"],
-)
-async def remove_all_roles_from_admin_user(
-    request: Request,
-    user_id: int,
-    actor: SuperuserActorDependency,
-    service: AdminUserServiceDependency,
-) -> None:
-    await service.remove_all_roles(actor=actor, user_id=user_id)
-
-
 @router.put("/{user_id}/permissions", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:users:detail",
@@ -206,6 +216,31 @@ async def assign_direct_permissions_to_admin_user(
     service: AdminUserServiceDependency,
 ) -> None:
     await service.assign_direct_permissions(actor=actor, user_id=user_id, permission_ids=set(payload.permission_ids))
+
+
+@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_admin_users(
+    payload: AdminUserBulkDelete,
+    actor: SuperuserActorDependency,
+    service: AdminUserServiceDependency,
+) -> None:
+    await service.bulk_hard_delete(actor=actor, user_ids=payload.ids)
+    await invalidate_namespace("admin:users")
+
+
+@router.delete("/{user_id}/roles", status_code=status.HTTP_204_NO_CONTENT)
+@cache(
+    key_prefix="admin:users:detail",
+    resource_id_name="user_id",
+    namespaces_to_invalidate=["admin:users"],
+)
+async def remove_all_roles_from_admin_user(
+    request: Request,
+    user_id: int,
+    actor: SuperuserActorDependency,
+    service: AdminUserServiceDependency,
+) -> None:
+    await service.remove_all_roles(actor=actor, user_id=user_id)
 
 
 @router.delete("/{user_id}/permissions", status_code=status.HTTP_204_NO_CONTENT)
@@ -229,31 +264,6 @@ async def remove_all_direct_permissions_from_admin_user(
     resource_id_name="user_id",
     namespaces_to_invalidate=["admin:users"],
 )
-async def soft_delete_admin_user(
-    request: Request,
-    user_id: int,
-    actor: SuperuserActorDependency,
-    service: AdminUserServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, user_id=user_id)
-
-
-@router.delete("/soft", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_admin_users(
-    payload: AdminUserBulkDelete,
-    actor: SuperuserActorDependency,
-    service: AdminUserServiceDependency,
-) -> None:
-    await service.bulk_soft_delete(actor=actor, user_ids=payload.ids)
-    await invalidate_namespace("admin:users")
-
-
-@router.delete("/{user_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:users:detail",
-    resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:users"],
-)
 async def hard_delete_admin_user(
     request: Request,
     user_id: int,
@@ -261,13 +271,3 @@ async def hard_delete_admin_user(
     service: AdminUserServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, user_id=user_id)
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_admin_users(
-    payload: AdminUserBulkDelete,
-    actor: SuperuserActorDependency,
-    service: AdminUserServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, user_ids=payload.ids)
-    await invalidate_namespace("admin:users")

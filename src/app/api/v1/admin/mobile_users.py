@@ -82,20 +82,19 @@ async def get_mobile_user(
     return await service.get_mobile_user(actor=actor, user_id=user_id)
 
 
-@router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/{user_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
     namespaces_to_invalidate=["admin:mobile-users"],
 )
-async def update_mobile_user(
+async def soft_delete_mobile_user(
     request: Request,
     user_id: int,
-    payload: MobileUserUpdate,
     actor: AdminActorDependency,
     service: MobileUserServiceDependency,
 ) -> None:
-    await service.update(actor=actor, user_id=user_id, user_input=payload)
+    await service.soft_delete(actor=actor, user_id=user_id)
 
 
 @router.patch("/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
@@ -130,22 +129,23 @@ async def update_mobile_user_tier(
     await service.update_tier(actor=actor, user_id=user_id, tier_id=tier_id)
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
     namespaces_to_invalidate=["admin:mobile-users"],
 )
-async def soft_delete_mobile_user(
+async def update_mobile_user(
     request: Request,
     user_id: int,
+    payload: MobileUserUpdate,
     actor: AdminActorDependency,
     service: MobileUserServiceDependency,
 ) -> None:
-    await service.soft_delete(actor=actor, user_id=user_id)
+    await service.update(actor=actor, user_id=user_id, user_input=payload)
 
 
-@router.delete("/{user_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",

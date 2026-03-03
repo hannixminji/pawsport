@@ -29,19 +29,6 @@ SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
-@router.post("/{user_id}", response_model=SightingReportRead, status_code=status.HTTP_201_CREATED)
-async def create_sighting_report(
-    request: Request,
-    user_id: int,
-    payload: SightingReportCreateWithImages,
-    actor: AdminActorDependency,
-    service: SightingReportServiceDependency,
-) -> SightingReportRead:
-    result = await service.create(actor=actor, user_id=user_id, report_input=payload)
-    await invalidate_namespace("admin:sighting-reports")
-    return result
-
-
 @router.post("/viewport", response_model=list[dict[str, Any]], status_code=status.HTTP_200_OK)
 async def get_combined_reports_by_viewport(
     viewport: MapViewport,
@@ -58,6 +45,19 @@ async def search_sighting_reports(
     user_id: Annotated[int | None, Query(alias="userId")] = None,
 ) -> PaginatedResponse[SightingReportRead]:
     return await service.search(actor=actor, search_request=search_request, user_id=user_id)
+
+
+@router.post("/{user_id}", response_model=SightingReportRead, status_code=status.HTTP_201_CREATED)
+async def create_sighting_report(
+    request: Request,
+    user_id: int,
+    payload: SightingReportCreateWithImages,
+    actor: AdminActorDependency,
+    service: SightingReportServiceDependency,
+) -> SightingReportRead:
+    result = await service.create(actor=actor, user_id=user_id, report_input=payload)
+    await invalidate_namespace("admin:sighting-reports")
+    return result
 
 
 @router.get("", response_model=PaginatedResponse[SightingReportRead], status_code=status.HTTP_200_OK)
@@ -103,6 +103,21 @@ async def get_sighting_report(
     return await service.get_sighting_report(actor=actor, report_id=report_id, with_matches=with_matches)
 
 
+@router.patch("/{report_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+@cache(
+    key_prefix="admin:sighting-reports:detail",
+    resource_id_name="report_id",
+    namespaces_to_invalidate=["admin:sighting-reports"],
+)
+async def soft_delete_sighting_report(
+    request: Request,
+    report_id: int,
+    actor: AdminActorDependency,
+    service: SightingReportServiceDependency,
+) -> None:
+    await service.soft_delete(actor=actor, report_id=report_id)
+
+
 @router.patch("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:sighting-reports:detail",
@@ -120,21 +135,6 @@ async def update_sighting_report(
 
 
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:sighting-reports:detail",
-    resource_id_name="report_id",
-    namespaces_to_invalidate=["admin:sighting-reports"],
-)
-async def soft_delete_sighting_report(
-    request: Request,
-    report_id: int,
-    actor: AdminActorDependency,
-    service: SightingReportServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, report_id=report_id)
-
-
-@router.delete("/{report_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:sighting-reports:detail",
     resource_id_name="report_id",

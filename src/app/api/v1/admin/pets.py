@@ -33,19 +33,6 @@ SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
-@router.post("/{user_id}", response_model=PetRead, status_code=status.HTTP_201_CREATED)
-async def create_pet(
-    request: Request,
-    user_id: int,
-    payload: PetCreateWithPhotos,
-    actor: AdminActorDependency,
-    service: PetServiceDependency,
-) -> PetRead:
-    result = await service.create(actor=actor, user_id=user_id, pet_input=payload)
-    await invalidate_namespace("admin:pets")
-    return result
-
-
 @router.post("/search", response_model=PaginatedResponse[PetRead], status_code=status.HTTP_200_OK)
 async def search_pets(
     search_request: SearchRequest,
@@ -71,6 +58,19 @@ async def search_pets_by_image(
         species=species,
         is_search_by_missing=is_search_by_missing,
     )
+
+
+@router.post("/{user_id}", response_model=PetRead, status_code=status.HTTP_201_CREATED)
+async def create_pet(
+    request: Request,
+    user_id: int,
+    payload: PetCreateWithPhotos,
+    actor: AdminActorDependency,
+    service: PetServiceDependency,
+) -> PetRead:
+    result = await service.create(actor=actor, user_id=user_id, pet_input=payload)
+    await invalidate_namespace("admin:pets")
+    return result
 
 
 @router.get("", response_model=PaginatedResponse[PetRead], status_code=status.HTTP_200_OK)
@@ -134,6 +134,21 @@ async def get_pet(
     return await service.get_pet(actor=actor, pet_id=pet_id)
 
 
+@router.patch("/{pet_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+@cache(
+    key_prefix="admin:pets:detail",
+    resource_id_name="pet_id",
+    namespaces_to_invalidate=["admin:pets"],
+)
+async def soft_delete_pet(
+    request: Request,
+    pet_id: int,
+    actor: AdminActorDependency,
+    service: PetServiceDependency,
+) -> None:
+    await service.soft_delete(actor=actor, pet_id=pet_id)
+
+
 @router.patch("/{pet_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pets:detail",
@@ -151,21 +166,6 @@ async def update_pet(
 
 
 @router.delete("/{pet_id}", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:pets:detail",
-    resource_id_name="pet_id",
-    namespaces_to_invalidate=["admin:pets"],
-)
-async def soft_delete_pet(
-    request: Request,
-    pet_id: int,
-    actor: AdminActorDependency,
-    service: PetServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, pet_id=pet_id)
-
-
-@router.delete("/{pet_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pets:detail",
     resource_id_name="pet_id",

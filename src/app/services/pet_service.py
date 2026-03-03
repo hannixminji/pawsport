@@ -902,18 +902,6 @@ class PetService:
             )
 
             await self.db.execute(
-                update(PetQRPreference)
-                .where(
-                    PetQRPreference.pet_id == pet_id,
-                    PetQRPreference.is_deleted.is_(False),
-                )
-                .values(
-                    deleted_at=func.now(),
-                    is_deleted=True,
-                )
-            )
-
-            await self.db.execute(
                 update(PetAllergy)
                 .where(
                     PetAllergy.pet_id == pet_id,

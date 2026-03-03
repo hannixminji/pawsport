@@ -101,7 +101,17 @@ async def update_permission(
     await service.update(actor=actor, permission_id=permission_id, permission_input=payload)
 
 
-@router.delete("/{permission_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_permissions(
+    payload: AdminPermissionBulkDelete,
+    actor: SuperuserActorDependency,
+    service: AdminPermissionServiceDependency,
+) -> None:
+    await service.bulk_hard_delete(actor=actor, permission_ids=payload.ids)
+    await invalidate_namespace("admin:permissions")
+
+
+@router.delete("/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:permissions:detail",
     resource_id_name="permission_id",
@@ -114,13 +124,3 @@ async def hard_delete_permission(
     service: AdminPermissionServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, permission_id=permission_id)
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_permissions(
-    payload: AdminPermissionBulkDelete,
-    actor: SuperuserActorDependency,
-    service: AdminPermissionServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, permission_ids=payload.ids)
-    await invalidate_namespace("admin:permissions")

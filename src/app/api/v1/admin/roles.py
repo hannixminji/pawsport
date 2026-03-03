@@ -72,21 +72,6 @@ async def list_roles(
     )
 
 
-@router.get("/{role_id}", response_model=AdminRoleRead, status_code=status.HTTP_200_OK)
-@cache(
-    key_prefix="admin:roles:detail",
-    resource_id_name="role_id",
-    expiration=60,
-)
-async def get_role(
-    request: Request,
-    role_id: int,
-    actor: SuperuserActorDependency,
-    service: AdminRoleServiceDependency,
-) -> AdminRoleRead:
-    return await service.get_role(actor=actor, role_id=role_id)
-
-
 @router.get("/{role_id}/permissions", response_model=AdminRoleReadWithPermissions, status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="admin:roles:with-permissions:detail",
@@ -100,6 +85,21 @@ async def get_role_with_permissions(
     service: AdminRoleServiceDependency,
 ) -> AdminRoleReadWithPermissions:
     return await service.get_role_with_permissions(actor=actor, role_id=role_id)
+
+
+@router.get("/{role_id}", response_model=AdminRoleRead, status_code=status.HTTP_200_OK)
+@cache(
+    key_prefix="admin:roles:detail",
+    resource_id_name="role_id",
+    expiration=60,
+)
+async def get_role(
+    request: Request,
+    role_id: int,
+    actor: SuperuserActorDependency,
+    service: AdminRoleServiceDependency,
+) -> AdminRoleRead:
+    return await service.get_role(actor=actor, role_id=role_id)
 
 
 @router.patch("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -134,6 +134,16 @@ async def assign_permissions(
     await service.assign_permissions(actor=actor, role_id=role_id, permission_ids=payload.ids)
 
 
+@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_roles(
+    payload: AdminRoleBulkDelete,
+    actor: SuperuserActorDependency,
+    service: AdminRoleServiceDependency,
+) -> None:
+    await service.bulk_hard_delete(actor=actor, role_ids=payload.ids)
+    await invalidate_namespace("admin:roles")
+
+
 @router.delete("/{role_id}/permissions", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:roles:with-permissions:detail",
@@ -149,7 +159,7 @@ async def remove_all_permissions(
     await service.remove_all_permissions(actor=actor, role_id=role_id)
 
 
-@router.delete("/{role_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:roles:detail",
     resource_id_name="role_id",
@@ -162,13 +172,3 @@ async def hard_delete_role(
     service: AdminRoleServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, role_id=role_id)
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_roles(
-    payload: AdminRoleBulkDelete,
-    actor: SuperuserActorDependency,
-    service: AdminRoleServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, role_ids=payload.ids)
-    await invalidate_namespace("admin:roles")

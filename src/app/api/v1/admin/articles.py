@@ -85,6 +85,31 @@ async def get_article(
     return await service.get_article(actor=actor, article_id=article_id)
 
 
+@router.patch("/bulk/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_soft_delete_articles(
+    payload: ArticleBulkDelete,
+    actor: SuperuserActorDependency,
+    service: ArticleServiceDependency,
+) -> None:
+    await service.bulk_soft_delete(actor=actor, article_ids=payload.ids)
+    await invalidate_namespace("admin:articles")
+
+
+@router.patch("/{article_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+@cache(
+    key_prefix="admin:articles:detail",
+    resource_id_name="article_id",
+    namespaces_to_invalidate=["admin:articles"],
+)
+async def soft_delete_article(
+    request: Request,
+    article_id: int,
+    actor: SuperuserActorDependency,
+    service: ArticleServiceDependency,
+) -> None:
+    await service.soft_delete(actor=actor, article_id=article_id)
+
+
 @router.patch("/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:articles:detail",
@@ -101,32 +126,17 @@ async def update_article(
     await service.update(actor=actor, article_id=article_id, article_input=payload)
 
 
-@router.delete("/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:articles:detail",
-    resource_id_name="article_id",
-    namespaces_to_invalidate=["admin:articles"],
-)
-async def soft_delete_article(
-    request: Request,
-    article_id: int,
-    actor: SuperuserActorDependency,
-    service: ArticleServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, article_id=article_id)
-
-
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_articles(
+@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_articles(
     payload: ArticleBulkDelete,
     actor: SuperuserActorDependency,
     service: ArticleServiceDependency,
 ) -> None:
-    await service.bulk_soft_delete(actor=actor, article_ids=payload.ids)
+    await service.bulk_hard_delete(actor=actor, article_ids=payload.ids)
     await invalidate_namespace("admin:articles")
 
 
-@router.delete("/{article_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:articles:detail",
     resource_id_name="article_id",
@@ -139,13 +149,3 @@ async def hard_delete_article(
     service: ArticleServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, article_id=article_id)
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_articles(
-    payload: ArticleBulkDelete,
-    actor: SuperuserActorDependency,
-    service: ArticleServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, article_ids=payload.ids)
-    await invalidate_namespace("admin:articles")

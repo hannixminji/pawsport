@@ -80,6 +80,31 @@ async def get_tier(
     return await service.get_tier(actor=actor, tier_id=tier_id)
 
 
+@router.patch("/bulk/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_soft_delete_tiers(
+    payload: TierBulkDelete,
+    actor: AdminActorDependency,
+    service: TierServiceDependency,
+) -> None:
+    await service.bulk_soft_delete(actor=actor, tier_ids=payload.ids)
+    await invalidate_namespace("admin:tiers")
+
+
+@router.patch("/{tier_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+@cache(
+    key_prefix="admin:tiers:detail",
+    resource_id_name="tier_id",
+    namespaces_to_invalidate=["admin:tiers"],
+)
+async def soft_delete_tier(
+    request: Request,
+    tier_id: int,
+    actor: AdminActorDependency,
+    service: TierServiceDependency,
+) -> None:
+    await service.soft_delete(actor=actor, tier_id=tier_id)
+
+
 @router.patch("/{tier_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:tiers:detail",
@@ -96,32 +121,17 @@ async def update_tier(
     await service.update(actor=actor, tier_id=tier_id, tier_input=payload)
 
 
-@router.delete("/{tier_id}", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:tiers:detail",
-    resource_id_name="tier_id",
-    namespaces_to_invalidate=["admin:tiers"],
-)
-async def soft_delete_tier(
-    request: Request,
-    tier_id: int,
-    actor: AdminActorDependency,
-    service: TierServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, tier_id=tier_id)
-
-
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_tiers(
+@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_tiers(
     payload: TierBulkDelete,
     actor: AdminActorDependency,
     service: TierServiceDependency,
 ) -> None:
-    await service.bulk_soft_delete(actor=actor, tier_ids=payload.ids)
+    await service.bulk_hard_delete(actor=actor, tier_ids=payload.ids)
     await invalidate_namespace("admin:tiers")
 
 
-@router.delete("/{tier_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{tier_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:tiers:detail",
     resource_id_name="tier_id",
@@ -134,13 +144,3 @@ async def hard_delete_tier(
     service: TierServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, tier_id=tier_id)
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_tiers(
-    payload: TierBulkDelete,
-    actor: AdminActorDependency,
-    service: TierServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, tier_ids=payload.ids)
-    await invalidate_namespace("admin:tiers")

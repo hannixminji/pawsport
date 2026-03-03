@@ -24,6 +24,17 @@ SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)
 AdminActorDependency = Annotated[Actor, Depends(get_current_admin_actor)]
 
 
+@router.post("/search", response_model=PaginatedResponse[PetAllergyRead], status_code=status.HTTP_200_OK)
+async def search_pet_allergies(
+    search_request: SearchRequest,
+    actor: AdminActorDependency,
+    service: PetAllergyServiceDependency,
+    user_id: Annotated[int | None, Query(alias="userId")] = None,
+    pet_id: Annotated[int | None, Query(alias="petId")] = None,
+) -> PaginatedResponse[PetAllergyRead]:
+    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
+
+
 @router.post("/{pet_id}", response_model=PetAllergyRead, status_code=status.HTTP_201_CREATED)
 async def create_pet_allergy(
     request: Request,
@@ -35,17 +46,6 @@ async def create_pet_allergy(
     result = await service.create(actor=actor, pet_id=pet_id, allergy_input=payload)
     await invalidate_namespace("admin:pet-allergies")
     return result
-
-
-@router.post("/search", response_model=PaginatedResponse[PetAllergyRead], status_code=status.HTTP_200_OK)
-async def search_pet_allergies(
-    search_request: SearchRequest,
-    actor: AdminActorDependency,
-    service: PetAllergyServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
-    pet_id: Annotated[int | None, Query(alias="petId")] = None,
-) -> PaginatedResponse[PetAllergyRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
 
 
 @router.get("", response_model=PaginatedResponse[PetAllergyRead], status_code=status.HTTP_200_OK)
@@ -88,6 +88,31 @@ async def get_pet_allergy(
     return await service.get_pet_allergy(actor=actor, allergy_id=allergy_id)
 
 
+@router.patch("/bulk/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_soft_delete_pet_allergies(
+    payload: PetAllergyBulkDelete,
+    actor: AdminActorDependency,
+    service: PetAllergyServiceDependency,
+) -> None:
+    await service.bulk_soft_delete(actor=actor, allergy_ids=payload.ids)
+    await invalidate_namespace("admin:pet-allergies")
+
+
+@router.patch("/{allergy_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+@cache(
+    key_prefix="admin:pet-allergies:detail",
+    resource_id_name="allergy_id",
+    namespaces_to_invalidate=["admin:pet-allergies"],
+)
+async def soft_delete_pet_allergy(
+    request: Request,
+    allergy_id: int,
+    actor: AdminActorDependency,
+    service: PetAllergyServiceDependency,
+) -> None:
+    await service.soft_delete(actor=actor, allergy_id=allergy_id)
+
+
 @router.patch("/{allergy_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-allergies:detail",
@@ -104,32 +129,17 @@ async def update_pet_allergy(
     await service.update(actor=actor, allergy_id=allergy_id, allergy_input=payload)
 
 
-@router.delete("/{allergy_id}", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:pet-allergies:detail",
-    resource_id_name="allergy_id",
-    namespaces_to_invalidate=["admin:pet-allergies"],
-)
-async def soft_delete_pet_allergy(
-    request: Request,
-    allergy_id: int,
-    actor: AdminActorDependency,
-    service: PetAllergyServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, allergy_id=allergy_id)
-
-
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_pet_allergies(
+@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_hard_delete_pet_allergies(
     payload: PetAllergyBulkDelete,
-    actor: AdminActorDependency,
+    actor: SuperuserActorDependency,
     service: PetAllergyServiceDependency,
 ) -> None:
-    await service.bulk_soft_delete(actor=actor, allergy_ids=payload.ids)
+    await service.bulk_hard_delete(actor=actor, allergy_ids=payload.ids)
     await invalidate_namespace("admin:pet-allergies")
 
 
-@router.delete("/{allergy_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{allergy_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-allergies:detail",
     resource_id_name="allergy_id",
@@ -142,13 +152,3 @@ async def hard_delete_pet_allergy(
     service: PetAllergyServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, allergy_id=allergy_id)
-
-
-@router.delete("/hard", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_hard_delete_pet_allergies(
-    payload: PetAllergyBulkDelete,
-    actor: SuperuserActorDependency,
-    service: PetAllergyServiceDependency,
-) -> None:
-    await service.bulk_hard_delete(actor=actor, allergy_ids=payload.ids)
-    await invalidate_namespace("admin:pet-allergies")
