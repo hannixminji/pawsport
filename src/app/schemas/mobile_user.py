@@ -8,7 +8,7 @@ from pydantic_extra_types.phone_numbers import PhoneNumber
 
 from ..core.enums import ActorType
 from ..core.schemas import Actor, GeoPoint, PersistentDeletion, StrongPassword, TimestampSchema
-from ..core.security import get_ip
+from ..core.security import get_client_ip
 
 
 class MobileUserBase(BaseModel):
@@ -159,23 +159,23 @@ class MobileActor(BaseModel):
     id: int
     tier_id: int
     actor_type: ActorType
+    is_anonymous: bool = False
 
     def to_actor(self, request: Request) -> Actor:
         return Actor(
             id=self.id,
             actor_type=self.actor_type,
             is_superuser=False,
+            is_anonymous=self.is_anonymous,
             role_ids=None,
             request_id=getattr(request.state, "request_id", None),
-            ip_address=get_ip(request),
+            ip_address=get_client_ip(request),
             user_agent=request.headers.get("user-agent"),
         )
 
 
 class MobileUserCreate(MobileUserBase):
     model_config = ConfigDict(extra="forbid")
-
-    password: Annotated[StrongPassword | None, Field(examples=["@MyPassword123"], default=None)]
 
 
 class MobileUserUpdate(BaseModel):
@@ -300,3 +300,12 @@ class MobileUserPasswordUpdate(BaseModel):
 
     current_password: Annotated[StrongPassword, Field(examples=["CurrentPass123!"])]
     new_password: Annotated[StrongPassword, Field(examples=["NewPass456@"])]
+
+
+# Resolve the forward reference to MobileUserRead in TokenResponse.
+# By the time this module finishes loading, both core/schemas (imported above)
+# and MobileUserRead (defined above) are available.
+from ..core.schemas import TokenResponse as _TokenResponse  # noqa: E402
+_TokenResponse.model_rebuild(_types_namespace={"MobileUserRead": MobileUserRead})
+
+

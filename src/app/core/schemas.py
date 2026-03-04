@@ -1,18 +1,26 @@
+from __future__ import annotations
+
 import uuid as uuid_pkg
 from datetime import UTC, datetime
-from typing import Annotated, Any, TypeVar
+from typing import TYPE_CHECKING, Annotated, Any, TypeVar
 
 from pydantic import AfterValidator, BaseModel, Field, SecretStr, field_serializer
 from uuid6 import uuid7
 
 from .enums import ActorType
 
+if TYPE_CHECKING:
+    from ..schemas.mobile_user import MobileUserRead
 
+
+# -------------- password --------------
 def validate_strong_password(v: SecretStr) -> SecretStr:
     password = v.get_secret_value()
     errors = []
     if len(password) < 8:
         errors.append("at least 8 characters")
+    if len(password) > 128:
+        errors.append("at most 128 characters")
     if not any(c.isdigit() for c in password):
         errors.append("at least one digit")
     if not any(c.isupper() for c in password):
@@ -33,6 +41,7 @@ StrongPassword = Annotated[
 ]
 
 
+# -------------- health --------------
 class HealthCheck(BaseModel):
     status: str
     environment: str
@@ -105,36 +114,30 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    username_or_email: str
+    user_id: int
 
 
-class TokenBlacklistBase(BaseModel):
-    token: str
-    expires_at: datetime
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+    user: MobileUserRead
 
 
-class TokenBlacklistRead(TokenBlacklistBase):
-    id: int
 
-
-class TokenBlacklistCreate(TokenBlacklistBase):
-    pass
-
-
-class TokenBlacklistUpdate(TokenBlacklistBase):
-    pass
-
-
+# -------------- actor --------------
 class Actor(BaseModel):
     id: int
     actor_type: ActorType
     request_id: str
-    is_superuser: bool
+    is_superuser: bool = False
+    is_anonymous: bool = False
     role_ids: list[int] | None = None
     ip_address: str | None = None
     user_agent: str | None = None
 
 
+# -------------- geo --------------
 class GeoPoint(BaseModel):
     latitude: Annotated[float, Field(ge=-90, le=90, examples=[37.7749])]
     longitude: Annotated[float, Field(ge=-180, le=180, examples=[-122.4194])]

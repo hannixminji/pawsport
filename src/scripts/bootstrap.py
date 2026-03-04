@@ -1,19 +1,20 @@
-from src.scripts.seed_permissions import seed_permissions
-from src.scripts.create_default_role import create_default_roles
-from src.scripts.create_first_superuser import create_first_superuser
-from app.core.database import SessionLocal
+import asyncio
+
+from app.core.db.database import local_session
+from scripts.create_default_role import create_default_role
+from scripts.create_first_superuser import create_first_superuser
+from scripts.create_first_tier import create_first_tier
+from scripts.seed_permissions import seed_permissions
 
 
-def main():
-    db = SessionLocal()
-    try:
-        seed_permissions(db)
-        create_default_roles(db)
-        create_first_superuser(db)
+async def main():
+    async with local_session() as session:
+        await seed_permissions(session)
+        await create_default_role(session)
+        await create_first_superuser(session)
+        await create_first_tier(session)
         print("Bootstrap completed successfully.")
-    finally:
-        db.close()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -40,6 +40,12 @@ class UserLinkedAccount(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     )
 
     provider_email: Mapped[str | None] = mapped_column(String, nullable=True, default=None, server_default=text("NULL"))
+    hashed_password: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+        default=None,
+        server_default=text("NULL"),
+    )
 
     __table_args__ = (
         Index(

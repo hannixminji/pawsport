@@ -159,6 +159,9 @@ class DefaultRateLimitSettings(BaseSettings):
     DEFAULT_RATE_LIMIT_LIMIT: int = 10
     DEFAULT_RATE_LIMIT_PERIOD: int = 3600
 
+    DEFAULT_GUEST_RATE_LIMIT_LIMIT: int = 5
+    DEFAULT_GUEST_RATE_LIMIT_PERIOD: int = 3600
+
 
 class AdminSessionSettings(BaseSettings):
     ADMIN_SESSION_TTL_SECONDS: int = 1800

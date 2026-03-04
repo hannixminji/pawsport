@@ -1,6 +1,7 @@
 from enum import StrEnum
 
 
+# -------------- system --------------
 class ActorType(StrEnum):
     ADMIN_USER = "admin_user"
     MOBILE_USER = "mobile_user"
@@ -12,10 +13,14 @@ class AdminAccountStatus(StrEnum):
     SUSPENDED = "suspended"
 
 
+# -------------- auth --------------
 class AuthProvider(StrEnum):
-    GOOGLE = "google"
+    GOOGLE = "google.com"
+    EMAIL = "email"
+    ANONYMOUS = "anonymous"
 
 
+# -------------- pet --------------
 class PetSpecies(StrEnum):
     DOG = "dog"
     CAT = "cat"
@@ -37,6 +42,7 @@ class PetScheduleType(StrEnum):
     OTHER = "other"
 
 
+# -------------- medical --------------
 class VaccineType(StrEnum):
     CORE = "core"
     NON_CORE = "non_core"
@@ -94,6 +100,7 @@ class MedicationStatus(StrEnum):
     SCHEDULED = "scheduled"
 
 
+# -------------- inventory --------------
 class InventoryType(StrEnum):
     FOOD = "food"
     MEDICINE = "medicine"
@@ -109,6 +116,7 @@ class InventoryUnit(StrEnum):
     ML = "ml"
 
 
+# -------------- content --------------
 class ArticleCategory(StrEnum):
     CARE = "care"
     HEALTH = "health"
@@ -117,6 +125,7 @@ class ArticleCategory(StrEnum):
     VET_VISIT = "vet_visit"
 
 
+# -------------- reports --------------
 class MissingReportStatus(StrEnum):
     LOST = "lost"
     FOUND = "found"
@@ -125,6 +134,7 @@ class MissingReportStatus(StrEnum):
     CASE_CLOSED = "case_closed"
 
 
+# -------------- notifications --------------
 class NotificationFeature(StrEnum):
     NEARBY_REPORT_ALERTS = "nearby_report_alerts"
     PET_SCHEDULE_REMINDERS = "pet_schedule_reminders"
@@ -142,6 +152,7 @@ class PushTokenProvider(StrEnum):
     WEBPUSH = "webpush"
 
 
+# -------------- files --------------
 class MimeType(StrEnum):
     JPEG = "image/jpeg"
     PNG = "image/png"

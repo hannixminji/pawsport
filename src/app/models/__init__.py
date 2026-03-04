@@ -19,6 +19,7 @@ from .pet_schedule import PetSchedule
 from .pet_vaccination_record import PetVaccinationRecord
 from .pet_vaccination_record_attachment import PetVaccinationRecordAttachment
 from .rate_limit import RateLimit
+from .refresh_session import RefreshSession
 from .sighting_report import SightingReport
 from .sighting_report_image import SightingReportImage
 from .tier import Tier

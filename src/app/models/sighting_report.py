@@ -58,7 +58,6 @@ class SightingReport(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         server_default=text("NULL"),
     )
 
-    guest_token: Mapped[str | None] = mapped_column(String, nullable=True, default=None, server_default=text("NULL"))
     description: Mapped[str | None] = mapped_column(Text, nullable=True, default=None, server_default=text("NULL"))
 
     mobile_user: Mapped["MobileUser | None"] = relationship(

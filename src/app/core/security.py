@@ -1,4 +1,6 @@
+import hashlib
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
@@ -10,18 +12,18 @@ from firebase_admin import auth
 from firebase_admin.auth import CertificateFetchError, ExpiredIdTokenError, InvalidIdTokenError, RevokedIdTokenError
 from firebase_admin.exceptions import FirebaseError
 from jose import JWTError, jwt
-from pydantic import SecretStr
 from redis.asyncio import Redis
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..models.refresh_session import RefreshSession
 from .config import settings
-from .db.crud_token_blacklist import crud_token_blacklist
-from .schemas import TokenBlacklistCreate, TokenData
+from .schemas import TokenData
 from .utils.rbac_bitmap import PermissionIndex, roleset_has_permission
 
 LOGGER = logging.getLogger(__name__)
 
-SECRET_KEY: SecretStr = settings.SECRET_KEY
+SECRET_KEY: str = settings.SECRET_KEY.get_secret_value()
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
@@ -34,13 +36,19 @@ argon2_settings = settings.password_hasher
 
 class TokenType(StrEnum):
     ACCESS = "access"
-    REFRESH = "refresh"
 
 
-def get_ip(request: Request) -> str | None:
-    forwarded_for = request.headers.get("x-forwarded-for")
+# ── helpers ──
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def get_client_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         return forwarded_for.split(",")[0].strip()
+
     return request.client.host if request.client else None
 
 
@@ -62,89 +70,136 @@ def get_password_hash(password: str) -> str:
     return argon2_settings.hash(password)
 
 
-async def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
+# ── access token (stateless JWT) ──
+
+async def create_access_token(
+    data: dict[str, Any],
+    expires_delta: timedelta | None = None,
+) -> str:
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(UTC).replace(tzinfo=None) + expires_delta
-    else:
-        expire = datetime.now(UTC).replace(tzinfo=None) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire, "token_type": TokenType.ACCESS})
-    encoded_jwt: str = jwt.encode(to_encode, SECRET_KEY.get_secret_value(), algorithm=ALGORITHM)
-    return encoded_jwt
+    now = datetime.now(UTC).replace(tzinfo=None)
+    expire = now + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({
+        "exp": expire,
+        "iat": now,
+        "token_type": TokenType.ACCESS,
+    })
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-async def create_refresh_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(UTC).replace(tzinfo=None) + expires_delta
-    else:
-        expire = datetime.now(UTC).replace(tzinfo=None) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "token_type": TokenType.REFRESH})
-    encoded_jwt: str = jwt.encode(to_encode, SECRET_KEY.get_secret_value(), algorithm=ALGORITHM)
-    return encoded_jwt
-
-
-async def verify_token(token: str, expected_token_type: TokenType, db: AsyncSession) -> TokenData | None:
-    """Verify a JWT token and return TokenData if valid.
-
-    Parameters
-    ----------
-    token: str
-        The JWT token to be verified.
-    expected_token_type: TokenType
-        The expected type of token (access or refresh)
-    db: AsyncSession
-        Database session for performing database operations.
-
-    Returns
-    -------
-    TokenData | None
-        TokenData instance if the token is valid, None otherwise.
-    """
-    is_blacklisted = await crud_token_blacklist.exists(db, token=token)
-    if is_blacklisted:
-        return None
-
+async def verify_access_token(token: str) -> TokenData | None:
     try:
-        payload = jwt.decode(token, SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM])
-        username_or_email: str | None = payload.get("sub")
-        token_type: str | None = payload.get("token_type")
-
-        if username_or_email is None or token_type != expected_token_type:
-            return None
-
-        return TokenData(username_or_email=username_or_email)
-
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
 
+    user_id: str | None = payload.get("sub")
+    token_type: str | None = payload.get("token_type")
 
-async def blacklist_tokens(access_token: str, refresh_token: str, db: AsyncSession) -> None:
-    """Blacklist both access and refresh tokens.
+    if user_id is None or token_type != TokenType.ACCESS:
+        return None
 
-    Parameters
-    ----------
-    access_token: str
-        The access token to blacklist
-    refresh_token: str
-        The refresh token to blacklist
-    db: AsyncSession
-        Database session for performing database operations.
-    """
-    for token in [access_token, refresh_token]:
-        payload = jwt.decode(token, SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM])
-        exp_timestamp = payload.get("exp")
-        if exp_timestamp is not None:
-            expires_at = datetime.fromtimestamp(exp_timestamp)
-            await crud_token_blacklist.create(db, object=TokenBlacklistCreate(token=token, expires_at=expires_at))
+    return TokenData(user_id=int(user_id))
 
 
-async def blacklist_token(token: str, db: AsyncSession) -> None:
-    payload = jwt.decode(token, SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM])
-    exp_timestamp = payload.get("exp")
-    if exp_timestamp is not None:
-        expires_at = datetime.fromtimestamp(exp_timestamp)
-        await crud_token_blacklist.create(db, object=TokenBlacklistCreate(token=token, expires_at=expires_at))
+# ── refresh token (stateful opaque) ──
+
+def generate_refresh_token() -> tuple[str, str]:
+    """Return (opaque_token, token_hash)."""
+    token = secrets.token_urlsafe(64)
+    return token, _hash_token(token)
+
+
+async def create_refresh_session(
+    db: AsyncSession,
+    user_id: int,
+    token_hash: str,
+    device_id: str | None = None,
+    expires_delta: timedelta | None = None,
+) -> None:
+    expires_at = datetime.now(UTC) + (expires_delta or timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+    db.add(RefreshSession(
+        user_id=user_id,
+        token_hash=token_hash,
+        device_id=device_id,
+        expires_at=expires_at,
+    ))
+    await db.flush()
+
+
+async def verify_refresh_token(token: str, db: AsyncSession) -> TokenData | None:
+    token_hash = _hash_token(token)
+    now = datetime.now(UTC)
+    session = (
+        await db.execute(
+            select(RefreshSession)
+            .where(
+                RefreshSession.token_hash == token_hash,
+                RefreshSession.revoked_at.is_(None),
+                RefreshSession.expires_at > now,
+            )
+        )
+    ).scalar_one_or_none()
+    if session is None:
+        return None
+
+    return TokenData(user_id=session.user_id)
+
+
+async def revoke_refresh_session(token: str, db: AsyncSession) -> None:
+    token_hash = _hash_token(token)
+    await db.execute(
+        update(RefreshSession)
+        .where(
+            RefreshSession.token_hash == token_hash,
+            RefreshSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=datetime.now(UTC))
+    )
+
+
+async def revoke_all_user_sessions(user_id: int, db: AsyncSession) -> None:
+    await db.execute(
+        update(RefreshSession)
+        .where(
+            RefreshSession.user_id == user_id,
+            RefreshSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=datetime.now(UTC))
+    )
+
+
+# ── rotation (atomic — replay-safe) ──
+
+async def rotate_refresh_token(
+    refresh_token: str,
+    db: AsyncSession,
+) -> tuple[str, str, int] | None:
+    token_hash = _hash_token(refresh_token)
+    now = datetime.now(UTC)
+
+    result = await db.execute(
+        update(RefreshSession)
+        .where(
+            RefreshSession.token_hash == token_hash,
+            RefreshSession.revoked_at.is_(None),
+            RefreshSession.expires_at > now,
+        )
+        .values(revoked_at=now)
+        .returning(RefreshSession.user_id)
+    )
+
+    row = result.first()
+    if row is None:
+        return None
+
+    user_id = row.user_id
+
+    new_access = await create_access_token(data={"sub": str(user_id)})
+    new_opaque, new_hash = generate_refresh_token()
+    await create_refresh_session(db, user_id, new_hash)
+
+    return new_access, new_opaque, user_id
 
 
 def verify_firebase_token(id_token: str) -> dict[str, Any]:

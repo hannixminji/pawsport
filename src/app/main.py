@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import firebase_admin
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from uuid6 import uuid7
@@ -16,6 +17,9 @@ from .core.utils.qdrant_cloud import init_collections
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app()
+
     init_collections()
 
     default_lifespan = lifespan_factory(settings)

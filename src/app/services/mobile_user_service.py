@@ -8,7 +8,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.enums import ActorType
+from ..core.enums import ActorType, AuthProvider
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
 from ..core.exceptions.domain_exceptions import InvalidInputError, NotFoundError
@@ -21,6 +21,7 @@ from ..core.utils.google_cloud_storage import is_object_exists
 from ..core.utils.pagination import compute_offset
 from ..core.utils.update import apply_partial_update
 from ..models.mobile_user import MobileUser
+from ..models.user_linked_account import UserLinkedAccount
 from ..schemas.mobile_user import MobileUserCreate, MobileUserRead, MobileUserUpdate
 
 LOGGER = logging.getLogger(__name__)
@@ -124,11 +125,7 @@ class MobileUserService:
             if not is_object_exists(user_input.profile_image_object_key):
                 raise InvalidInputError("The profile image may not have been uploaded correctly.")
 
-        user_model = MobileUser(
-            **user_input.model_dump(exclude={"password"}),
-            hashed_password=get_password_hash(user_input.password.get_secret_value()),
-            nearby_report_alert_location=None,
-        )
+        user_model = MobileUser(**user_input.model_dump())
 
         self.db.add(user_model)
 
@@ -353,27 +350,29 @@ class MobileUserService:
         if actor.actor_type == ActorType.MOBILE_USER:
             user_id = actor.id
 
-        hashed_password = (
+        linked_account = (
             await self.db.execute(
-                select(MobileUser.hashed_password)
+                select(UserLinkedAccount)
                 .where(
-                    MobileUser.id == user_id,
-                    MobileUser.is_deleted.is_(False),
+                    UserLinkedAccount.mobile_user_id == user_id,
+                    UserLinkedAccount.provider == AuthProvider.EMAIL,
+                    UserLinkedAccount.is_deleted.is_(False),
                 )
             )
         ).scalar_one_or_none()
-        if hashed_password is None:
-            raise NotFoundError("User not found.")
+        if linked_account is None:
+            raise NotFoundError("No email/password account found for this user.")
 
-        is_valid, _ = await verify_password(current_password, hashed_password)
+        is_valid, _ = await verify_password(current_password, linked_account.hashed_password)
         if not is_valid:
             raise InvalidInputError("Current password is incorrect.")
 
         statement = (
-            update(MobileUser)
+            update(UserLinkedAccount)
             .where(
-                MobileUser.id == user_id,
-                MobileUser.is_deleted.is_(False),
+                UserLinkedAccount.mobile_user_id == user_id,
+                UserLinkedAccount.provider == AuthProvider.EMAIL,
+                UserLinkedAccount.is_deleted.is_(False),
             )
             .values(hashed_password=get_password_hash(new_password))
         )

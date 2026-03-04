@@ -3,19 +3,39 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPAuthorizationCredentials
+from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.dependencies import get_current_mobile_user
 from app.core.db.database import async_get_db
+from app.core.enums import AuthProvider
 from app.core.exceptions.http_exceptions import DuplicateValueException, UnauthorizedException
-from app.core.security import security, verify_firebase_token
+from app.core.schemas import TokenResponse
+from app.core.security import (
+    create_access_token,
+    create_refresh_session,
+    generate_refresh_token,
+    revoke_refresh_session,
+    rotate_refresh_token,
+    security,
+    verify_firebase_token,
+)
 from app.models.mobile_user import MobileUser
 from app.models.user_linked_account import UserLinkedAccount
-from app.schemas.mobile_user import MobileUserRead
+from app.schemas.mobile_user import MobileActor, MobileUserRead
 
-router = APIRouter(tags=["login or signup"])
+router = APIRouter(prefix="/auth", tags=["login or signup"])
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
 
 
 def is_unique_constraint_violation(error: IntegrityError, constraint_name: str) -> bool:
@@ -26,7 +46,7 @@ def is_unique_constraint_violation(error: IntegrityError, constraint_name: str) 
     return constraint_name in str(original_exception)
 
 
-@router.post("/login_or_signup", response_model=MobileUserRead)
+@router.post("/google", response_model=MobileUserRead)
 async def login_or_signup(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     db: Annotated[AsyncSession, Depends(async_get_db)]
@@ -190,3 +210,97 @@ async def login_or_signup(
 
     await db.refresh(new_user)
     return MobileUserRead.model_validate(new_user)
+
+
+@router.post("/guest")
+async def guest_login(
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> TokenResponse:
+    guest_uid = str(uuid.uuid4())
+
+    new_user = MobileUser(
+        username=f"guest{uuid.uuid4().hex[:10]}",
+        is_anonymous=True,
+    )
+    new_linked_account = UserLinkedAccount(
+        provider=AuthProvider.ANONYMOUS,
+        provider_user_id=guest_uid,
+    )
+    new_user.linked_accounts.append(new_linked_account)
+    db.add(new_user)
+    await db.flush()
+
+    access_token = await create_access_token(data={"sub": str(new_user.id)})
+    opaque_token, token_hash = generate_refresh_token()
+    await create_refresh_session(db, new_user.id, token_hash)
+
+    try:
+        await db.commit()
+
+    except IntegrityError:
+        await db.rollback()
+
+        raise UnauthorizedException("Failed to create guest session. Please try again.")
+
+    except OperationalError:
+        await db.rollback()
+
+        raise UnauthorizedException("Failed to create guest session. Please try again later.")
+
+    except SQLAlchemyError:
+        await db.rollback()
+
+        raise UnauthorizedException("Failed to create guest session.")
+
+    await db.refresh(new_user)
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=opaque_token,
+        token_type="bearer",
+        user=MobileUserRead.model_validate(new_user),
+    )
+
+
+@router.post("/refresh")
+async def refresh(
+    body: RefreshTokenRequest,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> TokenResponse:
+    result = await rotate_refresh_token(body.refresh_token, db)
+    if result is None:
+        raise UnauthorizedException("Invalid or expired refresh token.")
+
+    new_access_token, new_refresh_token, user_id = result
+    await db.commit()
+
+    mobile_user = (
+        await db.execute(
+            select(MobileUser)
+            .where(
+                MobileUser.id == user_id,
+                MobileUser.is_deleted.is_(False),
+            )
+        )
+    ).scalar_one_or_none()
+
+    if mobile_user is None:
+        raise UnauthorizedException("User not found.")
+
+    return TokenResponse(
+        access_token=new_access_token,
+        refresh_token=new_refresh_token,
+        token_type="bearer",
+        user=MobileUserRead.model_validate(mobile_user),
+    )
+
+
+@router.post("/logout")
+async def logout(
+    body: LogoutRequest,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+    current_user: Annotated[MobileActor, Depends(get_current_mobile_user)],
+) -> dict[str, str]:
+    await revoke_refresh_session(body.refresh_token, db)
+    await db.commit()
+    return {"message": "Logged out successfully"}

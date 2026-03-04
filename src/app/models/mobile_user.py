@@ -6,7 +6,7 @@ from geoalchemy2 import Geography
 from geoalchemy2.elements import WKBElement
 from geoalchemy2.shape import to_shape
 from shapely.geometry import Point
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from uuid6 import uuid7
@@ -28,9 +28,6 @@ if TYPE_CHECKING:
 
 class MobileUser(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     __tablename__ = "mobile_user"
-
-    username: Mapped[str] = mapped_column(String, nullable=False)
-    email: Mapped[str] = mapped_column(String, nullable=False)
 
     pets: Mapped[list["Pet"]] = relationship(
         "Pet",
@@ -103,15 +100,11 @@ class MobileUser(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         server_default=text("NULL"),
     )
 
+    username: Mapped[str | None] = mapped_column(String, nullable=True, default=None, server_default=text("NULL"))
+    email: Mapped[str | None] = mapped_column(String, nullable=True, default=None, server_default=text("NULL"))
     first_name: Mapped[str | None] = mapped_column(String, nullable=True, default=None, server_default=text("NULL"))
     last_name: Mapped[str | None] = mapped_column(String, nullable=True, default=None, server_default=text("NULL"))
     phone_number: Mapped[str | None] = mapped_column(String, nullable=True, default=None, server_default=text("NULL"))
-    hashed_password: Mapped[str | None] = mapped_column(
-        String,
-        nullable=True,
-        default=None,
-        server_default=text("NULL"),
-    )
     profile_image_object_key: Mapped[str | None] = mapped_column(
         String,
         nullable=True,
@@ -163,6 +156,8 @@ class MobileUser(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         init=False,
     )
 
+    is_anonymous: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+
     @property
     def profile_image_url(self) -> str | None:
         if not self.profile_image_object_key:
@@ -179,8 +174,18 @@ class MobileUser(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         return {"latitude": point.y, "longitude": point.x}
 
     __table_args__ = (
-        Index("uq_mobile_user_username_active", "username", unique=True, postgresql_where=text("is_deleted = false")),
-        Index("uq_mobile_user_email_active", "email", unique=True, postgresql_where=text("is_deleted = false")),
+        Index(
+            "uq_mobile_user_username_active",
+            "username",
+            unique=True,
+            postgresql_where=text("is_deleted = false AND username IS NOT NULL"),
+        ),
+        Index(
+            "uq_mobile_user_email_active",
+            "email",
+            unique=True,
+            postgresql_where=text("is_deleted = false AND email IS NOT NULL"),
+        ),
         Index(
             "uq_mobile_user_phone_number_active",
             "phone_number",

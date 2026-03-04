@@ -6,7 +6,7 @@ from fastapi import Request
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from pydantic_extra_types.phone_numbers import PhoneNumber
 
-from app.core.security import get_ip
+from app.core.security import get_client_ip
 
 from ..core.enums import ActorType, AdminAccountStatus
 from ..core.schemas import Actor, PersistentDeletion, StrongPassword, TimestampSchema, UUIDSchema
@@ -293,7 +293,7 @@ class AdminActor(BaseModel):
             is_superuser=self.is_superuser,
             role_ids=list(self.role_ids) if self.role_ids else None,
             request_id=getattr(request.state, "request_id", None),
-            ip_address=get_ip(request),
+            ip_address=get_client_ip(request),
             user_agent=request.headers.get("user-agent"),
         )
 

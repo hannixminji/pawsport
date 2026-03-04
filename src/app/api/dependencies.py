@@ -24,7 +24,7 @@ from ..core.exceptions.http_exceptions import (
     UnauthorizedException,
 )
 from ..core.schemas import Actor
-from ..core.security import security, verify_firebase_token
+from ..core.security import security, verify_access_token, verify_firebase_token
 from ..core.utils import cache
 from ..core.utils.admin_sessions import (
     SessionInfo,
@@ -214,13 +214,41 @@ async def get_current_mobile_user(
 ) -> MobileActor:
     token = credentials.credentials
 
-    try:
-        token_data = verify_firebase_token(token)
-    except ValueError as error:
-        raise UnauthorizedException(str(error))
+    token_data = await verify_access_token(token)
+    if token_data is not None:
+        try:
+            mobile_user = (
+                await db.execute(
+                    select(MobileUser)
+                    .options(load_only(MobileUser.id, MobileUser.tier_id, MobileUser.is_deleted))
+                    .where(
+                        MobileUser.id == token_data.user_id,
+                        MobileUser.is_deleted.is_(False),
+                    )
+                )
+            ).scalar_one_or_none()
+        except SQLAlchemyError:
+            LOGGER.exception("Database error while fetching mobile user for user_id=%d", token_data.user_id)
+            raise CustomException(status_code=500, detail="An unexpected error occurred. Please try again later.")
 
-    sign_in_provider = token_data.get("firebase", {}).get("sign_in_provider")
-    identities = token_data.get("firebase", {}).get("identities", {})
+        if mobile_user is None:
+            raise UnauthorizedException("User not authenticated.")
+
+        return MobileActor(
+            id=mobile_user.id,
+            tier_id=mobile_user.tier_id,
+            actor_type=ActorType.MOBILE_USER,
+            is_anonymous=mobile_user.is_anonymous,
+        )
+
+    try:
+        firebase_data = verify_firebase_token(token)
+    except (ValueError, Exception) as error:
+        LOGGER.warning("Firebase token verification failed: %s", error)
+        raise UnauthorizedException("User not authenticated.")
+
+    sign_in_provider = firebase_data.get("firebase", {}).get("sign_in_provider")
+    identities = firebase_data.get("firebase", {}).get("identities", {})
     provider_ids = identities.get(sign_in_provider)
     if not provider_ids:
         raise UnauthorizedException("Invalid token: missing provider user ID")
@@ -248,7 +276,8 @@ async def get_current_mobile_user(
         return MobileActor(
             id=mobile_user.id,
             tier_id=mobile_user.tier_id,
-            actor_type=ActorType.MOBILE,
+            actor_type=ActorType.MOBILE_USER,
+            is_anonymous=mobile_user.is_anonymous,
         )
 
     raise UnauthorizedException("User not authenticated.")
@@ -312,13 +341,33 @@ async def get_current_admin_superuser(
 ) -> AdminActor:
     if not admin_user.is_superuser:
         raise ForbiddenException("You do not have permission to perform this action. Superuser access is required.")
+
     return admin_user
 
 
-async def rate_limiter_dependency(
+async def get_current_authenticated_user(
+    mobile_user: Annotated[MobileActor, Depends(get_current_mobile_user)],
+) -> MobileActor:
+    if mobile_user.is_anonymous:
+        raise UnauthorizedException("User not authenticated.")
+
+    return mobile_user
+
+
+async def get_current_guest_user(
+    mobile_user: Annotated[MobileActor, Depends(get_current_mobile_user)],
+) -> MobileActor:
+    if not mobile_user.is_anonymous:
+        raise UnauthorizedException("User not authenticated.")
+
+    return mobile_user
+
+
+async def _rate_limit_user(
     request: Request,
-    db: Annotated[AsyncSession, Depends(async_get_db)],
-    user: Annotated[MobileActor, Depends(get_current_mobile_user)],
+    db: AsyncSession,
+    user: MobileActor,
+    use_default_guest_limit: bool = False,
 ) -> Actor:
     if hasattr(request.app.state, "initialization_complete"):
         await request.app.state.initialization_complete.wait()
@@ -326,27 +375,30 @@ async def rate_limiter_dependency(
     path = sanitize_path(request.url.path)
     user_id = str(user.id)
 
-    rate_limit = (
-        await db.execute(
-            select(RateLimit)
-            .join(Tier, Tier.id == RateLimit.tier_id)
-            .where(
-                Tier.id == user.tier_id,
-                RateLimit.path == path,
-            )
-        )
-    ).scalar_one_or_none()
-
-    if rate_limit:
-        limit, period = rate_limit.limit, rate_limit.period
+    if use_default_guest_limit:
+        limit, period = settings.DEFAULT_GUEST_RATE_LIMIT_LIMIT, settings.DEFAULT_GUEST_RATE_LIMIT_PERIOD
     else:
-        LOGGER.warning(
-            "User %s with tier_id=%s has no specific rate limit for path '%s'. Applying default rate limit.",
-            user_id,
-            user.tier_id,
-            path,
-        )
-        limit, period = settings.DEFAULT_RATE_LIMIT_LIMIT, settings.DEFAULT_RATE_LIMIT_PERIOD
+        rate_limit = (
+            await db.execute(
+                select(RateLimit)
+                .join(Tier, Tier.id == RateLimit.tier_id)
+                .where(
+                    Tier.id == user.tier_id,
+                    RateLimit.path == path,
+                )
+            )
+        ).scalar_one_or_none()
+
+        if rate_limit:
+            limit, period = rate_limit.limit, rate_limit.period
+        else:
+            LOGGER.warning(
+                "User %s with tier_id=%s has no specific rate limit for path '%s'. Applying default rate limit.",
+                user_id,
+                user.tier_id,
+                path,
+            )
+            limit, period = settings.DEFAULT_RATE_LIMIT_LIMIT, settings.DEFAULT_RATE_LIMIT_PERIOD
 
     is_limited = await rate_limiter.is_rate_limited(
         db=db,
@@ -360,6 +412,22 @@ async def rate_limiter_dependency(
         raise RateLimitException("Rate limit exceeded.")
 
     return user.to_actor(request)
+
+
+async def rate_limiter_dependency(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+    user: Annotated[MobileActor, Depends(get_current_authenticated_user)],
+) -> Actor:
+    return await _rate_limit_user(request, db, user)
+
+
+async def guest_rate_limiter_dependency(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+    user: Annotated[MobileActor, Depends(get_current_guest_user)],
+) -> Actor:
+    return await _rate_limit_user(request, db, user, use_default_guest_limit=True)
 
 
 async def get_current_admin_actor(
@@ -379,5 +447,19 @@ async def get_current_superuser_actor(
 async def get_current_mobile_actor(
     request: Request,
     mobile_user: Annotated[MobileActor, Depends(get_current_mobile_user)],
+) -> Actor:
+    return mobile_user.to_actor(request)
+
+
+async def get_current_authenticated_actor(
+    request: Request,
+    mobile_user: Annotated[MobileActor, Depends(get_current_authenticated_user)],
+) -> Actor:
+    return mobile_user.to_actor(request)
+
+
+async def get_current_guest_actor(
+    request: Request,
+    mobile_user: Annotated[MobileActor, Depends(get_current_guest_user)],
 ) -> Actor:
     return mobile_user.to_actor(request)

@@ -109,6 +109,7 @@ async def _delete_keys_by_pattern(pattern: str) -> None:
 def cache(
     key_prefix: str,
     resource_id_name: str | list[str] | None = None,
+    resource_id: str | int | None = None,
     expiration: int = 3600,
     resource_id_type: type | tuple[type, ...] = int,
     namespace: str | None = None,
@@ -124,19 +125,27 @@ def cache(
 
             if resource_id_name:
                 if isinstance(resource_id_name, list):
-                    resource_id = ":".join(str(kwargs[name]) for name in resource_id_name)
+                    resolved_id = ":".join(str(kwargs[name]) for name in resource_id_name)
                 else:
-                    resource_id = kwargs[resource_id_name]
+                    resolved_id = kwargs[resource_id_name]
+            elif resource_id is not None:
+                resolved_id = resource_id
             else:
-                resource_id = _infer_resource_id(kwargs=kwargs, resource_id_type=resource_id_type)
+                try:
+                    resolved_id = _infer_resource_id(kwargs=kwargs, resource_id_type=resource_id_type)
+                except CacheIdentificationInferenceError:
+                    resolved_id = None
 
             formatted_key_prefix = _format_prefix(key_prefix, kwargs)
 
             if namespace:
                 version = await _get_namespace_version(namespace)
-                cache_key = f"{formatted_key_prefix}:v{version}:{resource_id}"
+                cache_key = (
+                    f"{formatted_key_prefix}:v{version}"
+                    + (f":{resolved_id}" if resolved_id is not None else "")
+                )
             else:
-                cache_key = f"{formatted_key_prefix}:{resource_id}"
+                cache_key = f"{formatted_key_prefix}" + (f":{resolved_id}" if resolved_id is not None else "")
 
             if request.method == "GET":
                 if (
