@@ -96,10 +96,7 @@ class RateLimitService:
         return (
             await self.db.execute(
                 select(Tier.id)
-                .where(
-                    Tier.name == tier_name,
-                    Tier.is_deleted.is_(False),
-                )
+                .where(Tier.name == tier_name)
             )
         ).scalar_one_or_none()
 

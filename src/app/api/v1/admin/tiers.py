@@ -80,31 +80,6 @@ async def get_tier(
     return await service.get_tier(actor=actor, tier_id=tier_id)
 
 
-@router.patch("/bulk/delete", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_tiers(
-    payload: TierBulkDelete,
-    actor: Annotated[Actor, Depends(require_permission("tier:bulk_soft_delete"))],
-    service: TierServiceDependency,
-) -> None:
-    await service.bulk_soft_delete(actor=actor, tier_ids=payload.ids)
-    await invalidate_namespace("admin:tiers")
-
-
-@router.patch("/{tier_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:tiers:detail",
-    resource_id_name="tier_id",
-    namespaces_to_invalidate=["admin:tiers"],
-)
-async def soft_delete_tier(
-    request: Request,
-    tier_id: int,
-    actor: Annotated[Actor, Depends(require_permission("tier:soft_delete"))],
-    service: TierServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, tier_id=tier_id)
-
-
 @router.patch("/{tier_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:tiers:detail",

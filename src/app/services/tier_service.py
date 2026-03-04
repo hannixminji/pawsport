@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import ClassVar
 
-from sqlalchemy import any_, delete, func, select, update
+from sqlalchemy import any_, delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,7 +28,6 @@ class TierService:
 
     ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
-        "is_deleted",
         "updated_at",
         "deleted_at",
     })
@@ -62,10 +61,7 @@ class TierService:
         return (
             await self.db.execute(
                 select(Tier)
-                .where(
-                    Tier.id == tier_id,
-                    Tier.is_deleted.is_(False),
-                )
+                .where(Tier.id == tier_id)
             )
         ).scalar_one_or_none()
 
@@ -129,10 +125,7 @@ class TierService:
             max_depth=1,
         )
 
-        base_query = (
-            select(Tier)
-            .where(Tier.is_deleted.is_(False))
-        )
+        base_query = select(Tier)
         result = await engine.search(
             base_query=base_query,
             values=search_request,
@@ -160,7 +153,6 @@ class TierService:
         db_tiers = (
             await self.db.execute(
                 select(Tier)
-                .where(Tier.is_deleted.is_(False))
                 .offset(compute_offset(page, items_per_page))
                 .limit(items_per_page)
             )
@@ -170,7 +162,6 @@ class TierService:
             await self.db.execute(
                 select(func.count())
                 .select_from(Tier)
-                .where(Tier.is_deleted.is_(False))
             )
         ).scalar_one()
 
@@ -236,87 +227,6 @@ class TierService:
 
             raise NonTransientDatabaseError(
                 "Failed to update the tier."
-            ) from error
-
-    async def soft_delete(
-        self,
-        *,
-        actor: Actor,
-        tier_id: int,
-    ) -> None:
-        if actor.actor_type != ActorType.ADMIN_USER:
-            raise ForbiddenError("Admin privileges are required to delete a tier.")
-
-        statement = (
-            update(Tier)
-            .where(
-                Tier.id == tier_id,
-                Tier.is_deleted.is_(False),
-            )
-            .values(
-                deleted_at=func.now(),
-                is_deleted=True,
-            )
-        )
-
-        try:
-            await self.db.execute(statement)
-            await self.db.commit()
-
-        except OperationalError as error:
-            await self.db.rollback()
-
-            raise TransientDatabaseError(
-                "Failed to delete the tier. Please try again later."
-            ) from error
-
-        except SQLAlchemyError as error:
-            await self.db.rollback()
-
-            raise NonTransientDatabaseError(
-                "Failed to delete the tier."
-            ) from error
-
-    async def bulk_soft_delete(
-        self,
-        *,
-        actor: Actor,
-        tier_ids: set[int],
-    ) -> None:
-        if actor.actor_type != ActorType.ADMIN_USER:
-            raise ForbiddenError("Admin privileges are required to delete tiers in bulk.")
-
-        if not tier_ids:
-            return
-
-        statement = (
-            update(Tier)
-            .where(
-                Tier.id == any_(list(tier_ids)),
-                Tier.is_deleted.is_(False),
-            )
-            .values(
-                deleted_at=func.now(),
-                is_deleted=True,
-            )
-        )
-
-        try:
-            await self.db.execute(statement)
-            await self.db.commit()
-
-        except OperationalError as error:
-            await self.db.rollback()
-
-            raise TransientDatabaseError(
-                "Failed to delete tiers. Please try again later."
-            ) from error
-
-        except SQLAlchemyError as error:
-            await self.db.rollback()
-
-            raise NonTransientDatabaseError(
-                "Failed to delete tiers."
             ) from error
 
     async def hard_delete(
