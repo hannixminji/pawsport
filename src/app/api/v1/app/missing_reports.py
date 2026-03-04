@@ -87,21 +87,6 @@ async def get_missing_report(
     return await service.get_missing_report(actor=actor, missing_report_id=missing_report_id)
 
 
-@router.patch("/{missing_report_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="app:missing-reports:detail",
-    resource_id_name="missing_report_id",
-    namespaces_to_invalidate=["app:missing-reports"],
-)
-async def soft_delete_missing_report(
-    request: Request,
-    missing_report_id: int,
-    actor: ActorDependency,
-    service: MissingReportServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, missing_report_id=missing_report_id)
-
-
 @router.patch("/{missing_report_id}/status", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="app:missing-reports:detail",

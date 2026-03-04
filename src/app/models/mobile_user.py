@@ -7,16 +7,19 @@ from geoalchemy2.elements import WKBElement
 from geoalchemy2.shape import to_shape
 from shapely.geometry import Point
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from uuid6 import uuid7
 
 from ..core.db.database import Base
 from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
+from ..core.enums import MobileUserAccountStatus
 from ..core.utils.google_cloud_storage import generate_view_signed_url
 
 if TYPE_CHECKING:
     from .device_push_token import DevicePushToken
+    from .mobile_user_token import MobileUserToken
     from .notification_preference import NotificationPreference
     from .pet import Pet
     from .pet_inventory import PetInventory
@@ -67,6 +70,14 @@ class MobileUser(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     )
     device_push_tokens: Mapped[list["DevicePushToken"]] = relationship(
         "DevicePushToken",
+        back_populates="mobile_user",
+        cascade="delete, delete-orphan",
+        lazy="raise",
+        passive_deletes=True,
+        init=False,
+    )
+    tokens: Mapped[list["MobileUserToken"]] = relationship(
+        "MobileUserToken",
         back_populates="mobile_user",
         cascade="delete, delete-orphan",
         lazy="raise",
@@ -145,6 +156,16 @@ class MobileUser(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         default=None,
         server_default=text("NULL"),
     )
+    account_status: Mapped[MobileUserAccountStatus] = mapped_column(
+        SQLEnum(
+            MobileUserAccountStatus,
+            name="mobile_user_account_status_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=MobileUserAccountStatus.ACTIVE,
+        server_default=text(f"'{MobileUserAccountStatus.ACTIVE.value}'::mobile_user_account_status_enum"),
+    )
 
     uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, default_factory=uuid7, init=False)
 
@@ -156,6 +177,12 @@ class MobileUser(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         init=False,
     )
 
+    is_email_verified: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false")
+    )
     is_anonymous: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
 
     @property
@@ -198,6 +225,11 @@ class MobileUser(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
             "idx_mobile_user_nearby_report_alert_location_active",
             "nearby_report_alert_location",
             postgresql_using="gist",
+            postgresql_where=text("is_deleted = false"),
+        ),
+        Index(
+            "idx_mobile_user_is_email_verified_active",
+            "is_email_verified",
             postgresql_where=text("is_deleted = false"),
         ),
     )

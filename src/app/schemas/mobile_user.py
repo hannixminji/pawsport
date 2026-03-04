@@ -3,17 +3,18 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Request
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, conint, field_validator
 from pydantic_extra_types.phone_numbers import PhoneNumber
 
-from ..core.enums import ActorType
+from ..core.enums import ActorType, MobileUserAccountStatus
 from ..core.schemas import Actor, GeoPoint, PersistentDeletion, StrongPassword, TimestampSchema
 from ..core.security import get_client_ip
+
+PositiveInt = conint(gt=0)
 
 
 class MobileUserBase(BaseModel):
     username: Annotated[str, Field(min_length=3, max_length=20, pattern=r"^[a-z0-9]+$", examples=["userson"])]
-    email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
     first_name: Annotated[str | None, Field(min_length=2, max_length=30, examples=["John"], default=None)]
     last_name: Annotated[str | None, Field(min_length=2, max_length=30, examples=["Doe"], default=None)]
     phone_number: Annotated[PhoneNumber | None, Field(examples=["+639123456789"], default=None)]
@@ -33,11 +34,11 @@ class MobileUserBase(BaseModel):
     state_province_region: Annotated[str | None, Field(max_length=100, examples=["Metro Manila"], default=None)]
     postal_code: Annotated[str | None, Field(max_length=16, examples=["1400"], default=None)]
 
-    @field_validator("username", "email", mode="before")
+    @field_validator("username", mode="before")
     @classmethod
-    def normalize_username_and_email(cls, v):
+    def normalize_username(cls, v):
         if isinstance(v, str):
-            return v.strip().lower()
+            return v.strip()
         return v
 
     @field_validator(
@@ -114,6 +115,9 @@ class MobileUserBase(BaseModel):
 
 
 class MobileUser(TimestampSchema, MobileUserBase, PersistentDeletion):
+    is_anonymous: bool
+    is_email_verified: bool
+    email: EmailStr | None
     tier_id: int | None = None
     hashed_password: str | None = None
     nearby_report_alert_location: dict[str, float] | None = None
@@ -124,10 +128,11 @@ class MobileUserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    username: str
-    email: EmailStr
     uuid: UUID
+    is_email_verified: bool
     created_at: datetime
+    username: str | None
+    email: EmailStr | None
     first_name: str | None
     last_name: str | None
     phone_number: str | None
@@ -177,6 +182,35 @@ class MobileActor(BaseModel):
 class MobileUserCreate(MobileUserBase):
     model_config = ConfigDict(extra="forbid")
 
+    email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+
+class MobileUserRegister(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
+    password: Annotated[StrongPassword, Field(examples=["Str1ngst!"])]
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+
+class MobileUserVerifyEmail(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, Field(min_length=43, max_length=43, examples=["abc123xyz..."])]
+
 
 class MobileUserUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -191,7 +225,6 @@ class MobileUserUpdate(BaseModel):
             default=None,
         ),
     ]
-    email: Annotated[EmailStr | None, Field(examples=["new@example.com"], default=None)]
     first_name: Annotated[str | None, Field(min_length=2, max_length=30, examples=["New"], default=None)]
     last_name: Annotated[str | None, Field(min_length=2, max_length=30, examples=["Name"], default=None)]
     phone_number: Annotated[PhoneNumber | None, Field(examples=["+639123456789"], default=None)]
@@ -212,12 +245,11 @@ class MobileUserUpdate(BaseModel):
     postal_code: Annotated[str | None, Field(max_length=16, examples=["1400"], default=None)]
     nearby_report_alert_location: Annotated[GeoPoint | None, Field(default=None)]
 
-    @field_validator("username", "email", mode="before")
+    @field_validator("username", mode="before")
     @classmethod
-    def normalize_username_and_email(cls, v):
+    def normalize_username(cls, v):
         if isinstance(v, str):
-            stripped = v.strip().lower()
-            return stripped if stripped else None
+            return v.strip()
         return v
 
     @field_validator("first_name", "last_name", mode="before")
@@ -291,8 +323,35 @@ class MobileUserUpdate(BaseModel):
         return v
 
 
+class MobileUserEmailUpdate(BaseModel):
+    new_email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
+
+
 class MobileUserTierUpdate(BaseModel):
     tier_id: Annotated[int, Field(gt=0)]
+
+
+class MobileUserAccountStatusUpdate(BaseModel):
+    account_status: MobileUserAccountStatus
+
+
+class MobileUserBulkTierUpdate(BaseModel):
+    user_ids: Annotated[set[int], Field(min_length=1, max_length=100)]
+    tier_id: Annotated[int | None, Field(ge=1, default=None)]
+
+    @field_validator("user_ids", mode="before")
+    @classmethod
+    def validate_ids(cls, v):
+        if not isinstance(v, list):
+            raise ValueError("user_ids must be a list")
+
+        if len(v) != len(set(v)):
+            raise ValueError("user_ids must not contain duplicates")
+
+        if any(id_ < 1 for id_ in v):
+            raise ValueError("each id must be >= 1")
+
+        return v
 
 
 class MobileUserPasswordUpdate(BaseModel):

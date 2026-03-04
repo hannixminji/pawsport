@@ -9,7 +9,13 @@ from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
 from app.core.utils.cache import cache, invalidate_namespace
-from app.schemas.mobile_user import MobileUserCreate, MobileUserPasswordUpdate, MobileUserRead, MobileUserUpdate
+from app.schemas.mobile_user import (
+    MobileUserAccountStatusUpdate,
+    MobileUserCreate,
+    MobileUserPasswordUpdate,
+    MobileUserRead,
+    MobileUserUpdate,
+)
 from app.services.mobile_user_service import MobileUserService
 
 router = CSRFProtectedRouter(prefix="/mobile-users", tags=["Mobile Users"])
@@ -126,6 +132,22 @@ async def update_mobile_user_tier(
     tier_id: Annotated[int | None, Query(alias="tierId")] = None,
 ) -> None:
     await service.update_tier(actor=actor, user_id=user_id, tier_id=tier_id)
+
+
+@router.patch("/{user_id}/account-status", status_code=status.HTTP_204_NO_CONTENT)  # ← here
+@cache(
+    key_prefix="admin:mobile-users:detail",
+    resource_id_name="user_id",
+    namespaces_to_invalidate=["admin:mobile-users"],
+)
+async def update_mobile_user_account_status(
+    request: Request,
+    user_id: int,
+    payload: MobileUserAccountStatusUpdate,
+    actor: Annotated[Actor, Depends(require_permission("mobile_user:update_account_status"))],
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.update_account_status(actor=actor, user_id=user_id, user_input=payload)
 
 
 @router.patch("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

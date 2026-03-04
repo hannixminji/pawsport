@@ -103,21 +103,6 @@ async def get_sighting_report(
     return await service.get_sighting_report(actor=actor, report_id=report_id, with_matches=with_matches)
 
 
-@router.patch("/{report_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="app:sighting-reports:detail",
-    resource_id_name="report_id",
-    namespaces_to_invalidate=["app:sighting-reports"],
-)
-async def soft_delete_sighting_report(
-    request: Request,
-    report_id: int,
-    actor: ActorDependency,
-    service: SightingReportServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, report_id=report_id)
-
-
 @router.patch("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="app:sighting-reports:detail",

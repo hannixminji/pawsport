@@ -113,6 +113,11 @@ PERMISSIONS: list[dict[str, str]] = [
         "description": "Update a mobile user tier",
     },
     {
+        "key": "mobile_user:update_account_status",
+        "name": "Update Mobile User Account Status",
+        "description": "Update a mobile user account status",
+    },
+    {
         "key": "mobile_user:update",
         "name": "Update Mobile User",
         "description": "Update a mobile user",
@@ -384,16 +389,6 @@ PERMISSIONS: list[dict[str, str]] = [
         "key": "tier:read",
         "name": "Read Tier",
         "description": "View tiers",
-    },
-    {
-        "key": "tier:bulk_soft_delete",
-        "name": "Bulk Soft Delete Tiers",
-        "description": "Soft-delete multiple tiers",
-    },
-    {
-        "key": "tier:soft_delete",
-        "name": "Soft Delete Tier",
-        "description": "Soft-delete a tier",
     },
     {
         "key": "tier:update",

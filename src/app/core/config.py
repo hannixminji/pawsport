@@ -16,34 +16,20 @@ class AppSettings(BaseSettings):
     CONTACT_EMAIL: str | None = None
 
 
-class CryptSettings(BaseSettings):
-    SECRET_KEY: SecretStr = SecretStr("secret-key")
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+class EnvironmentOption(StrEnum):
+    LOCAL = "local"
+    STAGING = "staging"
+    PRODUCTION = "production"
 
 
-class Argon2Settings(BaseSettings):
-    TIME_COST: int = int(os.getenv("ARGON2_TIME_COST", 4))
-    MEMORY_COST: int = int(os.getenv("ARGON2_MEMORY_COST", 131072))
-    PARALLELISM: int = int(os.getenv("ARGON2_PARALLELISM", 4))
-    HASH_LEN: int = int(os.getenv("ARGON2_HASH_LEN", 32))
-    SALT_LEN: int = int(os.getenv("ARGON2_SALT_LEN", 16))
-    ENCODING: str = os.getenv("ARGON2_ENCODING", "utf-8")
-    TYPE: Type = Type.ID
+class EnvironmentSettings(BaseSettings):
+    ENVIRONMENT: EnvironmentOption = EnvironmentOption.LOCAL
 
-    @computed_field
-    @property
-    def password_hasher(self) -> PasswordHasher:
-        return PasswordHasher(
-            time_cost=self.TIME_COST,
-            memory_cost=self.MEMORY_COST,
-            parallelism=self.PARALLELISM,
-            hash_len=self.HASH_LEN,
-            salt_len=self.SALT_LEN,
-            encoding=self.ENCODING,
-            type=self.TYPE,
-        )
+
+class CORSSettings(BaseSettings):
+    CORS_ORIGINS: list[str] = ["*"]
+    CORS_METHODS: list[str] = ["*"]
+    CORS_HEADERS: list[str] = ["*"]
 
 
 class DatabaseSettings(BaseSettings):
@@ -98,22 +84,6 @@ class PostgresSettings(DatabaseSettings):
         return f"{credentials}@{location}"
 
 
-class FirstUserSettings(BaseSettings):
-    ADMIN_NAME: str = "admin"
-    ADMIN_EMAIL: str = "admin@admin.com"
-    ADMIN_USERNAME: str = "admin"
-    ADMIN_PASSWORD: SecretStr = SecretStr("!Ch4ng3Th1sP4ssW0rd!")
-
-
-class TierSettings(BaseSettings):
-    TIER_NAME: str = "free"
-    DEFAULT_TIER: str = "free"
-
-
-class TestSettings(BaseSettings):
-    ...
-
-
 class RedisCacheSettings(BaseSettings):
     REDIS_CACHE_HOST: str = "localhost"
     REDIS_CACHE_PORT: int = 6379
@@ -141,10 +111,6 @@ class RedisAdminSessionSettings(BaseSettings):
         return f"redis://{self.REDIS_ADMIN_SESSION_HOST}:{self.REDIS_ADMIN_SESSION_PORT}/{self.REDIS_ADMIN_SESSION_DB}"
 
 
-class ClientSideCacheSettings(BaseSettings):
-    CLIENT_CACHE_MAX_AGE: int = 60
-
-
 class RedisQueueSettings(BaseSettings):
     REDIS_QUEUE_HOST: str = "localhost"
     REDIS_QUEUE_PORT: int = 6379
@@ -160,12 +126,38 @@ class RedisRateLimiterSettings(BaseSettings):
         return f"redis://{self.REDIS_RATE_LIMIT_HOST}:{self.REDIS_RATE_LIMIT_PORT}"
 
 
-class DefaultRateLimitSettings(BaseSettings):
-    DEFAULT_RATE_LIMIT_LIMIT: int = 10
-    DEFAULT_RATE_LIMIT_PERIOD: int = 3600
+class ClientSideCacheSettings(BaseSettings):
+    CLIENT_CACHE_MAX_AGE: int = 60
 
-    DEFAULT_GUEST_RATE_LIMIT_LIMIT: int = 5
-    DEFAULT_GUEST_RATE_LIMIT_PERIOD: int = 3600
+
+class CryptSettings(BaseSettings):
+    SECRET_KEY: SecretStr = SecretStr("secret-key")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+
+class Argon2Settings(BaseSettings):
+    TIME_COST: int = int(os.getenv("ARGON2_TIME_COST", 4))
+    MEMORY_COST: int = int(os.getenv("ARGON2_MEMORY_COST", 131072))
+    PARALLELISM: int = int(os.getenv("ARGON2_PARALLELISM", 4))
+    HASH_LEN: int = int(os.getenv("ARGON2_HASH_LEN", 32))
+    SALT_LEN: int = int(os.getenv("ARGON2_SALT_LEN", 16))
+    ENCODING: str = os.getenv("ARGON2_ENCODING", "utf-8")
+    TYPE: Type = Type.ID
+
+    @computed_field
+    @property
+    def password_hasher(self) -> PasswordHasher:
+        return PasswordHasher(
+            time_cost=self.TIME_COST,
+            memory_cost=self.MEMORY_COST,
+            parallelism=self.PARALLELISM,
+            hash_len=self.HASH_LEN,
+            salt_len=self.SALT_LEN,
+            encoding=self.ENCODING,
+            type=self.TYPE,
+        )
 
 
 class AdminSessionSettings(BaseSettings):
@@ -186,20 +178,30 @@ class AdminAuthSettings(BaseSettings):
     LOGIN_MAX_ATTEMPTS_PER_IP: int = 10
 
 
-class EnvironmentOption(StrEnum):
-    LOCAL = "local"
-    STAGING = "staging"
-    PRODUCTION = "production"
+class DefaultRateLimitSettings(BaseSettings):
+    DEFAULT_RATE_LIMIT_LIMIT: int = 10
+    DEFAULT_RATE_LIMIT_PERIOD: int = 3600
+
+    DEFAULT_GUEST_RATE_LIMIT_LIMIT: int = 5
+    DEFAULT_GUEST_RATE_LIMIT_PERIOD: int = 3600
 
 
-class EnvironmentSettings(BaseSettings):
-    ENVIRONMENT: EnvironmentOption = EnvironmentOption.LOCAL
+class UserTokenSettings(BaseSettings):
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 30
+    EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES: int = 30
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 15
 
 
-class CORSSettings(BaseSettings):
-    CORS_ORIGINS: list[str] = ["*"]
-    CORS_METHODS: list[str] = ["*"]
-    CORS_HEADERS: list[str] = ["*"]
+class FirstUserSettings(BaseSettings):
+    ADMIN_NAME: str = "admin"
+    ADMIN_EMAIL: str = "admin@admin.com"
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: SecretStr = SecretStr("!Ch4ng3Th1sP4ssW0rd!")
+
+
+class TierSettings(BaseSettings):
+    TIER_NAME: str = "free"
+    DEFAULT_TIER: str = "free"
 
 
 class GCSSettings(BaseSettings):
@@ -210,6 +212,11 @@ class GCSSettings(BaseSettings):
     GCS_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES: int = 60
     GCS_RESUMABLE_UPLOAD_SIGNED_URL_EXPIRATION_MINUTES: int = 60
     GOOGLE_APPLICATION_CREDENTIALS_JSON: SecretStr | None = None
+
+
+class EmailSettings(BaseSettings):
+    RESEND_API_KEY: SecretStr = SecretStr("")
+    RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
 
 
 class QdrantCloudSettings(BaseSettings):
@@ -229,30 +236,36 @@ class PetSettings(BaseSettings):
     QR_BASE_URL: str = "http://localhost:8000/api/v1/pets/qr"
 
 
+class TestSettings(BaseSettings):
+    ...
+
+
 class Settings(
     AppSettings,
-    SQLiteSettings,
-    PostgresSettings,
-    CryptSettings,
-    Argon2Settings,
-    FirstUserSettings,
-    TierSettings,
-    TestSettings,
-    RedisCacheSettings,
-    RedisAdminSessionSettings,
-    ClientSideCacheSettings,
-    RedisQueueSettings,
-    RedisRateLimiterSettings,
-    DefaultRateLimitSettings,
-    AdminSessionSettings,
-    AdminAuthSettings,
     EnvironmentSettings,
     CORSSettings,
+    SQLiteSettings,
+    PostgresSettings,
+    RedisCacheSettings,
+    RedisAdminSessionSettings,
+    RedisQueueSettings,
+    RedisRateLimiterSettings,
+    ClientSideCacheSettings,
+    CryptSettings,
+    Argon2Settings,
+    AdminSessionSettings,
+    AdminAuthSettings,
+    DefaultRateLimitSettings,
+    UserTokenSettings,
+    FirstUserSettings,
+    TierSettings,
     GCSSettings,
+    EmailSettings,
     QdrantCloudSettings,
     NotificationSettings,
     MLServiceSettings,
     PetSettings,
+    TestSettings,
 ):
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", ".env"),

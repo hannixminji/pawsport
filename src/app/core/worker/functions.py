@@ -5,6 +5,7 @@ import logging
 
 import firebase_admin
 import httpx
+import resend
 import uvloop
 from arq.worker import Worker
 from qdrant_client.http.models import PointStruct
@@ -24,6 +25,31 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 async def sample_background_task(ctx: Worker, name: str) -> str:
     await asyncio.sleep(5)
     return f"Task {name} is complete!"
+
+
+async def send_email_task(
+    ctx: Worker,
+    *,
+    to_email: str,
+    subject: str,
+    html: str,
+) -> None:
+    try:
+        logging.info(f"Sending email to {to_email} (subject={subject})")
+
+        resend.api_key = settings.RESEND_API_KEY.get_secret_value()
+        resend.Emails.send({
+            "from": settings.RESEND_FROM_EMAIL,
+            "to": to_email,
+            "subject": subject,
+            "html": html,
+        })
+
+        logging.info(f"Email sent successfully to {to_email}")
+
+    except Exception as error:
+        logging.exception(f"send_email_task failed for {to_email}: {error}")
+        raise
 
 
 async def extract_features_task(ctx, data: list[dict], collection_name: str = "pet_photos"):

@@ -5,6 +5,7 @@ from .article import Article
 from .device_push_token import DevicePushToken
 from .missing_report import MissingReport
 from .mobile_user import MobileUser
+from .mobile_user_token import MobileUserToken
 from .notification_preference import NotificationPreference
 from .pet import Pet
 from .pet_allergy import PetAllergy

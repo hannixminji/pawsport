@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -13,6 +14,8 @@ from .core.exceptions.db_exceptions import NonTransientDatabaseError, TransientD
 from .core.exceptions.domain_exceptions import InvalidInputError, NotFoundError
 from .core.setup import create_application, lifespan_factory
 from .core.utils.qdrant_cloud import init_collections
+
+LOGGER = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -59,3 +62,9 @@ async def transient_db_error_handler(request: Request, error: TransientDatabaseE
 @app.exception_handler(NonTransientDatabaseError)
 async def non_transient_db_error_handler(request: Request, error: NonTransientDatabaseError) -> JSONResponse:
     return JSONResponse(status_code=500, content={"detail": str(error)})
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, error: Exception) -> JSONResponse:
+    LOGGER.exception("Unhandled exception on request %s", request.state.request_id)
+    return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred. Please try again later."})

@@ -13,11 +13,25 @@ class AdminAccountStatus(StrEnum):
     SUSPENDED = "suspended"
 
 
+class MobileUserAccountStatus(StrEnum):
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    BANNED = "banned"
+    DEACTIVATED = "deactivated"
+
+
 # -------------- auth --------------
 class AuthProvider(StrEnum):
     GOOGLE = "google.com"
     EMAIL = "email"
     ANONYMOUS = "anonymous"
+
+
+# -------------- tokens --------------
+class UserTokenType(StrEnum):
+    EMAIL_VERIFICATION = "email_verification"
+    EMAIL_CHANGE = "email_change"
+    PASSWORD_RESET = "password_reset"
 
 
 # -------------- pet --------------

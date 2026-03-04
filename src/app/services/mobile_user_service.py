@@ -4,7 +4,7 @@ from typing import ClassVar
 
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import any_, delete, func, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,8 +21,9 @@ from ..core.utils.google_cloud_storage import is_object_exists
 from ..core.utils.pagination import compute_offset
 from ..core.utils.update import apply_partial_update
 from ..models.mobile_user import MobileUser
+from ..models.tier import Tier
 from ..models.user_linked_account import UserLinkedAccount
-from ..schemas.mobile_user import MobileUserCreate, MobileUserRead, MobileUserUpdate
+from ..schemas.mobile_user import MobileUserAccountStatusUpdate, MobileUserCreate, MobileUserRead, MobileUserUpdate
 
 LOGGER = logging.getLogger(__name__)
 
@@ -111,6 +112,14 @@ class MobileUserService:
             query = query.where(MobileUser.id == actor.id)
 
         return (await self.db.execute(query)).scalar_one_or_none()
+
+    async def _get_tier_by_id(self, tier_id: int) -> Tier | None:
+        return (
+            await self.db.execute(
+                select(Tier)
+                .where(Tier.id == tier_id)
+            )
+        ).scalar_one_or_none()
 
     async def create(
         self,
@@ -440,6 +449,87 @@ class MobileUserService:
                 "Failed to update tier."
             ) from error
 
+    async def bulk_update_tier(
+        self,
+        *,
+        actor: Actor,
+        user_ids: set[int],
+        tier_id: int,
+    ) -> None:
+        if actor.actor_type != ActorType.ADMIN_USER:
+            raise ForbiddenError("Admin privileges are required to update user tiers.")
+
+        tier = await self._get_tier_by_id(tier_id)
+        if tier is None:
+            raise NotFoundError("Tier not found.")
+
+        statement = (
+            update(MobileUser)
+            .where(
+                MobileUser.id == any_(list(user_ids)),
+                MobileUser.is_deleted.is_(False),
+            )
+            .values(tier_id=tier_id)
+        )
+
+        try:
+            await self.db.execute(statement)
+            await self.db.commit()
+
+        except OperationalError as error:
+            await self.db.rollback()
+
+            raise TransientDatabaseError(
+                "Failed to update user tiers. Please try again later."
+            ) from error
+
+        except SQLAlchemyError as error:
+            await self.db.rollback()
+
+            raise NonTransientDatabaseError(
+                "Failed to update user tiers."
+            ) from error
+
+    async def update_account_status(
+        self,
+        *,
+        actor: Actor,
+        user_id: int,
+        user_input: MobileUserAccountStatusUpdate,
+    ) -> None:
+        if actor.actor_type != ActorType.ADMIN_USER:
+            raise ForbiddenError("Admin privileges are required to update a user's account status.")
+
+        statement = (
+            update(MobileUser)
+            .where(
+                MobileUser.id == user_id,
+                MobileUser.is_deleted.is_(False),
+            )
+            .values(account_status=user_input.account_status)
+        )
+
+        try:
+            result = await self.db.execute(statement)
+            if result.rowcount == 0:
+                raise NotFoundError("User not found.")
+
+            await self.db.commit()
+
+        except OperationalError as error:
+            await self.db.rollback()
+
+            raise TransientDatabaseError(
+                "Failed to update account status. Please try again later."
+            ) from error
+
+        except SQLAlchemyError as error:
+            await self.db.rollback()
+
+            raise NonTransientDatabaseError(
+                "Failed to update account status."
+            ) from error
+
     async def soft_delete(
         self,
         *,
@@ -499,6 +589,7 @@ class MobileUserService:
 
         except IntegrityError as error:
             await self.db.rollback()
+
             raise InvalidInputError(
                 "Unable to delete the user because it is referenced by other records."
             ) from error
