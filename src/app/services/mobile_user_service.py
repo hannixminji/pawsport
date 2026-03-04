@@ -291,9 +291,8 @@ class MobileUserService:
         if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
             raise ForbiddenError("You do not have permission to update this user.")
 
-        db_user = await self._get_mobile_user(user_id, actor)
-        if db_user is None:
-            raise NotFoundError("User not found.")
+        if actor.actor_type == ActorType.MOBILE_USER:
+            user_id = actor.id
 
         if user_input.profile_image_object_key is not None:
             if not is_object_exists(user_input.profile_image_object_key):
@@ -323,7 +322,10 @@ class MobileUserService:
         )
 
         try:
-            await self.db.execute(statement)
+            result = await self.db.execute(statement)
+            if result.rowcount == 0:
+                raise NotFoundError("User not found.")
+
             await self.db.commit()
 
         except IntegrityError as error:
