@@ -101,7 +101,7 @@ class UploadService:
                 "Generating signed upload policy",
                 extra={
                     "actor_id": str(actor.id),
-                    "filename": filename,
+                    "original_filename": filename,
                     "extension": extension,
                     "content_type": content_type,
                 },
