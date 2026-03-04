@@ -5,7 +5,6 @@ from .auth import router as auth_router
 from .device_push_tokens import router as device_push_token_router
 from .missing_reports import router as missing_report_router
 from .notification_preferences import router as notification_preference_router
-from .users import router as user_router
 from .pet_allergies import router as pet_allergy_router
 from .pet_inventories import router as pet_inventory_router
 from .pet_medical_conditions import router as pet_medical_condition_router
@@ -16,6 +15,7 @@ from .pet_vaccination_records import router as pet_vaccination_record_router
 from .pets import router as pet_router
 from .sighting_reports import router as sighting_report_router
 from .uploads import router as upload_router
+from .users import router as user_router
 
 router = APIRouter()
 router.include_router(auth_router)

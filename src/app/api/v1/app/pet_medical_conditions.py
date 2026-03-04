@@ -8,7 +8,11 @@ from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
 from app.core.utils.cache import cache, invalidate_namespace
-from app.schemas.pet_medical_condition import PetMedicalConditionCreate, PetMedicalConditionRead, PetMedicalConditionUpdate
+from app.schemas.pet_medical_condition import (
+    PetMedicalConditionCreate,
+    PetMedicalConditionRead,
+    PetMedicalConditionUpdate,
+)
 from app.services.pet_medical_condition_service import PetMedicalConditionService
 
 router = APIRouter(prefix="/medical-conditions", tags=["Pet Medical Conditions"])
