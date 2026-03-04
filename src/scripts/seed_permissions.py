@@ -435,13 +435,14 @@ async def seed_permissions(session: AsyncSession) -> None:
         logger.info("No permissions defined. Skipping.")
         return
 
-    stmt = pg_insert(AdminPermission).values(PERMISSIONS)
-    stmt = stmt.on_conflict_do_nothing(index_elements=["key"])
+    statement = pg_insert(AdminPermission).values(PERMISSIONS)
+    statement = statement.on_conflict_do_nothing(index_elements=["key"])
 
     try:
-        await session.execute(stmt)
+        await session.execute(statement)
         await session.commit()
         logger.info("Permissions seeding complete (duplicates skipped automatically).")
+
     except Exception:
         await session.rollback()
         logger.exception("Failed to seed permissions.")

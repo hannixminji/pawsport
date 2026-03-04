@@ -200,8 +200,10 @@ class FirstUserSettings(BaseSettings):
 
 
 class TierSettings(BaseSettings):
-    TIER_NAME: str = "free"
-    DEFAULT_TIER: str = "free"
+    FREE_TIER_NAME: str = "free"
+    GUEST_TIER_NAME: str = "guest"
+    DEFAULT_MOBILE_USER_TIER: str = "free"
+    DEFAULT_GUEST_USER_TIER: str = "guest"
 
 
 class GCSSettings(BaseSettings):

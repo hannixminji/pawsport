@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import get_current_mobile_user
+from app.core.config import settings
 from app.core.db.database import async_get_db
 from app.core.enums import AuthProvider
 from app.core.exceptions.http_exceptions import DuplicateValueException, UnauthorizedException
@@ -24,6 +25,7 @@ from app.core.security import (
     verify_firebase_token,
 )
 from app.models.mobile_user import MobileUser
+from app.models.tier import Tier
 from app.models.user_linked_account import UserLinkedAccount
 from app.schemas.mobile_user import MobileActor, MobileUserRead
 
@@ -44,6 +46,16 @@ def is_unique_constraint_violation(error: IntegrityError, constraint_name: str) 
         return False
 
     return constraint_name in str(original_exception)
+
+
+async def _get_tier_id_by_name(db: AsyncSession, name: str) -> int | None:
+    tier = (
+        await db.execute(
+            select(Tier).
+            where(Tier.name == name)
+        )
+    ).scalar_one_or_none()
+    return tier.id if tier else None
 
 
 @router.post("/google", response_model=MobileUserRead)
@@ -132,9 +144,12 @@ async def login_or_signup(
         await db.refresh(mobile_user)
         return MobileUserRead.model_validate(mobile_user)
 
+    free_tier_id = await _get_tier_id_by_name(db, settings.FREE_TIER_NAME)
+
     base_username = f"user{uuid.uuid4().hex[:10]}"
     new_user = MobileUser(
         username=base_username,
+        tier_id=free_tier_id,
         email=email,
     )
     db.add(new_user)
@@ -219,8 +234,11 @@ async def guest_login(
 ) -> TokenResponse:
     guest_uid = str(uuid.uuid4())
 
+    guest_tier_id = await _get_tier_id_by_name(db, settings.GUEST_TIER_NAME)
+
     new_user = MobileUser(
         username=f"guest{uuid.uuid4().hex[:10]}",
+        tier_id=guest_tier_id,
         is_anonymous=True,
     )
     db.add(new_user)
