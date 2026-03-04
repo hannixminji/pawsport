@@ -1,9 +1,9 @@
 import asyncio
 import logging
+import os
 
 from sqlalchemy import select
 
-from app.core.config import settings
 from app.core.db.database import AsyncSession, local_session
 from app.models.tier import Tier
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 async def create_first_tier(session: AsyncSession) -> None:
     try:
-        tier_name = settings.TIER_NAME
+        tier_name = os.environ.get("TIER_NAME", "Free")
 
         query = select(Tier).where(Tier.name == tier_name)
         result = await session.execute(query)

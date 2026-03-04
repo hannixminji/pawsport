@@ -300,12 +300,3 @@ class MobileUserPasswordUpdate(BaseModel):
 
     current_password: Annotated[StrongPassword, Field(examples=["CurrentPass123!"])]
     new_password: Annotated[StrongPassword, Field(examples=["NewPass456@"])]
-
-
-# Resolve the forward reference to MobileUserRead in TokenResponse.
-# By the time this module finishes loading, both core/schemas (imported above)
-# and MobileUserRead (defined above) are available.
-from ..core.schemas import TokenResponse as _TokenResponse  # noqa: E402
-_TokenResponse.model_rebuild(_types_namespace={"MobileUserRead": MobileUserRead})
-
-

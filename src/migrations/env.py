@@ -13,6 +13,27 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.core.config import settings
 from app.core.db.database import Base
 
+POSTGIS_TABLES = {
+    "spatial_ref_sys", "geography_columns", "geometry_columns",
+    "raster_columns", "raster_overviews",
+}
+POSTGIS_SCHEMAS = {"topology", "tiger", "tiger_data"}
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == "table":
+        if name in POSTGIS_TABLES:
+            return False
+        schema = getattr(object, "schema", None)
+        if schema in POSTGIS_SCHEMAS:
+            return False
+        if reflected and compare_to is None:
+            return False
+    if type_ == "schema" and name in POSTGIS_SCHEMAS:
+        return False
+    return True
+
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -50,10 +71,10 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        include_object=alembic_helpers.include_object,        # skip PostGIS system tables/schemas
-        process_revision_directives=alembic_helpers.writer,   # render spatial indexes correctly
-        render_item=alembic_helpers.render_item,              # render Geometry/Geography types correctly
-        include_schemas=True,                                 # needed to scan across schemas
+        include_object=include_object,
+        process_revision_directives=alembic_helpers.writer,
+        render_item=alembic_helpers.render_item,
+        include_schemas=True,
     )
 
     with context.begin_transaction():
@@ -64,10 +85,10 @@ def do_run_migrations(connection: Connection) -> None:
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
-        include_object=alembic_helpers.include_object,        # skip PostGIS system tables/schemas
-        process_revision_directives=alembic_helpers.writer,   # render spatial indexes correctly
-        render_item=alembic_helpers.render_item,              # render Geometry/Geography types correctly
-        include_schemas=True,                                 # needed to scan across schemas
+        include_object=include_object,
+        process_revision_directives=alembic_helpers.writer,
+        render_item=alembic_helpers.render_item,
+        include_schemas=True,
     )
 
     with context.begin_transaction():

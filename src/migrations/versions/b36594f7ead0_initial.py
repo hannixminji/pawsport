@@ -1,0 +1,1301 @@
+"""initial
+
+Revision ID: b36594f7ead0
+Revises:
+Create Date: 2026-03-04 09:46:40.314910
+
+"""
+from collections.abc import Sequence
+from typing import Union
+
+import sqlalchemy as sa
+from alembic import op
+from geoalchemy2 import Geography
+from sqlalchemy.dialects import postgresql
+
+revision: str = "b36594f7ead0"
+down_revision: Union[str, None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    # ── Sequences ─────────────────────────────────────────────────────────────
+    op.execute("CREATE SEQUENCE IF NOT EXISTS permission_bit_index_sequence START 1 INCREMENT 1")
+
+    # ── admin_permission ──────────────────────────────────────────────────────
+    op.create_table(
+        "admin_permission",
+        sa.Column("key", sa.String(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("description", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column(
+            "bit_index",
+            sa.Integer(),
+            server_default=sa.text("nextval('permission_bit_index_sequence')"),
+            nullable=False,
+        ),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("uq_admin_permission_bit_index", "admin_permission", ["bit_index"], unique=True)
+    op.create_index("uq_admin_permission_key", "admin_permission", ["key"], unique=True)
+
+    # ── admin_role ────────────────────────────────────────────────────────────
+    op.create_table(
+        "admin_role",
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("description", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("uq_admin_role_name", "admin_role", ["name"], unique=True)
+
+    # ── admin_user ────────────────────────────────────────────────────────────
+    op.create_table(
+        "admin_user",
+        sa.Column("username", sa.String(), nullable=False),
+        sa.Column("email", sa.String(), nullable=False),
+        sa.Column("hashed_password", sa.String(), nullable=False),
+        sa.Column("first_name", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("last_name", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("phone_number", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("profile_image_object_key", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("last_active_at", sa.DateTime(timezone=True), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("uuid", sa.UUID(), nullable=False),
+        sa.Column(
+            "account_status",
+            sa.Enum("active", "inactive", "suspended", name="admin_user_account_status_enum"),
+            server_default=sa.text("'active'::admin_user_account_status_enum"),
+            nullable=False,
+        ),
+        sa.Column("is_superuser", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_admin_user_account_status_active",
+        "admin_user",
+        ["account_status"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "uq_admin_user_email_active",
+        "admin_user",
+        ["email"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "uq_admin_user_phone_number_active",
+        "admin_user",
+        ["phone_number"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "uq_admin_user_username_active",
+        "admin_user",
+        ["username"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index("uq_admin_user_uuid", "admin_user", ["uuid"], unique=True)
+
+    # ── article ───────────────────────────────────────────────────────────────
+    op.create_table(
+        "article",
+        sa.Column("title", sa.String(), nullable=False),
+        sa.Column("content", sa.Text(), nullable=False),
+        sa.Column(
+            "category",
+            sa.Enum("care", "health", "nutrition", "training", "vet_visit", name="article_category_enum"),
+            nullable=True,
+        ),
+        sa.Column("summary", sa.Text(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column(
+            "tags",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'[]'::jsonb"),
+            nullable=False,
+        ),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_article_category_active",
+        "article",
+        ["category"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_article_tags_active",
+        "article",
+        ["tags"],
+        unique=False,
+        postgresql_using="gin",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "uq_article_title_active",
+        "article",
+        ["title"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── tier ──────────────────────────────────────────────────────────────────
+    op.create_table(
+        "tier",
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("uq_tier_name", "tier", ["name"], unique=True)
+
+    # ── admin join tables ─────────────────────────────────────────────────────
+    op.create_table(
+        "admin_role_permission",
+        sa.Column("admin_role_id", sa.Integer(), nullable=False),
+        sa.Column("admin_permission_id", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(["admin_permission_id"], ["admin_permission.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["admin_role_id"], ["admin_role.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("admin_role_id", "admin_permission_id"),
+    )
+    op.create_table(
+        "admin_user_permission",
+        sa.Column("admin_user_id", sa.Integer(), nullable=False),
+        sa.Column("admin_permission_id", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(["admin_permission_id"], ["admin_permission.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["admin_user_id"], ["admin_user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("admin_user_id", "admin_permission_id"),
+    )
+    op.create_table(
+        "admin_user_role",
+        sa.Column("admin_user_id", sa.Integer(), nullable=False),
+        sa.Column("admin_role_id", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(["admin_role_id"], ["admin_role.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["admin_user_id"], ["admin_user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("admin_user_id", "admin_role_id"),
+    )
+
+    # ── mobile_user ───────────────────────────────────────────────────────────
+    op.create_geospatial_table(
+        "mobile_user",
+        sa.Column("tier_id", sa.Integer(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("username", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("email", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("first_name", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("last_name", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("phone_number", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("profile_image_object_key", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("country", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("street_address_1", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("street_address_2", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("city", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("state_province_region", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("postal_code", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("last_active_at", sa.DateTime(timezone=True), server_default=sa.text("NULL"), nullable=True),
+        sa.Column(
+            "nearby_report_alert_location",
+            Geography(
+                geometry_type="POINT",
+                srid=4326,
+                dimension=2,
+                spatial_index=False,
+                from_text="ST_GeogFromText",
+                name="geography",
+            ),
+            server_default=sa.text("NULL"),
+            nullable=True,
+        ),
+        sa.Column("uuid", sa.UUID(), nullable=False),
+        sa.Column("is_anonymous", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["tier_id"], ["tier.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_geospatial_index(
+        "idx_mobile_user_nearby_report_alert_location_active",
+        "mobile_user",
+        ["nearby_report_alert_location"],
+        unique=False,
+        postgresql_using="gist",
+        postgresql_where=sa.text("is_deleted = false"),
+        postgresql_ops={},
+    )
+    op.create_index(
+        "idx_mobile_user_tier_id_active",
+        "mobile_user",
+        ["tier_id"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "uq_mobile_user_email_active",
+        "mobile_user",
+        ["email"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false AND email IS NOT NULL"),
+    )
+    op.create_index(
+        "uq_mobile_user_phone_number_active",
+        "mobile_user",
+        ["phone_number"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "uq_mobile_user_username_active",
+        "mobile_user",
+        ["username"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false AND username IS NOT NULL"),
+    )
+    op.create_index("uq_mobile_user_uuid", "mobile_user", ["uuid"], unique=True)
+
+    # ── rate_limit ────────────────────────────────────────────────────────────
+    op.create_table(
+        "rate_limit",
+        sa.Column("tier_id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("path", sa.String(), nullable=False),
+        sa.Column("limit", sa.Integer(), nullable=False),
+        sa.Column("period", sa.Integer(), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["tier_id"], ["tier.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("uq_rate_limit_tier_id_name", "rate_limit", ["tier_id", "name"], unique=True)
+    op.create_index("uq_rate_limit_tier_id_path", "rate_limit", ["tier_id", "path"], unique=True)
+
+    # ── device_push_token ─────────────────────────────────────────────────────
+    op.create_table(
+        "device_push_token",
+        sa.Column("mobile_user_id", sa.Integer(), nullable=False),
+        sa.Column(
+            "provider",
+            sa.Enum("fcm", "apns", "webpush", name="device_push_token_provider_enum"),
+            nullable=False,
+        ),
+        sa.Column(
+            "platform",
+            sa.Enum("ios", "android", "web", name="device_push_token_platform_enum"),
+            nullable=False,
+        ),
+        sa.Column("token", sa.String(), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["mobile_user_id"], ["mobile_user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("idx_device_push_token_mobile_user_id", "device_push_token", ["mobile_user_id"], unique=False)
+    op.create_index("uq_device_push_token_provider_token", "device_push_token", ["provider", "token"], unique=True)
+
+    # ── notification_preference ───────────────────────────────────────────────
+    op.create_table(
+        "notification_preference",
+        sa.Column("mobile_user_id", sa.Integer(), nullable=False),
+        sa.Column("nearby_report_alerts_enabled", sa.Boolean(), server_default=sa.text("true"), nullable=False),
+        sa.Column("pet_schedule_reminders_enabled", sa.Boolean(), server_default=sa.text("true"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["mobile_user_id"], ["mobile_user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("mobile_user_id"),
+    )
+    op.create_index(
+        "idx_notification_preference_nearby_report_alerts_enabled",
+        "notification_preference",
+        ["nearby_report_alerts_enabled"],
+        unique=False,
+        postgresql_where=sa.text("nearby_report_alerts_enabled IS true"),
+    )
+
+    # ── pet ───────────────────────────────────────────────────────────────────
+    op.create_table(
+        "pet",
+        sa.Column("owner_id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("species", sa.Enum("dog", "cat", name="pet_species_enum"), nullable=False),
+        sa.Column("breed", sa.String(), nullable=False),
+        sa.Column("sex", sa.Enum("male", "female", name="pet_sex_enum"), nullable=False),
+        sa.Column("date_of_birth", sa.Date(), nullable=False),
+        sa.Column("color", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("markings", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("weight_kg", sa.Numeric(precision=5, scale=2), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("qr_code_object_key", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("uuid", sa.UUID(), nullable=False),
+        sa.Column("is_sterilized", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("is_missing", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["owner_id"], ["mobile_user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_pet_is_missing_active", "pet", ["is_missing"], unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_owner_id_active", "pet", ["owner_id"], unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_species_active", "pet", ["species"], unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index("uq_pet_qr_code_object_key", "pet", ["qr_code_object_key"], unique=True)
+    op.create_index("uq_pet_uuid", "pet", ["uuid"], unique=True)
+
+    # ── pet_inventory ─────────────────────────────────────────────────────────
+    op.create_table(
+        "pet_inventory",
+        sa.Column("owner_id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(), nullable=False),
+        sa.Column("inventory_type", sa.Enum("food", "medicine", name="pet_inventory_type_enum"), nullable=False),
+        sa.Column("quantity", sa.Numeric(precision=10, scale=2), nullable=False),
+        sa.Column(
+            "unit",
+            sa.Enum("kg", "g", "lb", "pcs", "bottles", "tablets", "ml", name="pet_inventory_unit_enum"),
+            nullable=False,
+        ),
+        sa.Column("expiration_date", sa.Date(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("notes", sa.Text(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["owner_id"], ["mobile_user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_pet_inventory_expiration_date_active",
+        "pet_inventory",
+        ["expiration_date"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_inventory_type_active",
+        "pet_inventory",
+        ["inventory_type"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "uq_pet_inventory_owner_id_name_active",
+        "pet_inventory",
+        ["owner_id", "name"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── pet_qr_default ────────────────────────────────────────────────────────
+    op.create_table(
+        "pet_qr_default",
+        sa.Column("owner_id", sa.Integer(), nullable=False),
+        sa.Column("show_owner_name", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("show_email", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("show_phone_number", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("show_address", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["owner_id"], ["mobile_user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("owner_id"),
+    )
+
+    # ── refresh_session ───────────────────────────────────────────────────────
+    op.create_table(
+        "refresh_session",
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("token_hash", sa.String(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("device_id", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("revoked_at", sa.DateTime(timezone=True), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(["user_id"], ["mobile_user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_refresh_session_user_id_revoked_at", "refresh_session", ["user_id", "revoked_at"], unique=False,
+    )
+    op.create_index("uq_refresh_session_token_hash", "refresh_session", ["token_hash"], unique=True)
+
+    # ── sighting_report ───────────────────────────────────────────────────────
+    op.create_geospatial_table(
+        "sighting_report",
+        sa.Column("pet_species", sa.Enum("dog", "cat", name="sighting_report_pet_species_enum"), nullable=False),
+        sa.Column("sighted_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "sighting_location",
+            Geography(
+                geometry_type="POINT",
+                srid=4326,
+                dimension=2,
+                spatial_index=False,
+                from_text="ST_GeogFromText",
+                name="geography",
+                nullable=False,
+            ),
+            nullable=False,
+        ),
+        sa.Column("sighting_address", sa.String(), nullable=False),
+        sa.Column("mobile_user_id", sa.Integer(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("description", sa.Text(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["mobile_user_id"], ["mobile_user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_sighting_report_mobile_user_id_active",
+        "sighting_report",
+        ["mobile_user_id"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_sighting_report_pet_species_active",
+        "sighting_report",
+        ["pet_species"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_sighting_report_sighted_at_active",
+        "sighting_report",
+        ["sighted_at"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_geospatial_index(
+        "idx_sighting_report_sighting_location_active",
+        "sighting_report",
+        ["sighting_location"],
+        unique=False,
+        postgresql_using="gist",
+        postgresql_where=sa.text("is_deleted = false"),
+        postgresql_ops={},
+    )
+
+    # ── user_linked_account ───────────────────────────────────────────────────
+    op.create_table(
+        "user_linked_account",
+        sa.Column("mobile_user_id", sa.Integer(), nullable=False),
+        sa.Column(
+            "provider",
+            sa.Enum("google.com", "email", "anonymous", name="user_linked_account_provider_enum"),
+            nullable=False,
+        ),
+        sa.Column("provider_user_id", sa.String(), nullable=False),
+        sa.Column("provider_email", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("hashed_password", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["mobile_user_id"], ["mobile_user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_user_linked_account_mobile_user_id_active",
+        "user_linked_account",
+        ["mobile_user_id"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "uq_user_linked_account_provider_provider_user_id_active",
+        "user_linked_account",
+        ["provider", "provider_user_id"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── missing_report ────────────────────────────────────────────────────────
+    op.create_geospatial_table(
+        "missing_report",
+        sa.Column("pet_id", sa.Integer(), nullable=False),
+        sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "last_seen_location",
+            Geography(
+                geometry_type="POINT",
+                srid=4326,
+                dimension=2,
+                spatial_index=False,
+                from_text="ST_GeogFromText",
+                name="geography",
+                nullable=False,
+            ),
+            nullable=False,
+        ),
+        sa.Column("last_seen_address", sa.String(), nullable=False),
+        sa.Column("description", sa.Text(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column(
+            "report_status",
+            sa.Enum("lost", "found", "returned", "fostered", "case_closed", name="missing_report_status_enum"),
+            server_default=sa.text("'lost'::missing_report_status_enum"),
+            nullable=False,
+        ),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["pet_id"], ["pet.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_missing_report_last_seen_at_active",
+        "missing_report",
+        ["last_seen_at"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_geospatial_index(
+        "idx_missing_report_last_seen_location_active",
+        "missing_report",
+        ["last_seen_location"],
+        unique=False,
+        postgresql_using="gist",
+        postgresql_where=sa.text("is_deleted = false"),
+        postgresql_ops={},
+    )
+    op.create_index(
+        "idx_missing_report_status_active",
+        "missing_report",
+        ["report_status"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "uq_missing_report_one_lost_per_pet_active",
+        "missing_report",
+        ["pet_id"],
+        unique=True,
+        postgresql_where=sa.text("report_status = 'lost' AND is_deleted = false"),
+    )
+
+    # ── pet_allergy ───────────────────────────────────────────────────────────
+    op.create_table(
+        "pet_allergy",
+        sa.Column("pet_id", sa.Integer(), nullable=False),
+        sa.Column("allergen", sa.String(), nullable=False),
+        sa.Column(
+            "allergen_type",
+            sa.Enum("food", "medication", "environmental", "other", name="pet_allergy_allergen_type_enum"),
+            nullable=False,
+        ),
+        sa.Column(
+            "severity",
+            sa.Enum("mild", "moderate", "severe", name="pet_allergy_severity_enum"),
+            nullable=False,
+        ),
+        sa.Column("reaction", sa.Text(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["pet_id"], ["pet.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_pet_allergy_allergen_type_active",
+        "pet_allergy",
+        ["allergen_type"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_allergy_severity_active",
+        "pet_allergy",
+        ["severity"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "uq_pet_allergy_pet_id_allergen_active",
+        "pet_allergy",
+        ["pet_id", "allergen"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── pet_inventory_image ───────────────────────────────────────────────────
+    op.create_table(
+        "pet_inventory_image",
+        sa.Column("inventory_id", sa.Integer(), nullable=False),
+        sa.Column("object_key", sa.String(), nullable=False),
+        sa.Column("sort_order", sa.Integer(), nullable=False),
+        sa.Column(
+            "mime_type",
+            sa.Enum("image/jpeg", "image/png", name="pet_inventory_image_mime_type_enum"),
+            server_default=sa.text("NULL"),
+            nullable=True,
+        ),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["inventory_id"], ["pet_inventory.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "uq_pet_inventory_image_inventory_id_sort_order_active",
+        "pet_inventory_image",
+        ["inventory_id", "sort_order"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── pet_medical_condition ─────────────────────────────────────────────────
+    op.create_table(
+        "pet_medical_condition",
+        sa.Column("pet_id", sa.Integer(), nullable=False),
+        sa.Column("condition_name", sa.String(), nullable=False),
+        sa.Column(
+            "severity",
+            sa.Enum("mild", "moderate", "severe", name="pet_medical_condition_severity_enum"),
+            nullable=False,
+        ),
+        sa.Column(
+            "condition_status",
+            sa.Enum("active", "resolved", "chronic", name="pet_medical_condition_status_enum"),
+            nullable=False,
+        ),
+        sa.Column("diagnosis_date", sa.Date(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("notes", sa.Text(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["pet_id"], ["pet.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_pet_medical_condition_pet_id_active",
+        "pet_medical_condition",
+        ["pet_id"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_medical_condition_severity_active",
+        "pet_medical_condition",
+        ["severity"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_medical_condition_status_active",
+        "pet_medical_condition",
+        ["condition_status"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── pet_medication ────────────────────────────────────────────────────────
+    op.create_table(
+        "pet_medication",
+        sa.Column("pet_id", sa.Integer(), nullable=False),
+        sa.Column("medication_name", sa.String(), nullable=False),
+        sa.Column("dosage", sa.String(), nullable=False),
+        sa.Column(
+            "administration_route",
+            sa.Enum(
+                "oral", "topical", "injection", "inhalation", "ocular", "otic", "other",
+                name="pet_medication_administration_route_enum",
+            ),
+            nullable=False,
+        ),
+        sa.Column(
+            "frequency",
+            sa.Enum(
+                "once_daily", "twice_daily", "three_times_daily", "every_other_day", "weekly", "as_needed",
+                name="pet_medication_frequency_enum",
+            ),
+            nullable=False,
+        ),
+        sa.Column("start_date", sa.Date(), nullable=False),
+        sa.Column(
+            "medication_status",
+            sa.Enum(
+                "active", "completed", "discontinued", "paused", "scheduled",
+                name="pet_medication_status_enum",
+            ),
+            nullable=False,
+        ),
+        sa.Column("end_date", sa.Date(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("notes", sa.Text(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["pet_id"], ["pet.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_pet_medication_administration_route_active",
+        "pet_medication",
+        ["administration_route"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_medication_pet_id_active",
+        "pet_medication",
+        ["pet_id"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_medication_status_active",
+        "pet_medication",
+        ["medication_status"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── pet_photo ─────────────────────────────────────────────────────────────
+    op.create_table(
+        "pet_photo",
+        sa.Column("pet_id", sa.Integer(), nullable=False),
+        sa.Column("object_key", sa.String(), nullable=False),
+        sa.Column("sort_order", sa.Integer(), nullable=False),
+        sa.Column(
+            "mime_type",
+            sa.Enum("image/jpeg", "image/png", name="pet_photo_mime_type_enum"),
+            server_default=sa.text("NULL"),
+            nullable=True,
+        ),
+        sa.Column("uuid", sa.UUID(), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["pet_id"], ["pet.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "uq_pet_photo_pet_id_sort_order_active",
+        "pet_photo",
+        ["pet_id", "sort_order"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── pet_qr_preference ─────────────────────────────────────────────────────
+    op.create_table(
+        "pet_qr_preference",
+        sa.Column("pet_id", sa.Integer(), nullable=False),
+        sa.Column("show_owner_name", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("show_email", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("show_phone_number", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("show_address", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("override_defaults", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["pet_id"], ["pet.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("pet_id"),
+    )
+
+    # ── pet_schedule ──────────────────────────────────────────────────────────
+    op.create_table(
+        "pet_schedule",
+        sa.Column("pet_id", sa.Integer(), nullable=False),
+        sa.Column("title", sa.String(), nullable=False),
+        sa.Column(
+            "schedule_type",
+            sa.Enum(
+                "vet_visit", "vaccination", "grooming", "food", "walk", "medicine", "play_time", "other",
+                name="pet_schedule_type_enum",
+            ),
+            nullable=False,
+        ),
+        sa.Column("scheduled_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("recurrence_rule", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("description", sa.Text(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("is_recurring", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["pet_id"], ["pet.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_pet_schedule_pet_id_active", "pet_schedule", ["pet_id"], unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_schedule_scheduled_at_active", "pet_schedule", ["scheduled_at"], unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_schedule_type_active", "pet_schedule", ["schedule_type"], unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── pet_vaccination_record ────────────────────────────────────────────────
+    op.create_table(
+        "pet_vaccination_record",
+        sa.Column("pet_id", sa.Integer(), nullable=False),
+        sa.Column("vaccine_name", sa.String(), nullable=False),
+        sa.Column(
+            "vaccine_type",
+            sa.Enum("core", "non_core", name="pet_vaccination_record_vaccine_type_enum"),
+            nullable=False,
+        ),
+        sa.Column("administered_date", sa.Date(), nullable=False),
+        sa.Column("next_due_date", sa.Date(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["pet_id"], ["pet.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "idx_pet_vaccination_record_next_due_date_active",
+        "pet_vaccination_record",
+        ["next_due_date"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_vaccination_record_pet_id_active",
+        "pet_vaccination_record",
+        ["pet_id"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.create_index(
+        "idx_pet_vaccination_record_vaccine_type_active",
+        "pet_vaccination_record",
+        ["vaccine_type"],
+        unique=False,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── sighting_report_image ─────────────────────────────────────────────────
+    op.create_table(
+        "sighting_report_image",
+        sa.Column("sighting_report_id", sa.Integer(), nullable=False),
+        sa.Column("object_key", sa.String(), nullable=False),
+        sa.Column("sort_order", sa.Integer(), nullable=False),
+        sa.Column(
+            "mime_type",
+            sa.Enum("image/jpeg", "image/png", name="sighting_report_image_mime_type_enum"),
+            server_default=sa.text("NULL"),
+            nullable=True,
+        ),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["sighting_report_id"], ["sighting_report.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "uq_sighting_report_image_sighting_report_id_sort_order_active",
+        "sighting_report_image",
+        ["sighting_report_id", "sort_order"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+    # ── pet_vaccination_record_attachment ─────────────────────────────────────
+    op.create_table(
+        "pet_vaccination_record_attachment",
+        sa.Column("vaccination_record_id", sa.Integer(), nullable=False),
+        sa.Column("object_key", sa.String(), nullable=False),
+        sa.Column("sort_order", sa.Integer(), nullable=False),
+        sa.Column("original_filename", sa.String(), server_default=sa.text("NULL"), nullable=True),
+        sa.Column(
+            "mime_type",
+            sa.Enum(
+                "application/pdf", "image/jpeg", "image/png",
+                name="pet_vaccination_record_attachment_mime_type_enum",
+            ),
+            server_default=sa.text("NULL"),
+            nullable=True,
+        ),
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_deleted", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.ForeignKeyConstraint(["vaccination_record_id"], ["pet_vaccination_record.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "uq_pet_vaccination_record_attachment_sort_order_active",
+        "pet_vaccination_record_attachment",
+        ["vaccination_record_id", "sort_order"],
+        unique=True,
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+
+
+def downgrade() -> None:
+    # ── pet_vaccination_record_attachment ─────────────────────────────────────
+    op.drop_index(
+        "uq_pet_vaccination_record_attachment_sort_order_active",
+        table_name="pet_vaccination_record_attachment",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("pet_vaccination_record_attachment")
+
+    # ── sighting_report_image ─────────────────────────────────────────────────
+    op.drop_index(
+        "uq_sighting_report_image_sighting_report_id_sort_order_active",
+        table_name="sighting_report_image",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("sighting_report_image")
+
+    # ── pet_vaccination_record ────────────────────────────────────────────────
+    op.drop_index(
+        "idx_pet_vaccination_record_vaccine_type_active",
+        table_name="pet_vaccination_record",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_vaccination_record_pet_id_active",
+        table_name="pet_vaccination_record",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_vaccination_record_next_due_date_active",
+        table_name="pet_vaccination_record",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("pet_vaccination_record")
+
+    # ── pet_schedule ──────────────────────────────────────────────────────────
+    op.drop_index(
+        "idx_pet_schedule_type_active", table_name="pet_schedule", postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_schedule_scheduled_at_active",
+        table_name="pet_schedule",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_schedule_pet_id_active", table_name="pet_schedule", postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("pet_schedule")
+
+    # ── pet_qr_preference ─────────────────────────────────────────────────────
+    op.drop_table("pet_qr_preference")
+
+    # ── pet_photo ─────────────────────────────────────────────────────────────
+    op.drop_index(
+        "uq_pet_photo_pet_id_sort_order_active",
+        table_name="pet_photo",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("pet_photo")
+
+    # ── pet_medication ────────────────────────────────────────────────────────
+    op.drop_index(
+        "idx_pet_medication_status_active",
+        table_name="pet_medication",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_medication_pet_id_active",
+        table_name="pet_medication",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_medication_administration_route_active",
+        table_name="pet_medication",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("pet_medication")
+
+    # ── pet_medical_condition ─────────────────────────────────────────────────
+    op.drop_index(
+        "idx_pet_medical_condition_status_active",
+        table_name="pet_medical_condition",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_medical_condition_severity_active",
+        table_name="pet_medical_condition",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_medical_condition_pet_id_active",
+        table_name="pet_medical_condition",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("pet_medical_condition")
+
+    # ── pet_inventory_image ───────────────────────────────────────────────────
+    op.drop_index(
+        "uq_pet_inventory_image_inventory_id_sort_order_active",
+        table_name="pet_inventory_image",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("pet_inventory_image")
+
+    # ── pet_allergy ───────────────────────────────────────────────────────────
+    op.drop_index(
+        "uq_pet_allergy_pet_id_allergen_active",
+        table_name="pet_allergy",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_allergy_severity_active", table_name="pet_allergy", postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_allergy_allergen_type_active",
+        table_name="pet_allergy",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("pet_allergy")
+
+    # ── missing_report ────────────────────────────────────────────────────────
+    op.drop_index(
+        "uq_missing_report_one_lost_per_pet_active",
+        table_name="missing_report",
+        postgresql_where=sa.text("report_status = 'lost' AND is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_missing_report_status_active",
+        table_name="missing_report",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_geospatial_index(
+        "idx_missing_report_last_seen_location_active",
+        table_name="missing_report",
+        postgresql_using="gist",
+        postgresql_where=sa.text("is_deleted = false"),
+        column_name="last_seen_location",
+    )
+    op.drop_index(
+        "idx_missing_report_last_seen_at_active",
+        table_name="missing_report",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_geospatial_table("missing_report")
+
+    # ── user_linked_account ───────────────────────────────────────────────────
+    op.drop_index(
+        "uq_user_linked_account_provider_provider_user_id_active",
+        table_name="user_linked_account",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_user_linked_account_mobile_user_id_active",
+        table_name="user_linked_account",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("user_linked_account")
+
+    # ── sighting_report ───────────────────────────────────────────────────────
+    op.drop_geospatial_index(
+        "idx_sighting_report_sighting_location_active",
+        table_name="sighting_report",
+        postgresql_using="gist",
+        postgresql_where=sa.text("is_deleted = false"),
+        column_name="sighting_location",
+    )
+    op.drop_index(
+        "idx_sighting_report_sighted_at_active",
+        table_name="sighting_report",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_sighting_report_pet_species_active",
+        table_name="sighting_report",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_sighting_report_mobile_user_id_active",
+        table_name="sighting_report",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_geospatial_table("sighting_report")
+
+    # ── refresh_session ───────────────────────────────────────────────────────
+    op.drop_index("uq_refresh_session_token_hash", table_name="refresh_session")
+    op.drop_index("idx_refresh_session_user_id_revoked_at", table_name="refresh_session")
+    op.drop_table("refresh_session")
+
+    # ── pet_qr_default ────────────────────────────────────────────────────────
+    op.drop_table("pet_qr_default")
+
+    # ── pet_inventory ─────────────────────────────────────────────────────────
+    op.drop_index(
+        "uq_pet_inventory_owner_id_name_active",
+        table_name="pet_inventory",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_inventory_type_active", table_name="pet_inventory", postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_pet_inventory_expiration_date_active",
+        table_name="pet_inventory",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("pet_inventory")
+
+    # ── pet ───────────────────────────────────────────────────────────────────
+    op.drop_index("uq_pet_uuid", table_name="pet")
+    op.drop_index("uq_pet_qr_code_object_key", table_name="pet")
+    op.drop_index("idx_pet_species_active", table_name="pet", postgresql_where=sa.text("is_deleted = false"))
+    op.drop_index("idx_pet_owner_id_active", table_name="pet", postgresql_where=sa.text("is_deleted = false"))
+    op.drop_index("idx_pet_is_missing_active", table_name="pet", postgresql_where=sa.text("is_deleted = false"))
+    op.drop_table("pet")
+
+    # ── notification_preference ───────────────────────────────────────────────
+    op.drop_index(
+        "idx_notification_preference_nearby_report_alerts_enabled",
+        table_name="notification_preference",
+        postgresql_where=sa.text("nearby_report_alerts_enabled IS true"),
+    )
+    op.drop_table("notification_preference")
+
+    # ── device_push_token ─────────────────────────────────────────────────────
+    op.drop_index("uq_device_push_token_provider_token", table_name="device_push_token")
+    op.drop_index("idx_device_push_token_mobile_user_id", table_name="device_push_token")
+    op.drop_table("device_push_token")
+
+    # ── rate_limit ────────────────────────────────────────────────────────────
+    op.drop_index("uq_rate_limit_tier_id_path", table_name="rate_limit")
+    op.drop_index("uq_rate_limit_tier_id_name", table_name="rate_limit")
+    op.drop_table("rate_limit")
+
+    # ── mobile_user ───────────────────────────────────────────────────────────
+    op.drop_index("uq_mobile_user_uuid", table_name="mobile_user")
+    op.drop_index(
+        "uq_mobile_user_username_active",
+        table_name="mobile_user",
+        postgresql_where=sa.text("is_deleted = false AND username IS NOT NULL"),
+    )
+    op.drop_index(
+        "uq_mobile_user_phone_number_active",
+        table_name="mobile_user",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "uq_mobile_user_email_active",
+        table_name="mobile_user",
+        postgresql_where=sa.text("is_deleted = false AND email IS NOT NULL"),
+    )
+    op.drop_index(
+        "idx_mobile_user_tier_id_active",
+        table_name="mobile_user",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_geospatial_index(
+        "idx_mobile_user_nearby_report_alert_location_active",
+        table_name="mobile_user",
+        postgresql_using="gist",
+        postgresql_where=sa.text("is_deleted = false"),
+        column_name="nearby_report_alert_location",
+    )
+    op.drop_geospatial_table("mobile_user")
+
+    # ── admin join tables ─────────────────────────────────────────────────────
+    op.drop_table("admin_user_role")
+    op.drop_table("admin_user_permission")
+    op.drop_table("admin_role_permission")
+
+    # ── tier ──────────────────────────────────────────────────────────────────
+    op.drop_index("uq_tier_name", table_name="tier")
+    op.drop_table("tier")
+
+    # ── article ───────────────────────────────────────────────────────────────
+    op.drop_index(
+        "uq_article_title_active", table_name="article", postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_article_tags_active",
+        table_name="article",
+        postgresql_using="gin",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_article_category_active", table_name="article", postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("article")
+
+    # ── admin_user ────────────────────────────────────────────────────────────
+    op.drop_index("uq_admin_user_uuid", table_name="admin_user")
+    op.drop_index(
+        "uq_admin_user_username_active",
+        table_name="admin_user",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "uq_admin_user_phone_number_active",
+        table_name="admin_user",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "uq_admin_user_email_active", table_name="admin_user", postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_index(
+        "idx_admin_user_account_status_active",
+        table_name="admin_user",
+        postgresql_where=sa.text("is_deleted = false"),
+    )
+    op.drop_table("admin_user")
+
+    # ── admin_role ────────────────────────────────────────────────────────────
+    op.drop_index("uq_admin_role_name", table_name="admin_role")
+    op.drop_table("admin_role")
+
+    # ── admin_permission ──────────────────────────────────────────────────────
+    op.drop_index("uq_admin_permission_key", table_name="admin_permission")
+    op.drop_index("uq_admin_permission_bit_index", table_name="admin_permission")
+    op.drop_table("admin_permission")
+
+    # ── Sequences ─────────────────────────────────────────────────────────────
+    op.execute("DROP SEQUENCE IF EXISTS permission_bit_index_sequence")
