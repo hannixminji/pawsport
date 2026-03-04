@@ -19,6 +19,7 @@ from ..core.search_engine.schemas import SearchRequest
 from ..core.security import get_password_hash, verify_password
 from ..core.utils.google_cloud_storage import is_object_exists
 from ..core.utils.pagination import compute_offset
+from ..core.utils.update import apply_partial_update
 from ..models.mobile_user import MobileUser
 from ..models.user_linked_account import UserLinkedAccount
 from ..schemas.mobile_user import MobileUserCreate, MobileUserRead, MobileUserUpdate
@@ -264,18 +265,7 @@ class MobileUserService:
         if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
             raise ForbiddenError("You do not have permission to view this user.")
 
-        if actor.actor_type == ActorType.MOBILE_USER:
-            user_id = actor.id
-
-        db_user = (
-            await self.db.execute(
-                select(MobileUser)
-                .where(
-                    MobileUser.id == user_id,
-                    MobileUser.is_deleted.is_(False),
-                )
-            )
-        ).scalar_one_or_none()
+        db_user = await self._get_mobile_user(user_id, actor)
         if db_user is None:
             raise NotFoundError("User not found.")
 
@@ -291,41 +281,31 @@ class MobileUserService:
         if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
             raise ForbiddenError("You do not have permission to update this user.")
 
-        if actor.actor_type == ActorType.MOBILE_USER:
-            user_id = actor.id
+        db_user = await self._get_mobile_user(user_id, actor)
+        if db_user is None:
+            raise NotFoundError("User not found.")
 
         if user_input.profile_image_object_key is not None:
             if not is_object_exists(user_input.profile_image_object_key):
                 raise InvalidInputError("The profile image may not have been uploaded correctly.")
 
-        update_values = user_input.model_dump(
-            exclude_unset=True,
-            exclude={"nearby_report_alert_location"},
-        )
-
         if user_input.nearby_report_alert_location is not None:
-            update_values["nearby_report_alert_location"] = from_shape(
+            wkb_location = from_shape(
                 Point(
                     user_input.nearby_report_alert_location.longitude,
                     user_input.nearby_report_alert_location.latitude,
                 ),
                 srid=4326,
             )
+            db_user.nearby_report_alert_location = wkb_location
 
-        statement = (
-            update(MobileUser)
-            .where(
-                MobileUser.id == user_id,
-                MobileUser.is_deleted.is_(False),
-            )
-            .values(**update_values)
+        apply_partial_update(
+            target=db_user,
+            input=user_input,
+            exclude={"nearby_report_alert_location"},
         )
 
         try:
-            result = await self.db.execute(statement)
-            if result.rowcount == 0:
-                raise NotFoundError("User not found.")
-
             await self.db.commit()
 
         except IntegrityError as error:

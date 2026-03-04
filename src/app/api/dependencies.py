@@ -220,7 +220,14 @@ async def get_current_mobile_user(
             mobile_user = (
                 await db.execute(
                     select(MobileUser)
-                    .options(load_only(MobileUser.id, MobileUser.tier_id, MobileUser.is_deleted))
+                    .options(
+                        load_only(
+                            MobileUser.id,
+                            MobileUser.tier_id,
+                            MobileUser.is_anonymous,
+                            MobileUser.is_deleted,
+                        )
+                    )
                     .where(
                         MobileUser.id == token_data.user_id,
                         MobileUser.is_deleted.is_(False),
