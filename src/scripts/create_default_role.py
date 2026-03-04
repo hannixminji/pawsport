@@ -18,6 +18,9 @@ DEFAULT_ROLE_DESCRIPTION = "Default role with full access to all api/v1/app endp
 # This excludes superuser-only operations (hard delete, bulk hard delete)
 # and admin-only resources (rate_limits, tiers).
 DEFAULT_ROLE_PERMISSION_KEYS: list[str] = [
+    # ── dashboards ──
+    "dashboard:read",
+
     # ── articles (read-only in app) ──
     "article:read",
 

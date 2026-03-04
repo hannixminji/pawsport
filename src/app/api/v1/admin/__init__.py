@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from .articles import router as article_router
 from .auth import router as auth_router
+from .dashboards import router as dashboard_router
 from .missing_reports import router as missing_report_router
 from .mobile_user_notification_preferences import router as mobile_user_notification_preference_router
 from .mobile_users import router as mobile_user_router
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/admin")
 
 router.include_router(article_router)
 router.include_router(auth_router)
+router.include_router(dashboard_router)
 router.include_router(missing_report_router)
 router.include_router(mobile_user_notification_preference_router)
 router.include_router(mobile_user_router)

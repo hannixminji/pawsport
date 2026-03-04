@@ -10,6 +10,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 PERMISSIONS: list[dict[str, str]] = [
+    # ── dashboards ──
+    {
+        "key": "dashboard:read",
+        "name": "Read Dashboard",
+        "description": "View dashboard statistics",
+    },
+
     # ── articles ──
     {
         "key": "article:create",
