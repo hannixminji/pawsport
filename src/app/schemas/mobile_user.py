@@ -157,7 +157,7 @@ class MobileUserRead(BaseModel):
 
 class MobileActor(BaseModel):
     id: int
-    tier_id: int
+    tier_id: int | None
     actor_type: ActorType
     is_anonymous: bool = False
 
