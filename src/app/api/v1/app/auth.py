@@ -137,15 +137,16 @@ async def login_or_signup(
         username=base_username,
         email=email,
     )
+    db.add(new_user)
+    await db.flush()
 
     new_linked_account = UserLinkedAccount(
+        mobile_user_id=new_user.id,
         provider=sign_in_provider,
         provider_user_id=provider_user_id,
         provider_email=email,
     )
-
-    new_user.linked_accounts.append(new_linked_account)
-    db.add(new_user)
+    db.add(new_linked_account)
 
     try:
         await db.commit()
@@ -222,12 +223,15 @@ async def guest_login(
         username=f"guest{uuid.uuid4().hex[:10]}",
         is_anonymous=True,
     )
+    db.add(new_user)
+    await db.flush()
+
     new_linked_account = UserLinkedAccount(
+        mobile_user_id=new_user.id,
         provider=AuthProvider.ANONYMOUS,
         provider_user_id=guest_uid,
     )
-    new_user.linked_accounts.append(new_linked_account)
-    db.add(new_user)
+    db.add(new_linked_account)
     await db.flush()
 
     access_token = await create_access_token(data={"sub": str(new_user.id)})

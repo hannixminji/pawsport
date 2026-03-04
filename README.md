@@ -50,3 +50,5 @@ def downgrade() -> None:
 
     # ── Sequences ─────────────────────────────────────────────────────────────
     op.execute("DROP SEQUENCE IF EXISTS permission_bit_index_sequence")
+
+docker-compose run --rm bootstrap alembic -c alembic.ini revision --autogenerate -m "add age column to users"
