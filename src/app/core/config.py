@@ -105,6 +105,11 @@ class FirstUserSettings(BaseSettings):
     ADMIN_PASSWORD: SecretStr = SecretStr("!Ch4ng3Th1sP4ssW0rd!")
 
 
+class TierSettings(BaseSettings):
+    TIER_NAME: str = "free"
+    DEFAULT_TIER: str = "free"
+
+
 class TestSettings(BaseSettings):
     ...
 
@@ -231,6 +236,7 @@ class Settings(
     CryptSettings,
     Argon2Settings,
     FirstUserSettings,
+    TierSettings,
     TestSettings,
     RedisCacheSettings,
     RedisAdminSessionSettings,

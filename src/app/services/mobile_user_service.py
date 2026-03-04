@@ -19,7 +19,6 @@ from ..core.search_engine.schemas import SearchRequest
 from ..core.security import get_password_hash, verify_password
 from ..core.utils.google_cloud_storage import is_object_exists
 from ..core.utils.pagination import compute_offset
-from ..core.utils.update import apply_partial_update
 from ..models.mobile_user import MobileUser
 from ..models.user_linked_account import UserLinkedAccount
 from ..schemas.mobile_user import MobileUserCreate, MobileUserRead, MobileUserUpdate
@@ -289,23 +288,31 @@ class MobileUserService:
             if not is_object_exists(user_input.profile_image_object_key):
                 raise InvalidInputError("The profile image may not have been uploaded correctly.")
 
+        update_values = user_input.model_dump(
+            exclude_unset=True,
+            exclude={"nearby_report_alert_location"},
+        )
+
         if user_input.nearby_report_alert_location is not None:
-            wkb_location = from_shape(
+            update_values["nearby_report_alert_location"] = from_shape(
                 Point(
                     user_input.nearby_report_alert_location.longitude,
                     user_input.nearby_report_alert_location.latitude,
                 ),
                 srid=4326,
             )
-            db_user.nearby_report_alert_location = wkb_location
 
-        apply_partial_update(
-            target=db_user,
-            input=user_input,
-            exclude={"nearby_report_alert_location"},
+        statement = (
+            update(MobileUser)
+            .where(
+                MobileUser.id == user_id,
+                MobileUser.is_deleted.is_(False),
+            )
+            .values(**update_values)
         )
 
         try:
+            await self.db.execute(statement)
             await self.db.commit()
 
         except IntegrityError as error:
