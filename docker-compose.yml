@@ -12,8 +12,12 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      bootstrap:
+        condition: service_completed_successfully
     volumes:
       - ./src/app:/code/app
       - ./src/.env:/code/.env
@@ -45,8 +49,12 @@ services:
     environment:
       - GOOGLE_APPLICATION_CREDENTIALS=/secrets/google-service-account.json
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      bootstrap:
+        condition: service_completed_successfully
     volumes:
       - ./src/app:/code/app
       - ./src/.env:/code/.env
