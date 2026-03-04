@@ -264,7 +264,18 @@ class MobileUserService:
         if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
             raise ForbiddenError("You do not have permission to view this user.")
 
-        db_user = await self._get_mobile_user(user_id, actor)
+        if actor.actor_type == ActorType.MOBILE_USER:
+            user_id = actor.id
+
+        db_user = (
+            await self.db.execute(
+                select(MobileUser)
+                .where(
+                    MobileUser.id == user_id,
+                    MobileUser.is_deleted.is_(False),
+                )
+            )
+        ).scalar_one_or_none()
         if db_user is None:
             raise NotFoundError("User not found.")
 
