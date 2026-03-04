@@ -226,7 +226,7 @@ async def get_current_mobile_user(
                             MobileUser.tier_id,
                             MobileUser.is_anonymous,
                             MobileUser.is_deleted,
-                        )
+                        ),
                     )
                     .where(
                         MobileUser.id == token_data.user_id,
@@ -265,7 +265,14 @@ async def get_current_mobile_user(
         mobile_user = (
             await db.execute(
                 select(MobileUser)
-                .options(load_only(MobileUser.id, MobileUser.tier_id, MobileUser.is_deleted))
+                .options(
+                    load_only(
+                        MobileUser.id,
+                        MobileUser.tier_id,
+                        MobileUser.is_anonymous,
+                        MobileUser.is_deleted,
+                    ),
+                )
                 .join(UserLinkedAccount, UserLinkedAccount.mobile_user_id == MobileUser.id)
                 .where(
                     UserLinkedAccount.provider == sign_in_provider,
@@ -308,7 +315,11 @@ async def get_current_admin_user(
             await db.execute(
                 select(AdminUser)
                 .options(
-                    load_only(AdminUser.id, AdminUser.account_status, AdminUser.is_superuser),
+                    load_only(
+                        AdminUser.id,
+                        AdminUser.account_status,
+                        AdminUser.is_superuser,
+                    ),
                     selectinload(AdminUser.roles).load_only(AdminRole.id),
                 )
                 .where(
