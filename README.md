@@ -38,3 +38,15 @@ docker compose logs -f ml
 docker compose logs -f db
 docker compose logs -f redis
 docker compose logs -f worker
+
+def upgrade() -> None:
+    # ── Sequences ─────────────────────────────────────────────────────────────
+    op.execute("CREATE SEQUENCE IF NOT EXISTS permission_bit_index_sequence START 1 INCREMENT 1")
+
+    ...
+
+def downgrade() -> None:
+    ...
+
+    # ── Sequences ─────────────────────────────────────────────────────────────
+    op.execute("DROP SEQUENCE IF EXISTS permission_bit_index_sequence")
