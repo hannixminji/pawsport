@@ -192,7 +192,21 @@ class MobileUserCreate(MobileUserBase):
         return v
 
 
-class MobileUserRegister(BaseModel):
+class MobileUserEmailPasswordRegister(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
+    password: Annotated[StrongPassword, Field(examples=["Str1ngst!"])]
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+
+class MobileUserEmailPasswordLogin(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
