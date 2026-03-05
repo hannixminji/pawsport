@@ -132,6 +132,7 @@ class OwnerQR(BaseModel):
     first_name: str | None
     last_name: str | None
     email: str | None
+    is_email_verified: bool
     phone_number: str | None
     street_address_1: str | None
     street_address_2: str | None
@@ -236,6 +237,8 @@ class PetReadByQR(BaseModel):
     def owner_email(self) -> str | None:
         if not self._qr_show_email:
             return None
+        if not self.owner.is_email_verified:
+            return "Not verified"
         return (self.owner.email or "").strip() or None
 
     @computed_field(return_type=str | None)

@@ -16,7 +16,7 @@ import app.core.utils.cache as cache_store
 
 from ..core.config import settings
 from ..core.db.database import async_get_db
-from ..core.enums import ActorType, AdminAccountStatus
+from ..core.enums import ActorType, AdminAccountStatus, MobileUserAccountStatus
 from ..core.exceptions.http_exceptions import (
     CustomException,
     ForbiddenException,
@@ -54,6 +54,25 @@ from ..schemas.rate_limit import sanitize_path
 LOGGER = logging.getLogger(__name__)
 
 _perm_index_reload_lock = asyncio.Lock()
+
+_MOBILE_ACCOUNT_STATUS_ERRORS: dict[MobileUserAccountStatus, str] = {
+    MobileUserAccountStatus.SUSPENDED: "Your account has been suspended. Please contact support.",
+    MobileUserAccountStatus.BANNED: "Your account has been banned.",
+    MobileUserAccountStatus.DEACTIVATED: "Your account has been deactivated. Please contact support.",
+}
+
+_GUEST_ACCOUNT_STATUS_ERRORS: dict[MobileUserAccountStatus, str] = {
+    MobileUserAccountStatus.SUSPENDED: "Your guest session has been suspended.",
+    MobileUserAccountStatus.BANNED: "Your guest session has been banned.",
+    MobileUserAccountStatus.DEACTIVATED: "Your guest session is no longer active.",
+}
+
+
+def _assert_mobile_account_active(user: MobileUser) -> None:
+    errors = _GUEST_ACCOUNT_STATUS_ERRORS if user.is_anonymous else _MOBILE_ACCOUNT_STATUS_ERRORS
+    message = errors.get(user.account_status)
+    if message:
+        raise UnauthorizedException(message)
 
 
 async def get_redis_client() -> AsyncGenerator[Redis]:
@@ -226,6 +245,7 @@ async def get_current_mobile_user(
                             MobileUser.tier_id,
                             MobileUser.is_anonymous,
                             MobileUser.is_deleted,
+                            MobileUser.account_status,
                         ),
                     )
                     .where(
@@ -240,6 +260,8 @@ async def get_current_mobile_user(
 
         if mobile_user is None:
             raise UnauthorizedException("User not authenticated.")
+
+        _assert_mobile_account_active(mobile_user)
 
         return MobileActor(
             id=mobile_user.id,
@@ -271,6 +293,7 @@ async def get_current_mobile_user(
                         MobileUser.tier_id,
                         MobileUser.is_anonymous,
                         MobileUser.is_deleted,
+                        MobileUser.account_status,
                     ),
                 )
                 .join(UserLinkedAccount, UserLinkedAccount.mobile_user_id == MobileUser.id)
@@ -287,6 +310,8 @@ async def get_current_mobile_user(
         raise CustomException(status_code=500, detail="An unexpected error occurred. Please try again later.")
 
     if mobile_user:
+        _assert_mobile_account_active(mobile_user)
+
         return MobileActor(
             id=mobile_user.id,
             tier_id=mobile_user.tier_id,

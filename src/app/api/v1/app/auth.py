@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.api.dependencies import get_current_mobile_user
 from app.core.config import settings
 from app.core.db.database import async_get_db
-from app.core.enums import AuthProvider
+from app.core.enums import AuthProvider, MobileUserAccountStatus
 from app.core.exceptions.http_exceptions import DuplicateValueException, UnauthorizedException
 from app.core.security import (
     create_access_token,
@@ -38,6 +38,27 @@ class RefreshTokenRequest(BaseModel):
 
 class LogoutRequest(BaseModel):
     refresh_token: str
+
+
+_ACCOUNT_STATUS_ERRORS: dict[MobileUserAccountStatus, str] = {
+    MobileUserAccountStatus.SUSPENDED: "Your account has been suspended. Please contact support.",
+    MobileUserAccountStatus.BANNED: "Your account has been banned.",
+    MobileUserAccountStatus.DEACTIVATED: "Your account has been deactivated. Please contact support.",
+}
+
+_GUEST_ACCOUNT_STATUS_ERRORS: dict[MobileUserAccountStatus, str] = {
+    MobileUserAccountStatus.SUSPENDED: "Your guest session has been suspended.",
+    MobileUserAccountStatus.BANNED: "Your guest session has been banned.",
+    MobileUserAccountStatus.DEACTIVATED: "Your guest session is no longer active.",
+}
+
+
+def _assert_account_active(user: MobileUser) -> None:
+    """Raise UnauthorizedException if the user's account is not ACTIVE."""
+    errors = _GUEST_ACCOUNT_STATUS_ERRORS if user.is_anonymous else _ACCOUNT_STATUS_ERRORS
+    message = errors.get(user.account_status)
+    if message:
+        raise UnauthorizedException(message)
 
 
 def is_unique_constraint_violation(error: IntegrityError, constraint_name: str) -> bool:
@@ -105,6 +126,7 @@ async def login_or_signup(
 
     linked_account = await get_linked_account()
     if linked_account_user_is_valid(linked_account):
+        _assert_account_active(linked_account.mobile_user)
         return MobileUserRead.model_validate(linked_account.mobile_user)
 
     mobile_user = (
@@ -118,6 +140,7 @@ async def login_or_signup(
     ).scalar_one_or_none()
 
     if mobile_user:
+        _assert_account_active(mobile_user)
         new_linked_account = UserLinkedAccount(
             mobile_user_id=mobile_user.id,
             provider=sign_in_provider,
@@ -137,6 +160,7 @@ async def login_or_signup(
             ):
                 linked_account = await get_linked_account()
                 if linked_account_user_is_valid(linked_account):
+                    _assert_account_active(linked_account.mobile_user)
                     return MobileUserRead.model_validate(linked_account.mobile_user)
 
             raise DuplicateValueException("Linked account creation failed. Please try again.")
@@ -174,6 +198,7 @@ async def login_or_signup(
         ):
             linked_account = await get_linked_account()
             if linked_account_user_is_valid(linked_account):
+                _assert_account_active(linked_account.mobile_user)
                 return MobileUserRead.model_validate(linked_account.mobile_user)
             raise UnauthorizedException("Authentication failed due to conflicting account.")
 
@@ -191,6 +216,7 @@ async def login_or_signup(
                 )
             ).scalar_one_or_none()
             if existing_user:
+                _assert_account_active(existing_user)
                 retry_linked = UserLinkedAccount(
                     mobile_user_id=existing_user.id,
                     provider=sign_in_provider,
@@ -209,6 +235,7 @@ async def login_or_signup(
                     ):
                         linked_account = await get_linked_account()
                         if linked_account_user_is_valid(linked_account):
+                            _assert_account_active(linked_account.mobile_user)
                             return MobileUserRead.model_validate(linked_account.mobile_user)
 
                     raise DuplicateValueException("Unable to complete signup due to a conflict. Please try again.")
@@ -305,9 +332,10 @@ async def refresh(
             )
         )
     ).scalar_one_or_none()
-
     if mobile_user is None:
         raise UnauthorizedException("User not found.")
+
+    _assert_account_active(mobile_user)
 
     return TokenResponse(
         access_token=new_access_token,
