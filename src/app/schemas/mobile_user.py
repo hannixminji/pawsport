@@ -373,3 +373,23 @@ class MobileUserPasswordUpdate(BaseModel):
 
     current_password: Annotated[StrongPassword, Field(examples=["CurrentPass123!"])]
     new_password: Annotated[StrongPassword, Field(examples=["NewPass456@"])]
+
+
+class MobileUserForgotPassword(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+
+class MobileUserResetPassword(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, Field(min_length=43, max_length=43, examples=["abc123xyz..."])]
+    new_password: Annotated[StrongPassword, Field(examples=["NewPass456@"])]

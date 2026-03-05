@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import ClassVar
 
-from sqlalchemy import any_, delete, func, select
+from sqlalchemy import any_, delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +15,6 @@ from ..core.search_engine.engine import SearchEngine
 from ..core.search_engine.enums import FilterOp
 from ..core.search_engine.schemas import SearchRequest
 from ..core.utils.pagination import compute_offset
-from ..core.utils.update import apply_partial_update
 from ..models.tier import Tier
 from ..schemas.tier import TierCreate, TierRead, TierUpdate
 
@@ -74,10 +73,14 @@ class TierService:
         if actor.actor_type != ActorType.ADMIN_USER:
             raise ForbiddenError("Admin privileges are required to create a tier.")
 
-        tier_model = Tier(**tier_input.model_dump())
-        self.db.add(tier_model)
+        statement = (
+            insert(Tier)
+            .values(**tier_input.model_dump())
+            .returning(Tier)
+        )
 
         try:
+            result = await self.db.execute(statement)
             await self.db.commit()
 
         except IntegrityError as error:
@@ -102,8 +105,8 @@ class TierService:
                 "Failed to create the tier."
             ) from error
 
-        await self.db.refresh(tier_model)
-        return TierRead.model_validate(tier_model)
+        tier = result.scalar_one()
+        return TierRead.model_validate(tier)
 
     async def search(
         self,
@@ -198,13 +201,17 @@ class TierService:
         if actor.actor_type != ActorType.ADMIN_USER:
             raise ForbiddenError("Admin privileges are required to update a tier.")
 
-        db_tier = await self._get_tier_by_id(tier_id)
-        if db_tier is None:
-            raise NotFoundError("Tier not found.")
-
-        apply_partial_update(target=db_tier, input=tier_input)
+        statement = (
+            update(Tier)
+            .where(Tier.id == tier_id)
+            .values(**tier_input.model_dump(exclude_unset=True))
+        )
 
         try:
+            result = await self.db.execute(statement)
+            if result.rowcount == 0:
+                raise NotFoundError("Tier not found.")
+
             await self.db.commit()
 
         except IntegrityError as error:
@@ -235,8 +242,8 @@ class TierService:
         actor: Actor,
         tier_id: int,
     ) -> None:
-        if actor.actor_type != ActorType.ADMIN_USER:
-            raise ForbiddenError("Admin privileges are required to permanently delete a tier.")
+        if not actor.is_superuser:
+            raise ForbiddenError("Superuser privileges are required to permanently delete a tier.")
 
         statement = (
             delete(Tier)
@@ -244,14 +251,11 @@ class TierService:
         )
 
         try:
-            await self.db.execute(statement)
-            await self.db.commit()
+            result = await self.db.execute(statement)
+            if result.rowcount == 0:
+                raise NotFoundError("Tier not found.")
 
-        except IntegrityError as error:
-            await self.db.rollback()
-            raise InvalidInputError(
-                "Unable to delete the tier because it is referenced by other records."
-            ) from error
+            await self.db.commit()
 
         except OperationalError as error:
             await self.db.rollback()
@@ -273,8 +277,8 @@ class TierService:
         actor: Actor,
         tier_ids: set[int],
     ) -> None:
-        if actor.actor_type != ActorType.ADMIN_USER:
-            raise ForbiddenError("Admin privileges are required to permanently delete tiers.")
+        if not actor.is_superuser:
+            raise ForbiddenError("Superuser privileges are required to permanently delete tiers.")
 
         if not tier_ids:
             return
@@ -287,12 +291,6 @@ class TierService:
         try:
             await self.db.execute(statement)
             await self.db.commit()
-
-        except IntegrityError as error:
-            await self.db.rollback()
-            raise InvalidInputError(
-                "Unable to delete one or more tiers because they are referenced by other records."
-            ) from error
 
         except OperationalError as error:
             await self.db.rollback()

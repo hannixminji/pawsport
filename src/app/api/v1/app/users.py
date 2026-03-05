@@ -83,20 +83,6 @@ async def verify_email(
     )
 
 
-@router.patch("/email", status_code=status.HTTP_204_NO_CONTENT)
-async def request_email_change(
-    request: Request,
-    payload: MobileUserEmailUpdate,
-    actor: ActorDependency,
-    service: MobileUserServiceDependency,
-) -> None:
-    await service.request_email_change(
-        actor=actor,
-        user_id=actor.id,
-        new_email=payload.new_email,
-    )
-
-
 @router.post("/email/verify", status_code=status.HTTP_204_NO_CONTENT)
 async def verify_email_change(
     request: Request,
@@ -105,21 +91,6 @@ async def verify_email_change(
 ) -> None:
     await service.verify_email_change(
         raw_token=payload.token,
-    )
-
-
-@router.patch("/password", status_code=status.HTTP_204_NO_CONTENT)
-async def update_mobile_user_password(
-    request: Request,
-    payload: MobileUserPasswordUpdate,
-    actor: ActorDependency,
-    service: MobileUserServiceDependency,
-) -> None:
-    await service.change_password(
-        actor=actor,
-        user_id=actor.id,
-        current_password=payload.current_password.get_secret_value(),
-        new_password=payload.new_password.get_secret_value(),
     )
 
 
@@ -136,3 +107,32 @@ async def update_mobile_user(
     service: MobileUserServiceDependency,
 ) -> None:
     await service.update(actor=actor, user_id=actor.id, user_input=payload)
+
+
+@router.patch("/email", status_code=status.HTTP_204_NO_CONTENT)
+async def request_email_change(
+    request: Request,
+    payload: MobileUserEmailUpdate,
+    actor: ActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.request_email_change(
+        actor=actor,
+        user_id=actor.id,
+        new_email=payload.new_email,
+    )
+
+
+@router.patch("/password", status_code=status.HTTP_204_NO_CONTENT)
+async def update_mobile_user_password(
+    request: Request,
+    payload: MobileUserPasswordUpdate,
+    actor: ActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.change_password(
+        actor=actor,
+        user_id=actor.id,
+        current_password=payload.current_password.get_secret_value(),
+        new_password=payload.new_password.get_secret_value(),
+    )

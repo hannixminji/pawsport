@@ -1,35 +1,33 @@
-import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
+from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.api.dependencies import get_current_mobile_user
-from app.core.config import settings
 from app.core.db.database import async_get_db
-from app.core.enums import AuthProvider, MobileUserAccountStatus
-from app.core.exceptions.http_exceptions import DuplicateValueException, UnauthorizedException
-from app.core.security import (
-    create_access_token,
-    create_refresh_session,
-    generate_refresh_token,
-    revoke_refresh_session,
-    rotate_refresh_token,
-    security,
-    verify_firebase_token,
+from app.core.security import security
+from app.schemas.mobile_user import (
+    MobileActor,
+    MobileUserEmailPasswordLogin,
+    MobileUserEmailPasswordRegister,
+    MobileUserForgotPassword,
+    MobileUserRead,
+    MobileUserResetPassword,
 )
-from app.models.mobile_user import MobileUser
-from app.models.tier import Tier
-from app.models.user_linked_account import UserLinkedAccount
-from app.schemas.mobile_user import MobileActor, MobileUserRead
 from app.schemas.token import TokenResponse
+from app.services.mobile_user_service import MobileUserService
 
 router = APIRouter(prefix="/auth", tags=["login or signup"])
+
+
+def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> MobileUserService:
+    return MobileUserService(db=db)
+
+
+MobileUserServiceDependency = Annotated[MobileUserService, Depends(get_service)]
 
 
 class RefreshTokenRequest(BaseModel):
@@ -40,317 +38,76 @@ class LogoutRequest(BaseModel):
     refresh_token: str
 
 
-_ACCOUNT_STATUS_ERRORS: dict[MobileUserAccountStatus, str] = {
-    MobileUserAccountStatus.SUSPENDED: "Your account has been suspended. Please contact support.",
-    MobileUserAccountStatus.BANNED: "Your account has been banned.",
-    MobileUserAccountStatus.DEACTIVATED: "Your account has been deactivated. Please contact support.",
-}
-
-_GUEST_ACCOUNT_STATUS_ERRORS: dict[MobileUserAccountStatus, str] = {
-    MobileUserAccountStatus.SUSPENDED: "Your guest session has been suspended.",
-    MobileUserAccountStatus.BANNED: "Your guest session has been banned.",
-    MobileUserAccountStatus.DEACTIVATED: "Your guest session is no longer active.",
-}
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def register(
+    payload: MobileUserEmailPasswordRegister,
+    service: MobileUserServiceDependency,
+) -> TokenResponse:
+    return await service.register(payload=payload)
 
 
-def _assert_account_active(user: MobileUser) -> None:
-    """Raise UnauthorizedException if the user's account is not ACTIVE."""
-    errors = _GUEST_ACCOUNT_STATUS_ERRORS if user.is_anonymous else _ACCOUNT_STATUS_ERRORS
-    message = errors.get(user.account_status)
-    if message:
-        raise UnauthorizedException(message)
+@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+async def login(
+    payload: MobileUserEmailPasswordLogin,
+    service: MobileUserServiceDependency,
+) -> TokenResponse:
+    return await service.login(payload=payload)
 
 
-def is_unique_constraint_violation(error: IntegrityError, constraint_name: str) -> bool:
-    original_exception = getattr(error, "orig", None)
-    if original_exception is None:
-        return False
-
-    return constraint_name in str(original_exception)
-
-
-async def _get_tier_id_by_name(db: AsyncSession, name: str) -> int | None:
-    tier = (
-        await db.execute(
-            select(Tier).
-            where(Tier.name == name)
-        )
-    ).scalar_one_or_none()
-    return tier.id if tier else None
-
-
-@router.post("/google", response_model=MobileUserRead)
+@router.post("/google", response_model=MobileUserRead, status_code=status.HTTP_200_OK)
 async def login_or_signup(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
-    db: Annotated[AsyncSession, Depends(async_get_db)]
+    service: MobileUserServiceDependency,
 ) -> MobileUserRead:
-    token = credentials.credentials
-
-    try:
-        token_data = verify_firebase_token(token)
-    except ValueError as error:
-        raise UnauthorizedException(str(error))
-    except Exception as error:
-        raise UnauthorizedException(str(error))
-
-    sign_in_provider = token_data.get("firebase", {}).get("sign_in_provider")
-    identities = token_data.get("firebase", {}).get("identities", {})
-    provider_ids = identities.get(sign_in_provider)
-    if not provider_ids:
-        raise UnauthorizedException("Missing provider user ID in token")
-    provider_user_id = provider_ids[0]
-
-    email = token_data.get("email")
-    if not email:
-        raise UnauthorizedException("Email not provided in token")
-
-    async def get_linked_account() -> UserLinkedAccount | None:
-        return (
-            await db.execute(
-                select(UserLinkedAccount)
-                .options(selectinload(UserLinkedAccount.mobile_user))
-                .where(
-                    UserLinkedAccount.provider == sign_in_provider,
-                    UserLinkedAccount.provider_user_id == provider_user_id,
-                    UserLinkedAccount.is_deleted.is_(False),
-                )
-            )
-        ).scalar_one_or_none()
-
-    def linked_account_user_is_valid(linked_account: UserLinkedAccount | None) -> bool:
-        return bool(
-            linked_account
-            and linked_account.mobile_user
-            and not linked_account.mobile_user.is_deleted
-        )
-
-    linked_account = await get_linked_account()
-    if linked_account_user_is_valid(linked_account):
-        _assert_account_active(linked_account.mobile_user)
-        return MobileUserRead.model_validate(linked_account.mobile_user)
-
-    mobile_user = (
-        await db.execute(
-            select(MobileUser)
-            .where(
-                MobileUser.email == email,
-                MobileUser.is_deleted.is_(False),
-            )
-        )
-    ).scalar_one_or_none()
-
-    if mobile_user:
-        _assert_account_active(mobile_user)
-        new_linked_account = UserLinkedAccount(
-            mobile_user_id=mobile_user.id,
-            provider=sign_in_provider,
-            provider_user_id=provider_user_id,
-            provider_email=email,
-        )
-        db.add(new_linked_account)
-
-        try:
-            await db.commit()
-        except IntegrityError as error:
-            await db.rollback()
-
-            if is_unique_constraint_violation(
-                error,
-                "uq_user_linked_account_provider_provider_user_id_active"
-            ):
-                linked_account = await get_linked_account()
-                if linked_account_user_is_valid(linked_account):
-                    _assert_account_active(linked_account.mobile_user)
-                    return MobileUserRead.model_validate(linked_account.mobile_user)
-
-            raise DuplicateValueException("Linked account creation failed. Please try again.")
-
-        await db.refresh(mobile_user)
-        return MobileUserRead.model_validate(mobile_user)
-
-    free_tier_id = await _get_tier_id_by_name(db, settings.FREE_TIER_NAME)
-
-    base_username = f"user{uuid.uuid4().hex[:10]}"
-    new_user = MobileUser(
-        username=base_username,
-        tier_id=free_tier_id,
-        email=email,
-    )
-    db.add(new_user)
-    await db.flush()
-
-    new_linked_account = UserLinkedAccount(
-        mobile_user_id=new_user.id,
-        provider=sign_in_provider,
-        provider_user_id=provider_user_id,
-        provider_email=email,
-    )
-    db.add(new_linked_account)
-
-    try:
-        await db.commit()
-    except IntegrityError as error:
-        await db.rollback()
-
-        if is_unique_constraint_violation(
-            error,
-            "uq_user_linked_account_provider_provider_user_id_active"
-        ):
-            linked_account = await get_linked_account()
-            if linked_account_user_is_valid(linked_account):
-                _assert_account_active(linked_account.mobile_user)
-                return MobileUserRead.model_validate(linked_account.mobile_user)
-            raise UnauthorizedException("Authentication failed due to conflicting account.")
-
-        if is_unique_constraint_violation(
-            error,
-            "uq_mobile_user_email_active"
-        ):
-            existing_user = (
-                await db.execute(
-                    select(MobileUser)
-                    .where(
-                        MobileUser.email == email,
-                        MobileUser.is_deleted.is_(False)
-                    )
-                )
-            ).scalar_one_or_none()
-            if existing_user:
-                _assert_account_active(existing_user)
-                retry_linked = UserLinkedAccount(
-                    mobile_user_id=existing_user.id,
-                    provider=sign_in_provider,
-                    provider_user_id=provider_user_id,
-                    provider_email=email
-                )
-                db.add(retry_linked)
-                try:
-                    await db.commit()
-                except IntegrityError as inner_error:
-                    await db.rollback()
-
-                    if is_unique_constraint_violation(
-                        inner_error,
-                        "uq_user_linked_account_provider_provider_user_id_active"
-                    ):
-                        linked_account = await get_linked_account()
-                        if linked_account_user_is_valid(linked_account):
-                            _assert_account_active(linked_account.mobile_user)
-                            return MobileUserRead.model_validate(linked_account.mobile_user)
-
-                    raise DuplicateValueException("Unable to complete signup due to a conflict. Please try again.")
-
-                await db.refresh(existing_user)
-                return MobileUserRead.model_validate(existing_user)
-
-        if is_unique_constraint_violation(
-            error,
-            "uq_mobile_user_username_active"
-        ):
-            raise DuplicateValueException("Username conflict. Please try again.")
-
-        raise DuplicateValueException("Unable to complete signup due to a conflict. Please try again.")
-
-    await db.refresh(new_user)
-    return MobileUserRead.model_validate(new_user)
+    return await service.login_or_signup_google(token=credentials.credentials)
 
 
-@router.post("/guest")
+@router.post("/guest", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def guest_login(
-    db: Annotated[AsyncSession, Depends(async_get_db)],
+    service: MobileUserServiceDependency,
 ) -> TokenResponse:
-    guest_uid = str(uuid.uuid4())
-
-    guest_tier_id = await _get_tier_id_by_name(db, settings.GUEST_TIER_NAME)
-
-    new_user = MobileUser(
-        username=f"guest{uuid.uuid4().hex[:10]}",
-        tier_id=guest_tier_id,
-        is_anonymous=True,
-    )
-    db.add(new_user)
-    await db.flush()
-
-    new_linked_account = UserLinkedAccount(
-        mobile_user_id=new_user.id,
-        provider=AuthProvider.ANONYMOUS,
-        provider_user_id=guest_uid,
-    )
-    db.add(new_linked_account)
-    await db.flush()
-
-    access_token = await create_access_token(data={"sub": str(new_user.id)})
-    opaque_token, token_hash = generate_refresh_token()
-    await create_refresh_session(db, new_user.id, token_hash)
-
-    try:
-        await db.commit()
-
-    except IntegrityError:
-        await db.rollback()
-
-        raise UnauthorizedException("Failed to create guest session. Please try again.")
-
-    except OperationalError:
-        await db.rollback()
-
-        raise UnauthorizedException("Failed to create guest session. Please try again later.")
-
-    except SQLAlchemyError:
-        await db.rollback()
-
-        raise UnauthorizedException("Failed to create guest session.")
-
-    await db.refresh(new_user)
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=opaque_token,
-        token_type="bearer",
-        user=MobileUserRead.model_validate(new_user),
-    )
+    return await service.guest_login()
 
 
-@router.post("/refresh")
+@router.post("/refresh", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def refresh(
     body: RefreshTokenRequest,
-    db: Annotated[AsyncSession, Depends(async_get_db)],
+    service: MobileUserServiceDependency,
 ) -> TokenResponse:
-    result = await rotate_refresh_token(body.refresh_token, db)
-    if result is None:
-        raise UnauthorizedException("Invalid or expired refresh token.")
-
-    new_access_token, new_refresh_token, user_id = result
-    await db.commit()
-
-    mobile_user = (
-        await db.execute(
-            select(MobileUser)
-            .where(
-                MobileUser.id == user_id,
-                MobileUser.is_deleted.is_(False),
-            )
-        )
-    ).scalar_one_or_none()
-    if mobile_user is None:
-        raise UnauthorizedException("User not found.")
-
-    _assert_account_active(mobile_user)
-
-    return TokenResponse(
-        access_token=new_access_token,
-        refresh_token=new_refresh_token,
-        token_type="bearer",
-        user=MobileUserRead.model_validate(mobile_user),
-    )
+    return await service.refresh_token(refresh_token=body.refresh_token)
 
 
-@router.post("/logout")
+@router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(
     body: LogoutRequest,
-    db: Annotated[AsyncSession, Depends(async_get_db)],
+    service: MobileUserServiceDependency,
     current_user: Annotated[MobileActor, Depends(get_current_mobile_user)],
 ) -> dict[str, str]:
-    await revoke_refresh_session(body.refresh_token, db)
-    await db.commit()
-    return {"message": "Logged out successfully"}
+    return await service.logout(refresh_token=body.refresh_token)
+
+
+@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+async def forgot_password(
+    payload: MobileUserForgotPassword,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.forgot_password(email=payload.email)
+
+
+@router.get("/reset-password", response_class=HTMLResponse, status_code=status.HTTP_200_OK)
+async def reset_password_page(
+    token: str,
+    service: MobileUserServiceDependency,
+) -> HTMLResponse:
+    return HTMLResponse(content=service.render_template("password_reset_form.html", token=token))
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(
+    payload: MobileUserResetPassword,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.reset_password(
+        raw_token=payload.token,
+        new_password=payload.new_password.get_secret_value(),
+    )
