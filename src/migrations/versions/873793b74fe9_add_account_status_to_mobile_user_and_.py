@@ -18,8 +18,8 @@ down_revision: Union[str, None] = '6e478e860d70'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-account_status_enum = sa.Enum('active', 'suspended', 'banned', 'deactivated', name='mobile_user_account_status_enum')
-token_type_enum = sa.Enum('email_verification', 'email_change', 'password_reset', name='mobile_user_token_type_enum')
+account_status_enum = sa.Enum('active', 'suspended', 'banned', 'deactivated', name='mobile_user_account_status_enum', create_type=False)
+token_type_enum = sa.Enum('email_verification', 'email_change', 'password_reset', name='mobile_user_token_type_enum', create_type=False)
 
 
 def upgrade() -> None:
