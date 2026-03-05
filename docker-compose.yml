@@ -95,7 +95,7 @@ services:
         python -m scripts.seed_permissions &&
         python -m scripts.create_default_role &&
         python -m scripts.create_first_superuser &&
-        python -m scripts.create_first_tier
+        python -m scripts.create_tier
       "
     env_file:
       - ./src/.env

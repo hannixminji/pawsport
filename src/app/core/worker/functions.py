@@ -22,11 +22,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 
 
 # -------- background tasks --------
-async def sample_background_task(ctx: Worker, name: str) -> str:
-    await asyncio.sleep(5)
-    return f"Task {name} is complete!"
-
-
 async def send_email_task(
     ctx: Worker,
     *,

@@ -6,7 +6,6 @@ from enum import StrEnum
 from typing import Any
 
 from argon2.exceptions import VerificationError, VerifyMismatchError
-from fastapi import Request
 from fastapi.security import HTTPBearer, OAuth2PasswordBearer
 from firebase_admin import auth
 from firebase_admin.auth import CertificateFetchError, ExpiredIdTokenError, InvalidIdTokenError, RevokedIdTokenError
@@ -17,8 +16,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.refresh_session import RefreshSession
+from ..schemas.token import TokenData
 from .config import settings
-from .schemas import TokenData
 from .utils.rbac_bitmap import PermissionIndex, roleset_has_permission
 
 LOGGER = logging.getLogger(__name__)
@@ -42,14 +41,6 @@ class TokenType(StrEnum):
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
-
-
-def get_client_ip(request: Request) -> str | None:
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-
-    return request.client.host if request.client else None
 
 
 async def verify_password(plain_password: str, hashed_password: str) -> tuple[bool, str | None]:

@@ -21,31 +21,29 @@ NotificationPreferenceServiceDependency = Annotated[NotificationPreferenceServic
 ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 
 
-@router.get("/{user_id}", response_model=NotificationPreferenceRead, status_code=status.HTTP_200_OK)
+@router.get("", response_model=NotificationPreferenceRead, status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:notification-preferences:detail",
-    resource_id_name="user_id",
+    resource_id_name="actor.id",
     expiration=60,
 )
 async def get_notification_preference(
     request: Request,
-    user_id: int,
     actor: ActorDependency,
     service: NotificationPreferenceServiceDependency,
 ) -> NotificationPreferenceRead:
-    return await service.get_preference(actor=actor, user_id=user_id)
+    return await service.get_preference(actor=actor, user_id=actor.id)
 
 
-@router.put("/{user_id}", response_model=NotificationPreferenceRead, status_code=status.HTTP_200_OK)
+@router.put("", response_model=NotificationPreferenceRead, status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:notification-preferences:detail",
-    resource_id_name="user_id",
+    resource_id_name="actor.id",
 )
 async def upsert_notification_preference(
     request: Request,
-    user_id: int,
     payload: NotificationPreferenceUpsert,
     actor: ActorDependency,
     service: NotificationPreferenceServiceDependency,
 ) -> NotificationPreferenceRead:
-    return await service.upsert(actor=actor, user_id=user_id, preference_input=payload)
+    return await service.upsert(actor=actor, user_id=actor.id, preference_input=payload)

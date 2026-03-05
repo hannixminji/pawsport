@@ -28,10 +28,9 @@ async def search_missing_reports(
     search_request: SearchRequest,
     actor: ActorDependency,
     service: MissingReportServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
     pet_id: Annotated[int | None, Query(alias="petId")] = None,
 ) -> PaginatedResponse[MissingReportRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
+    return await service.search(actor=actor, search_request=search_request, user_id=actor.id, pet_id=pet_id)
 
 
 @router.post("/{pet_id}", response_model=MissingReportRead, status_code=status.HTTP_201_CREATED)
@@ -50,7 +49,7 @@ async def create_missing_report(
 @router.get("", response_model=PaginatedResponse[MissingReportRead], status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:missing-reports:list",
-    resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
+    resource_id_name=["page", "items_per_page", "pet_id"],
     namespace="app:missing-reports",
     expiration=60,
 )
@@ -60,14 +59,13 @@ async def list_missing_reports(
     service: MissingReportServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
     pet_id: Annotated[int | None, Query(alias="petId")] = None,
 ) -> PaginatedResponse[MissingReportRead]:
     return await service.get_missing_reports(
         actor=actor,
         page=page,
         items_per_page=items_per_page,
-        user_id=user_id,
+        user_id=actor.id,
         pet_id=pet_id,
     )
 

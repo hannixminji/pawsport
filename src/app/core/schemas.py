@@ -1,16 +1,11 @@
-from __future__ import annotations
-
 import uuid as uuid_pkg
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Annotated, Any, TypeVar
+from typing import Annotated, Any, TypeVar
 
 from pydantic import AfterValidator, BaseModel, Field, SecretStr, field_serializer
 from uuid6 import uuid7
 
 from .enums import ActorType
-
-if TYPE_CHECKING:
-    from ..schemas.mobile_user import MobileUserRead
 
 
 # -------------- password --------------
@@ -105,24 +100,6 @@ class PaginatedResponse[T](BaseModel):
     has_more: bool
     page: int
     items_per_page: int
-
-
-# -------------- token --------------
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    user_id: int
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str
-    user: MobileUserRead
-
 
 
 # -------------- actor --------------

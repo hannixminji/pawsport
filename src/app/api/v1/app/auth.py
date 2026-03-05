@@ -14,7 +14,6 @@ from app.core.config import settings
 from app.core.db.database import async_get_db
 from app.core.enums import AuthProvider
 from app.core.exceptions.http_exceptions import DuplicateValueException, UnauthorizedException
-from app.core.schemas import TokenResponse
 from app.core.security import (
     create_access_token,
     create_refresh_session,
@@ -28,6 +27,7 @@ from app.models.mobile_user import MobileUser
 from app.models.tier import Tier
 from app.models.user_linked_account import UserLinkedAccount
 from app.schemas.mobile_user import MobileActor, MobileUserRead
+from app.schemas.token import TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["login or signup"])
 

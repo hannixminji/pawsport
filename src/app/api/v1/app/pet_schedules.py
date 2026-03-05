@@ -27,10 +27,9 @@ async def search_pet_schedules(
     search_request: SearchRequest,
     actor: ActorDependency,
     service: PetScheduleServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
     pet_id: Annotated[int | None, Query(alias="petId")] = None,
 ) -> PaginatedResponse[PetScheduleRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
+    return await service.search(actor=actor, search_request=search_request, user_id=actor.id, pet_id=pet_id)
 
 
 @router.post("/{pet_id}", response_model=PetScheduleRead, status_code=status.HTTP_201_CREATED)
@@ -49,7 +48,7 @@ async def create_pet_schedule(
 @router.get("", response_model=PaginatedResponse[PetScheduleRead], status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:pet-schedules:list",
-    resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
+    resource_id_name=["page", "items_per_page", "pet_id"],
     namespace="app:pet-schedules",
     expiration=60,
 )
@@ -59,14 +58,13 @@ async def list_pet_schedules(
     service: PetScheduleServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
     pet_id: Annotated[int | None, Query(alias="petId")] = None,
 ) -> PaginatedResponse[PetScheduleRead]:
     return await service.get_pet_schedules(
         actor=actor,
         page=page,
         items_per_page=items_per_page,
-        user_id=user_id,
+        user_id=actor.id,
         pet_id=pet_id,
     )
 

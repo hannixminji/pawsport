@@ -20,23 +20,21 @@ DevicePushTokenServiceDependency = Annotated[DevicePushTokenService, Depends(get
 ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 
 
-@router.put("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.put("", status_code=status.HTTP_204_NO_CONTENT)
 async def upsert_device_push_token(
     request: Request,
-    user_id: int,
     payload: DevicePushTokenUpsert,
     actor: ActorDependency,
     service: DevicePushTokenServiceDependency,
 ) -> None:
-    await service.upsert(actor=actor, user_id=user_id, token_input=payload)
+    await service.upsert(actor=actor, user_id=actor.id, token_input=payload)
 
 
-@router.delete("/{user_id}/{token}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{token}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_device_push_token(
     request: Request,
-    user_id: int,
     token: str,
     actor: ActorDependency,
     service: DevicePushTokenServiceDependency,
 ) -> None:
-    await service.hard_delete(actor=actor, user_id=user_id, token=token)
+    await service.hard_delete(actor=actor, user_id=actor.id, token=token)

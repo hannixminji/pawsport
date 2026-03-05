@@ -42,20 +42,18 @@ async def search_sighting_reports(
     search_request: SearchRequest,
     actor: ActorDependency,
     service: SightingReportServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
 ) -> PaginatedResponse[SightingReportRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id)
+    return await service.search(actor=actor, search_request=search_request, user_id=actor.id)
 
 
-@router.post("/{user_id}", response_model=SightingReportRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=SightingReportRead, status_code=status.HTTP_201_CREATED)
 async def create_sighting_report(
     request: Request,
-    user_id: int,
     payload: SightingReportCreateWithImages,
     actor: ActorDependency,
     service: SightingReportServiceDependency,
 ) -> SightingReportRead:
-    result = await service.create(actor=actor, user_id=user_id, report_input=payload)
+    result = await service.create(actor=actor, user_id=actor.id, report_input=payload)
     await invalidate_namespace("app:sighting-reports")
     return result
 
@@ -63,7 +61,7 @@ async def create_sighting_report(
 @router.get("", response_model=PaginatedResponse[SightingReportRead], status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:sighting-reports:list",
-    resource_id_name=["page", "items_per_page", "user_id"],
+    resource_id_name=["page", "items_per_page"],
     namespace="app:sighting-reports",
     expiration=60,
 )
@@ -73,13 +71,12 @@ async def list_sighting_reports(
     service: SightingReportServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
 ) -> PaginatedResponse[SightingReportRead]:
     return await service.get_sighting_reports(
         actor=actor,
         page=page,
         items_per_page=items_per_page,
-        user_id=user_id,
+        user_id=actor.id,
     )
 
 

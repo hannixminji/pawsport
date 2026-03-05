@@ -127,7 +127,12 @@ def cache(
                 if isinstance(resource_id_name, list):
                     resolved_id = ":".join(str(kwargs[name]) for name in resource_id_name)
                 else:
-                    resolved_id = kwargs[resource_id_name]
+                    if "." in resource_id_name:
+                        obj_name, attr = resource_id_name.split(".", 1)
+                        obj = kwargs.get(obj_name)
+                        resolved_id = getattr(obj, attr) if obj is not None else None
+                    else:
+                        resolved_id = kwargs[resource_id_name]
             elif resource_id is not None:
                 resolved_id = resource_id
             else:

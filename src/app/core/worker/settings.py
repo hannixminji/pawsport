@@ -7,6 +7,7 @@ from .functions import (
     qdrant_hard_delete_embeddings_task,
     qdrant_soft_delete_embeddings_task,
     qdrant_update_payload_task,
+    send_email_task,
     shutdown,
     startup,
 )
@@ -19,9 +20,10 @@ class WorkerSettings:
     functions = [
         extract_features_task,
         notify_nearby_alert_center_task,
-        qdrant_update_payload_task,
-        qdrant_soft_delete_embeddings_task,
         qdrant_hard_delete_embeddings_task,
+        qdrant_soft_delete_embeddings_task,
+        qdrant_update_payload_task,
+        send_email_task
     ]
     redis_settings = RedisSettings.from_dsn(settings.REDIS_CACHE_URL)
     on_startup = startup

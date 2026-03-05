@@ -21,31 +21,29 @@ PetQRDefaultServiceDependency = Annotated[PetQRDefaultService, Depends(get_servi
 ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 
 
-@router.get("/{owner_id}", response_model=PetQRDefaultRead, status_code=status.HTTP_200_OK)
+@router.get("", response_model=PetQRDefaultRead, status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:pet-qr-defaults:detail",
-    resource_id_name="owner_id",
+    resource_id_name="actor.id",
     expiration=60,
 )
 async def get_pet_qr_default(
     request: Request,
-    owner_id: int,
     actor: ActorDependency,
     service: PetQRDefaultServiceDependency,
 ) -> PetQRDefaultRead:
-    return await service.get_default(actor=actor, owner_id=owner_id)
+    return await service.get_default(actor=actor, owner_id=actor.id)
 
 
-@router.put("/{owner_id}", response_model=PetQRDefaultRead, status_code=status.HTTP_200_OK)
+@router.put("", response_model=PetQRDefaultRead, status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:pet-qr-defaults:detail",
-    resource_id_name="owner_id",
+    resource_id_name="actor.id",
 )
 async def upsert_pet_qr_default(
     request: Request,
-    owner_id: int,
     payload: PetQRDefaultUpsert,
     actor: ActorDependency,
     service: PetQRDefaultServiceDependency,
 ) -> PetQRDefaultRead:
-    return await service.upsert(actor=actor, owner_id=owner_id, default_input=payload)
+    return await service.upsert(actor=actor, owner_id=actor.id, default_input=payload)

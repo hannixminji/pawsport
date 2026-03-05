@@ -6,7 +6,7 @@ from fastapi import Request
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from pydantic_extra_types.phone_numbers import PhoneNumber
 
-from app.core.security import get_client_ip
+from app.core.utils.request import get_client_ip
 
 from ..core.enums import ActorType, AdminAccountStatus
 from ..core.schemas import Actor, PersistentDeletion, StrongPassword, TimestampSchema, UUIDSchema

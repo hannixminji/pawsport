@@ -8,7 +8,7 @@ from pydantic_extra_types.phone_numbers import PhoneNumber
 
 from ..core.enums import ActorType, MobileUserAccountStatus
 from ..core.schemas import Actor, GeoPoint, PersistentDeletion, StrongPassword, TimestampSchema
-from ..core.security import get_client_ip
+from ..core.utils.request import get_client_ip
 
 PositiveInt = conint(gt=0)
 

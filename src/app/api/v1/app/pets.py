@@ -54,20 +54,18 @@ async def search_pets(
     search_request: SearchRequest,
     actor: ActorDependency,
     service: PetServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
 ) -> PaginatedResponse[PetRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id)
+    return await service.search(actor=actor, search_request=search_request, user_id=actor.id)
 
 
-@router.post("/{user_id}", response_model=PetRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PetRead, status_code=status.HTTP_201_CREATED)
 async def create_pet(
     request: Request,
-    user_id: int,
     payload: PetCreateWithPhotos,
     actor: ActorDependency,
     service: PetServiceDependency,
 ) -> PetRead:
-    result = await service.create(actor=actor, user_id=user_id, pet_input=payload)
+    result = await service.create(actor=actor, user_id=actor.id, pet_input=payload)
     await invalidate_namespace("app:pets")
     return result
 
@@ -75,7 +73,7 @@ async def create_pet(
 @router.get("", response_model=PaginatedResponse[PetRead], status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:pets:list",
-    resource_id_name=["page", "items_per_page", "user_id"],
+    resource_id_name=["page", "items_per_page"],
     namespace="app:pets",
     expiration=60,
 )
@@ -85,13 +83,12 @@ async def list_pets(
     service: PetServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
 ) -> PaginatedResponse[PetRead]:
     return await service.get_pets(
         actor=actor,
         page=page,
         items_per_page=items_per_page,
-        user_id=user_id,
+        user_id=actor.id,
     )
 
 

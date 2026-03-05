@@ -27,20 +27,18 @@ async def search_inventory_items(
     search_request: SearchRequest,
     actor: ActorDependency,
     service: PetInventoryServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
 ) -> PaginatedResponse[PetInventoryRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id)
+    return await service.search(actor=actor, search_request=search_request, user_id=actor.id)
 
 
-@router.post("/{user_id}", response_model=PetInventoryRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PetInventoryRead, status_code=status.HTTP_201_CREATED)
 async def create_inventory_item(
     request: Request,
-    user_id: int,
     payload: PetInventoryCreateWithImages,
     actor: ActorDependency,
     service: PetInventoryServiceDependency,
 ) -> PetInventoryRead:
-    result = await service.create(actor=actor, user_id=user_id, inventory_input=payload)
+    result = await service.create(actor=actor, user_id=actor.id, inventory_input=payload)
     await invalidate_namespace("app:pet-inventory")
     return result
 
@@ -48,7 +46,7 @@ async def create_inventory_item(
 @router.get("", response_model=PaginatedResponse[PetInventoryRead], status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:pet-inventory:list",
-    resource_id_name=["page", "items_per_page", "user_id"],
+    resource_id_name=["page", "items_per_page"],
     namespace="app:pet-inventory",
     expiration=60,
 )
@@ -58,13 +56,12 @@ async def list_inventory_items(
     service: PetInventoryServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
 ) -> PaginatedResponse[PetInventoryRead]:
     return await service.get_inventory_items(
         actor=actor,
         page=page,
         items_per_page=items_per_page,
-        user_id=user_id,
+        user_id=actor.id,
     )
 
 

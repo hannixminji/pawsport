@@ -31,10 +31,9 @@ async def search_vaccination_records(
     search_request: SearchRequest,
     actor: ActorDependency,
     service: PetVaccinationRecordServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
     pet_id: Annotated[int | None, Query(alias="petId")] = None,
 ) -> PaginatedResponse[PetVaccinationRecordRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id, pet_id=pet_id)
+    return await service.search(actor=actor, search_request=search_request, user_id=actor.id, pet_id=pet_id)
 
 
 @router.post("/{pet_id}", response_model=PetVaccinationRecordRead, status_code=status.HTTP_201_CREATED)
@@ -53,7 +52,7 @@ async def create_vaccination_record(
 @router.get("", response_model=PaginatedResponse[PetVaccinationRecordRead], status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:pet-vaccination-records:list",
-    resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
+    resource_id_name=["page", "items_per_page", "pet_id"],
     namespace="app:pet-vaccination-records",
     expiration=60,
 )
@@ -63,14 +62,13 @@ async def list_vaccination_records(
     service: PetVaccinationRecordServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
     pet_id: Annotated[int | None, Query(alias="petId")] = None,
 ) -> PaginatedResponse[PetVaccinationRecordRead]:
     return await service.get_vaccination_records(
         actor=actor,
         page=page,
         items_per_page=items_per_page,
-        user_id=user_id,
+        user_id=actor.id,
         pet_id=pet_id,
     )
 

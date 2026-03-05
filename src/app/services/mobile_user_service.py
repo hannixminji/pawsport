@@ -1,14 +1,17 @@
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar
 
+from fastapi.templating import Jinja2Templates
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
 from sqlalchemy import any_, delete, func, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.enums import ActorType, AuthProvider
+from ..core.config import settings
+from ..core.enums import ActorType, AuthProvider, UserTokenType
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
 from ..core.exceptions.domain_exceptions import InvalidInputError, NotFoundError
@@ -17,6 +20,7 @@ from ..core.search_engine.engine import SearchEngine
 from ..core.search_engine.enums import FilterOp
 from ..core.search_engine.schemas import SearchRequest
 from ..core.security import get_password_hash, verify_password
+from ..core.utils import queue
 from ..core.utils.google_cloud_storage import is_object_exists
 from ..core.utils.pagination import compute_offset
 from ..core.utils.update import apply_partial_update
@@ -24,8 +28,11 @@ from ..models.mobile_user import MobileUser
 from ..models.tier import Tier
 from ..models.user_linked_account import UserLinkedAccount
 from ..schemas.mobile_user import MobileUserAccountStatusUpdate, MobileUserCreate, MobileUserRead, MobileUserUpdate
+from .mobile_user_token_service import MobileUserTokenService
 
 LOGGER = logging.getLogger(__name__)
+
+TEMPLATES = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "core" / "templates"))
 
 
 @dataclass(slots=True)
@@ -120,6 +127,27 @@ class MobileUserService:
                 .where(Tier.id == tier_id)
             )
         ).scalar_one_or_none()
+
+    async def _enqueue_email(
+        self,
+        *,
+        to_email: str,
+        subject: str,
+        html: str,
+    ) -> None:
+        try:
+            await queue.pool.enqueue_job(
+                "send_email_task",
+                to_email=to_email,
+                subject=subject,
+                html=html,
+            )
+
+        except Exception as error:
+            LOGGER.error(f"Failed to enqueue send_email_task for {to_email}: {error}")
+
+    def render_template(self, template_name: str, **context) -> str:
+        return TEMPLATES.get_template(template_name).render(**context)
 
     async def create(
         self,
@@ -343,6 +371,203 @@ class MobileUserService:
 
             raise NonTransientDatabaseError(
                 "Failed to update the user."
+            ) from error
+
+    async def send_verification_email(
+        self,
+        *,
+        actor: Actor,
+        user_id: int,
+    ) -> None:
+        if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
+            raise ForbiddenError("You do not have permission to perform this action.")
+
+        db_user = await self._get_mobile_user(user_id, actor)
+        if db_user is None:
+            raise NotFoundError("User not found.")
+
+        if db_user.is_email_verified:
+            raise InvalidInputError("Email is already verified.")
+
+        if db_user.email is None:
+            raise InvalidInputError("No email address found for this user.")
+
+        token_service = MobileUserTokenService(db=self.db)
+        raw_token = await token_service.create_token(
+            mobile_user_id=user_id,
+            token_type=UserTokenType.EMAIL_VERIFICATION,
+        )
+
+        html = TEMPLATES.get_template("email_verification.html").render(
+            verification_url=f"{settings.APP_URL}/api/v1/mobile-users/verify-email?token={raw_token}",
+            expire_minutes=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES,
+        )
+
+        await self._enqueue_email(
+            to_email=db_user.email,
+            subject="Verify your email address",
+            html=html,
+        )
+
+    async def verify_email(
+        self,
+        *,
+        raw_token: str,
+    ) -> None:
+        token_service = MobileUserTokenService(db=self.db)
+        db_token = await token_service.verify_token(
+            raw_token=raw_token,
+            token_type=UserTokenType.EMAIL_VERIFICATION,
+        )
+
+        user_id = db_token.mobile_user_id
+
+        db_user = await self._get_mobile_user(user_id)
+        if db_user is None:
+            raise NotFoundError("User not found.")
+
+        if db_user.is_email_verified:
+            raise InvalidInputError("Email is already verified.")
+
+        await token_service.consume_token(token_id=db_token.id)
+
+        await self.db.execute(
+            update(MobileUser)
+            .where(
+                MobileUser.id == user_id,
+                MobileUser.is_deleted.is_(False),
+            )
+            .values(is_email_verified=True)
+        )
+
+        try:
+            await self.db.commit()
+
+        except OperationalError as error:
+            await self.db.rollback()
+
+            raise TransientDatabaseError(
+                "Failed to verify email. Please try again later."
+            ) from error
+
+        except SQLAlchemyError as error:
+            await self.db.rollback()
+
+            raise NonTransientDatabaseError(
+                "Failed to verify email."
+            ) from error
+
+    async def request_email_change(
+        self,
+        *,
+        actor: Actor,
+        user_id: int,
+        new_email: str,
+    ) -> None:
+        if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
+            raise ForbiddenError("You do not have permission to change this user's email.")
+
+        db_user = await self._get_mobile_user(user_id, actor)
+        if db_user is None:
+            raise NotFoundError("User not found.")
+
+        if db_user.email == new_email:
+            raise InvalidInputError("New email must be different from your current email.")
+
+        existing = (
+            await self.db.execute(
+                select(MobileUser)
+                .where(
+                    MobileUser.email == new_email,
+                    MobileUser.id != user_id,
+                    MobileUser.is_deleted.is_(False),
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            raise InvalidInputError("A user with this email already exists.")
+
+        token_service = MobileUserTokenService(db=self.db)
+        raw_token = await token_service.create_token(
+            mobile_user_id=user_id,
+            token_type=UserTokenType.EMAIL_CHANGE,
+            payload={"new_email": new_email},
+        )
+
+        html = TEMPLATES.get_template("email_change.html").render(
+            verification_url=f"{settings.APP_URL}/api/v1/mobile-users/verify-email-change?token={raw_token}",
+            expire_minutes=settings.EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES,
+        )
+
+        await self._enqueue_email(
+            to_email=new_email,
+            subject="Confirm your new email address",
+            html=html,
+        )
+
+    async def verify_email_change(
+        self,
+        *,
+        raw_token: str,
+    ) -> None:
+        token_service = MobileUserTokenService(db=self.db)
+        db_token = await token_service.verify_token(
+            raw_token=raw_token,
+            token_type=UserTokenType.EMAIL_CHANGE,
+        )
+
+        user_id = db_token.mobile_user_id
+
+        db_user = await self._get_mobile_user(user_id)
+        if db_user is None:
+            raise NotFoundError("User not found.")
+
+        new_email = db_token.payload_json["new_email"]
+
+        await token_service.consume_token(token_id=db_token.id)
+
+        await self.db.execute(
+            update(MobileUser)
+            .where(
+                MobileUser.id == user_id,
+                MobileUser.is_deleted.is_(False),
+            )
+            .values(email=new_email)
+        )
+
+        await self.db.execute(
+            update(UserLinkedAccount)
+            .where(
+                UserLinkedAccount.mobile_user_id == user_id,
+                UserLinkedAccount.provider == AuthProvider.EMAIL,
+                UserLinkedAccount.is_deleted.is_(False),
+            )
+            .values(provider_email=new_email)
+        )
+
+        try:
+            await self.db.commit()
+
+        except IntegrityError as error:
+            await self.db.rollback()
+
+            if self._is_unique_constraint_violation(error, "uq_mobile_user_email_active"):
+                raise InvalidInputError("A user with this email already exists.")
+
+            raise InvalidInputError("Unable to update the email.")
+
+        except OperationalError as error:
+            await self.db.rollback()
+
+            raise TransientDatabaseError(
+                "Failed to update the email. Please try again later."
+            ) from error
+
+        except SQLAlchemyError as error:
+            await self.db.rollback()
+
+            raise NonTransientDatabaseError(
+                "Failed to update the email."
             ) from error
 
     async def change_password(
