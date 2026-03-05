@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +13,6 @@ from app.schemas.mobile_user import (
     MobileUserPasswordUpdate,
     MobileUserRead,
     MobileUserUpdate,
-    MobileUserVerifyEmail,
 )
 from app.services.mobile_user_service import MobileUserService
 
@@ -30,7 +29,7 @@ ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 
 @router.get("/verify-email", response_class=HTMLResponse, status_code=status.HTTP_200_OK)
 async def verify_email_from_link(
-    token: str,
+    token: Annotated[str, Query()],
     service: MobileUserServiceDependency,
 ) -> HTMLResponse:
     await service.verify_email(raw_token=token)
@@ -39,7 +38,7 @@ async def verify_email_from_link(
 
 @router.get("/verify-email-change", response_class=HTMLResponse, status_code=status.HTTP_200_OK)
 async def verify_email_change_from_link(
-    token: str,
+    token: Annotated[str, Query()],
     service: MobileUserServiceDependency,
 ) -> HTMLResponse:
     await service.verify_email_change(raw_token=token)
@@ -69,28 +68,6 @@ async def send_verification_email(
     await service.send_verification_email(
         actor=actor,
         user_id=actor.id,
-    )
-
-
-@router.post("/email/verification/verify", status_code=status.HTTP_204_NO_CONTENT)
-async def verify_email(
-    request: Request,
-    payload: MobileUserVerifyEmail,
-    service: MobileUserServiceDependency,
-) -> None:
-    await service.verify_email(
-        raw_token=payload.token,
-    )
-
-
-@router.post("/email/verify", status_code=status.HTTP_204_NO_CONTENT)
-async def verify_email_change(
-    request: Request,
-    payload: MobileUserVerifyEmail,
-    service: MobileUserServiceDependency,
-) -> None:
-    await service.verify_email_change(
-        raw_token=payload.token,
     )
 
 
