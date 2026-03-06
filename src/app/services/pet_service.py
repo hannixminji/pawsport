@@ -252,7 +252,6 @@ class PetService:
     ) -> None:
         for photo in existing_photos_from_input:
             db_existing_photos[photo.id].sort_order = photo.sort_order
-            db_existing_photos[photo.id].is_primary = photo.is_primary
 
     def _add_new_photos(self, db_pet: Pet, new_photos: list[PetPhotoCreate]) -> list[PetPhoto]:
         new_photo_models = []
