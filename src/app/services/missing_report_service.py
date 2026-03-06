@@ -123,7 +123,12 @@ class MissingReportService:
         query = select(MissingReport)
 
         if with_photos:
-            query = query.options(selectinload(MissingReport.pet).selectinload(Pet.photos))
+            query = query.options(
+                selectinload(MissingReport.pet).options(
+                    selectinload(Pet.photos),
+                    selectinload(Pet.qr_preference),
+                )
+            )
 
         query = (
             query
@@ -309,6 +314,12 @@ class MissingReportService:
         ):
             base_query = (
                 select(MissingReport)
+                .options(
+                    selectinload(MissingReport.pet).options(
+                        selectinload(Pet.photos),
+                        selectinload(Pet.qr_preference),
+                    )
+                )
                 .join(Pet, Pet.id == MissingReport.pet_id)
                 .where(
                     Pet.owner_id == user_id,
@@ -319,6 +330,12 @@ class MissingReportService:
         else:
             base_query = (
                 select(MissingReport)
+                .options(
+                    selectinload(MissingReport.pet).options(
+                        selectinload(Pet.photos),
+                        selectinload(Pet.qr_preference),
+                    )
+                )
                 .join(Pet, Pet.id == MissingReport.pet_id)
                 .where(
                     Pet.is_deleted.is_(False),
@@ -387,7 +404,12 @@ class MissingReportService:
         db_reports = (
             await self.db.execute(
                 base_query
-                .options(selectinload(MissingReport.pet).selectinload(Pet.photos))
+                .options(
+                    selectinload(MissingReport.pet).options(
+                        selectinload(Pet.photos),
+                        selectinload(Pet.qr_preference),
+                    )
+                )
                 .offset(compute_offset(page, items_per_page))
                 .limit(items_per_page)
             )

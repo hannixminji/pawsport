@@ -3,7 +3,7 @@ from typing import Annotated, Any, Union
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import guest_rate_limiter_dependency, rate_limiter_dependency
+from app.api.dependencies import get_current_authenticated_actor, guest_rate_limiter_dependency, rate_limiter_dependency
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, MapViewport, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -25,13 +25,14 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> SightingR
 
 SightingReportServiceDependency = Annotated[SightingReportService, Depends(get_service)]
 ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
+AuthenticatedActorDependency = Annotated[Actor, Depends[get_current_authenticated_actor]]
 GuestActorDependency = Annotated[Actor, Depends(guest_rate_limiter_dependency)]
 
 
 @router.post("/viewport", response_model=list[dict[str, Any]], status_code=status.HTTP_200_OK)
 async def get_combined_reports_by_viewport(
     viewport: MapViewport,
-    actor: ActorDependency,
+    actor: AuthenticatedActorDependency,
     service: SightingReportServiceDependency,
 ) -> list[dict[str, Any]]:
     return await service.get_combined_reports_by_viewport(viewport=viewport)
