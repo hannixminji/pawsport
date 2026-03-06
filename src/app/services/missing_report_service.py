@@ -270,7 +270,18 @@ class MissingReportService:
         except Exception as e:
             LOGGER.warning(f"Failed to enqueue notify_nearby_alert_center_task: {e}")
 
-        return MissingReportRead.model_validate(missing_report)
+        result = await self.db.scalar(
+            select(MissingReport)
+            .options(
+                selectinload(MissingReport.pet).options(
+                    selectinload(Pet.photos),
+                    selectinload(Pet.qr_preference),
+                )
+            )
+            .where(MissingReport.id == missing_report.id)
+        )
+
+        return MissingReportRead.model_validate(result)
 
     async def search(
         self,

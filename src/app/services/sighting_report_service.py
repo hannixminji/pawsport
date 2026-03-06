@@ -57,7 +57,6 @@ class SightingReportService:
         "id",
         "sighting_location",
         "mobile_user_id",
-        "guest_token",
         "description",
         "is_deleted",
         "updated_at",

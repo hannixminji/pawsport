@@ -24,9 +24,9 @@ from ..models.pet import Pet
 from ..models.pet_vaccination_record import PetVaccinationRecord
 from ..models.pet_vaccination_record_attachment import PetVaccinationRecordAttachment
 from ..schemas.pet_vaccination_record import (
-    PetVaccinationRecordCreate,
+    PetVaccinationRecordCreateWithAttachments,
     PetVaccinationRecordRead,
-    PetVaccinationRecordUpdate,
+    PetVaccinationRecordUpdateWithAttachments,
 )
 from ..schemas.pet_vaccination_record_attachment import (
     PetVaccinationRecordAttachmentCreate,
@@ -317,7 +317,7 @@ class PetVaccinationRecordService:
         *,
         actor: Actor,
         pet_id: int,
-        vaccination_record_input: PetVaccinationRecordCreate,
+        vaccination_record_input: PetVaccinationRecordCreateWithAttachments,
     ) -> PetVaccinationRecordRead:
         await self._require_pet_access(actor, pet_id)
 
@@ -356,8 +356,13 @@ class PetVaccinationRecordService:
                 "Failed to create the vaccination record."
             ) from error
 
-        await self.db.refresh(vaccination_record_model, ["attachments"])
-        return PetVaccinationRecordRead.model_validate(vaccination_record_model)
+        result = await self.db.scalar(
+            select(PetVaccinationRecord)
+            .options(selectinload(PetVaccinationRecord.attachments))
+            .where(PetVaccinationRecord.id == vaccination_record_model.id)
+        )
+
+        return PetVaccinationRecordRead.model_validate(result)
 
     async def search(
         self,
@@ -500,7 +505,7 @@ class PetVaccinationRecordService:
         *,
         actor: Actor,
         vaccination_record_id: int,
-        vaccination_record_input: PetVaccinationRecordUpdate,
+        vaccination_record_input: PetVaccinationRecordUpdateWithAttachments,
     ) -> None:
         if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
             raise ForbiddenError("You do not have permission to update this vaccination record.")

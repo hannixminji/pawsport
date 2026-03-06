@@ -144,3 +144,5 @@ src/.env
 # /docker-compose.yml
 
 secrets/
+
+services_1/

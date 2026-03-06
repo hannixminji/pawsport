@@ -53,7 +53,6 @@ class SightingReportBase(BaseModel):
 
 class SightingReport(TimestampSchema, SightingReportBase, PersistentDeletion):
     mobile_user_id: int | None = None
-    guest_token: str | None = None
 
 
 class SightingReportRead(BaseModel):
@@ -67,7 +66,6 @@ class SightingReportRead(BaseModel):
     images: list[SightingReportImageRead]
     created_at: datetime
     mobile_user_id: int | None
-    guest_token: str | None
     description: str | None
 
 
@@ -77,8 +75,6 @@ class SightingReportWithMatches(SightingReportRead):
 
 class SightingReportCreate(SightingReportBase):
     model_config = ConfigDict(extra="forbid")
-
-    guest_token: Annotated[str | None, Field(max_length=255, default=None)]
 
 
 class SightingReportCreateWithImages(SightingReportCreate):
