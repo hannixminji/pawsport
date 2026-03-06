@@ -98,18 +98,25 @@ class ArticleService:
         except IntegrityError as error:
             await self.db.rollback()
 
+            duplicate_field = None
+            if self._is_unique_constraint_violation(error, "uq_article_title_active"):
+                duplicate_field = "title"
+
             if self.audit_logger:
                 await self.audit_logger.log(
                     actor=actor,
                     action="article.create",
                     status=ActionStatus.FAILURE,
                     resource_type=_RESOURCE_TYPE,
-                    error_code="DUPLICATE_TITLE",
+                    error_code="DUPLICATE_ENTRY",
                     error_message=str(error),
-                    extra_metadata={"title": article_input.title, "category": article_input.category},
+                    extra_metadata={
+                        "title": article_input.title,
+                        "duplicate_field": duplicate_field,
+                    },
                 )
 
-            if self._is_unique_constraint_violation(error, "uq_article_title_active"):
+            if duplicate_field == "title":
                 raise InvalidInputError("An article with this title already exists.")
 
             raise InvalidInputError("Unable to create the article.")
@@ -125,7 +132,7 @@ class ArticleService:
                     resource_type=_RESOURCE_TYPE,
                     error_code="TRANSIENT_DB_ERROR",
                     error_message=str(error),
-                    extra_metadata={"title": article_input.title, "category": article_input.category},
+                    extra_metadata={"title": article_input.title},
                 )
 
             raise TransientDatabaseError(
@@ -143,7 +150,7 @@ class ArticleService:
                     resource_type=_RESOURCE_TYPE,
                     error_code="DB_ERROR",
                     error_message=str(error),
-                    extra_metadata={"title": article_input.title, "category": article_input.category},
+                    extra_metadata={"title": article_input.title},
                 )
 
             raise NonTransientDatabaseError(
@@ -273,6 +280,10 @@ class ArticleService:
         except IntegrityError as error:
             await self.db.rollback()
 
+            duplicate_field = None
+            if self._is_unique_constraint_violation(error, "uq_article_title_active"):
+                duplicate_field = "title"
+
             if self.audit_logger:
                 await self.audit_logger.log(
                     actor=actor,
@@ -280,12 +291,15 @@ class ArticleService:
                     status=ActionStatus.FAILURE,
                     resource_type=_RESOURCE_TYPE,
                     resource_id=article_id,
-                    error_code="DUPLICATE_TITLE",
+                    error_code="DUPLICATE_ENTRY",
                     error_message=str(error),
-                    extra_metadata={"title": article_input.title, "category": article_input.category},
+                    extra_metadata={
+                        "title": article_input.title,
+                        "duplicate_field": duplicate_field,
+                    },
                 )
 
-            if self._is_unique_constraint_violation(error, "uq_article_title_active"):
+            if duplicate_field == "title":
                 raise InvalidInputError("An article with this title already exists.")
 
             raise InvalidInputError("Unable to update the article.")
@@ -302,7 +316,7 @@ class ArticleService:
                     resource_id=article_id,
                     error_code="TRANSIENT_DB_ERROR",
                     error_message=str(error),
-                    extra_metadata={"title": article_input.title, "category": article_input.category},
+                    extra_metadata={"title": article_input.title},
                 )
 
             raise TransientDatabaseError(
@@ -321,7 +335,7 @@ class ArticleService:
                     resource_id=article_id,
                     error_code="DB_ERROR",
                     error_message=str(error),
-                    extra_metadata={"title": article_input.title, "category": article_input.category},
+                    extra_metadata={"title": article_input.title},
                 )
 
             raise NonTransientDatabaseError(
