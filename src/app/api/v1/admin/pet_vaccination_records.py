@@ -11,9 +11,9 @@ from app.core.search_engine.schemas import SearchRequest
 from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.pet_vaccination_record import (
     PetVaccinationRecordBulkDelete,
-    PetVaccinationRecordCreate,
+    PetVaccinationRecordCreateWithAttachments,
     PetVaccinationRecordRead,
-    PetVaccinationRecordUpdate,
+    PetVaccinationRecordUpdateWithAttachments,
 )
 from app.services.pet_vaccination_record_service import PetVaccinationRecordService
 
@@ -43,7 +43,7 @@ async def search_vaccination_records(
 async def create_vaccination_record(
     request: Request,
     pet_id: int,
-    payload: PetVaccinationRecordCreate,
+    payload: PetVaccinationRecordCreateWithAttachments,
     actor: Annotated[Actor, Depends(require_permission("pet_vaccination_record:create"))],
     service: PetVaccinationRecordServiceDependency,
 ) -> PetVaccinationRecordRead:
@@ -126,7 +126,7 @@ async def soft_delete_vaccination_record(
 async def update_vaccination_record(
     request: Request,
     vaccination_record_id: int,
-    payload: PetVaccinationRecordUpdate,
+    payload: PetVaccinationRecordUpdateWithAttachments,
     actor: Annotated[Actor, Depends(require_permission("pet_vaccination_record:update"))],
     service: PetVaccinationRecordServiceDependency,
 ) -> None:
