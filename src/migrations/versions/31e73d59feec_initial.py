@@ -5,10 +5,11 @@ Revises:
 Create Date: 2026-03-05 11:07:39.735214
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
+from typing import Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from geoalchemy2 import Geography
 from sqlalchemy.dialects import postgresql
 
