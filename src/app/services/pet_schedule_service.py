@@ -68,12 +68,6 @@ class PetScheduleService:
             FilterOp.GT,
             FilterOp.GTE,
         }),
-        "next_schedule_at": frozenset({
-            FilterOp.LT,
-            FilterOp.LTE,
-            FilterOp.GT,
-            FilterOp.GTE,
-        }),
         "created_at": frozenset({
             FilterOp.LT,
             FilterOp.LTE,
@@ -84,7 +78,6 @@ class PetScheduleService:
     SEARCH_SORTABLE_COLUMNS: ClassVar[set[str]] = {
         "title",
         "scheduled_at",
-        "next_schedule_at",
         "created_at",
     }
 
@@ -172,7 +165,6 @@ class PetScheduleService:
 
         schedule_model = PetSchedule(
             pet_id=pet_id,
-            next_schedule_at=schedule_input.scheduled_at,
             **schedule_input.model_dump(),
         )
         self.db.add(schedule_model)

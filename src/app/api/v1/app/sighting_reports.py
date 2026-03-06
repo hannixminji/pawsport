@@ -25,7 +25,7 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> SightingR
 
 SightingReportServiceDependency = Annotated[SightingReportService, Depends(get_service)]
 ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
-AuthenticatedActorDependency = Annotated[Actor, Depends[get_current_authenticated_actor]]
+AuthenticatedActorDependency = Annotated[Actor, Depends(get_current_authenticated_actor)]
 GuestActorDependency = Annotated[Actor, Depends(guest_rate_limiter_dependency)]
 
 
