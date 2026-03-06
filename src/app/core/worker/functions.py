@@ -161,6 +161,8 @@ async def notify_nearby_alert_center_task(
 
 
 async def qdrant_update_payload_task(
+    ctx: Worker,
+    *,
     collection_name: str,
     point_ids: list[str],
     payload: dict,
@@ -174,6 +176,8 @@ async def qdrant_update_payload_task(
 
 
 async def qdrant_soft_delete_embeddings_task(
+    ctx: Worker,
+    *,
     collection_name: str,
     point_ids: list[str],
 ) -> None:
@@ -186,6 +190,8 @@ async def qdrant_soft_delete_embeddings_task(
 
 
 async def qdrant_hard_delete_embeddings_task(
+    ctx: Worker,
+    *,
     collection_name: str,
     point_ids: list[str],
 ) -> None:
