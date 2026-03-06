@@ -20,13 +20,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE TYPE IF NOT EXISTS system_action_log_status_enum AS ENUM ('SUCCESS', 'FAILURE')")
-
     op.create_table('system_action_log',
     sa.Column('id', sa.BigInteger(), nullable=False),
     sa.Column('actor_type', sa.String(), nullable=False),
     sa.Column('action', sa.String(), nullable=False),
-    sa.Column('status', sa.Enum('SUCCESS', 'FAILURE', name='system_action_log_status_enum', create_type=False), nullable=False),
+    sa.Column('status', sa.Enum('SUCCESS', 'FAILURE', name='system_action_log_status_enum'), nullable=False),
     sa.Column('is_superuser', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('is_anonymous', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('actor_id', sa.Integer(), server_default=sa.text('NULL'), nullable=True),
