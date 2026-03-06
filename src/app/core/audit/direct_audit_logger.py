@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass
 
-from ...services.system_action_log import SystemActionLogService
+from ...services.system_action_log_service import SystemActionLogService
 from ..enums import ActionStatus
 from ..schemas import Actor
 

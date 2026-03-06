@@ -20,7 +20,7 @@ from app.schemas.article import (
     ArticleUpdate,
 )
 from app.services.article_service import ArticleService
-from app.services.system_action_log import SystemActionLogService
+from app.services.system_action_log_service import SystemActionLogService
 
 router = CSRFProtectedRouter(prefix="/articles", tags=["Articles"])
 
