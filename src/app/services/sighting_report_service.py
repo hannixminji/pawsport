@@ -10,7 +10,7 @@ from geoalchemy2.functions import ST_Distance, ST_GeomFromText, ST_MakeEnvelope,
 from geoalchemy2.shape import from_shape
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 from shapely.geometry import Point
-from sqlalchemy import cast, delete, func, literal, select, union_all, update
+from sqlalchemy import any_, cast, delete, func, literal, select, union_all, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -365,7 +365,8 @@ class SightingReportService:
 
         fetched_sighting_reports = await self.db.execute(
             select(SightingReport)
-            .where(SightingReport.id.in_(sighting_report_ids), SightingReport.is_deleted.is_(False))
+            .options(selectinload(SightingReport.images))
+            .where(SightingReport.id == any_(sighting_report_ids), SightingReport.is_deleted.is_(False))
         )
         return {sighting_report.id: sighting_report for sighting_report in fetched_sighting_reports.scalars().all()}
 
@@ -375,8 +376,16 @@ class SightingReportService:
 
         fetched_missing_reports = await self.db.execute(
             select(MissingReport)
-            .options(selectinload(MissingReport.pet).selectinload(Pet.photos))
-            .where(MissingReport.id.in_(missing_report_ids), MissingReport.is_deleted.is_(False))
+            .options(
+                selectinload(MissingReport.pet).options(
+                    selectinload(Pet.photos),
+                    selectinload(Pet.qr_preference),
+                )
+            )
+            .where(
+                MissingReport.id == any_(missing_report_ids),
+                MissingReport.is_deleted.is_(False),
+            )
         )
         return {missing_report.id: missing_report for missing_report in fetched_missing_reports.scalars().all()}
 
@@ -764,7 +773,10 @@ class SightingReportService:
                 await self.db.execute(
                     select(Pet)
                     .options(selectinload(Pet.photos))
-                    .where(Pet.uuid.in_(pet_uuids), Pet.is_deleted.is_(False))
+                    .where(
+                        Pet.uuid == any_(pet_uuids),
+                        Pet.is_deleted.is_(False),
+                    )
                 )
             ).scalars().all()
         else:
