@@ -18,6 +18,7 @@ from .pets import router as pet_router
 from .rate_limits import router as rate_limit_router
 from .roles import router as role_router
 from .sighting_reports import router as sighting_report_router
+from .system_action_logs import router as system_action_log_router
 from .tiers import router as tier_router
 from .uploads import router as upload_router
 from .users import router as user_router
@@ -42,6 +43,7 @@ router.include_router(pet_router)
 router.include_router(rate_limit_router)
 router.include_router(role_router)
 router.include_router(sighting_report_router)
+router.include_router(system_action_log_router)
 router.include_router(tier_router)
 router.include_router(upload_router)
 router.include_router(user_router)
