@@ -605,7 +605,7 @@ class PetService:
             column_order_map=None,
             sortable_columns=self.SEARCH_SORTABLE_COLUMNS,
             max_in_list_size=100,
-            max_depth=1,
+            max_depth=5,
         )
 
         result = await engine.search(
