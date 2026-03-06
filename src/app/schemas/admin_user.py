@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
@@ -295,6 +296,7 @@ class AdminActor(BaseModel):
             request_id=getattr(request.state, "request_id", None),
             ip_address=get_client_ip(request),
             user_agent=request.headers.get("user-agent"),
+            start_time=time.monotonic(),
         )
 
 

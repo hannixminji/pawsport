@@ -20,6 +20,11 @@ class MobileUserAccountStatus(StrEnum):
     DEACTIVATED = "deactivated"
 
 
+class ActionStatus(StrEnum):
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+
+
 # -------------- auth --------------
 class AuthProvider(StrEnum):
     GOOGLE = "google.com"

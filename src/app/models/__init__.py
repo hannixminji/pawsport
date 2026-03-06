@@ -23,5 +23,6 @@ from .rate_limit import RateLimit
 from .refresh_session import RefreshSession
 from .sighting_report import SightingReport
 from .sighting_report_image import SightingReportImage
+from .system_action_log import SystemActionLog
 from .tier import Tier
 from .user_linked_account import UserLinkedAccount

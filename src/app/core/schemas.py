@@ -1,3 +1,4 @@
+import time
 import uuid as uuid_pkg
 from datetime import UTC, datetime
 from typing import Annotated, Any, TypeVar
@@ -106,12 +107,13 @@ class PaginatedResponse[T](BaseModel):
 class Actor(BaseModel):
     id: int
     actor_type: ActorType
-    request_id: str
+    request_id: str | None = None
     is_superuser: bool = False
     is_anonymous: bool = False
     role_ids: list[int] | None = None
     ip_address: str | None = None
     user_agent: str | None = None
+    start_time: float = Field(default_factory=time.monotonic)
 
 
 # -------------- geo --------------

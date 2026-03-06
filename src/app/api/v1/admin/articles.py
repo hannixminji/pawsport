@@ -1,3 +1,5 @@
+# src/app/api/v1/admin/articles.py
+
 from typing import Annotated
 
 from fastapi import Depends, Query, Request, status
@@ -5,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.csrf_router import CSRFProtectedRouter
 from app.api.dependencies import get_current_superuser_actor, require_permission
+from app.core.audit.direct_audit_logger import DirectAuditLogger
+from app.core.audit.protocol import AuditLogger
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -16,12 +20,24 @@ from app.schemas.article import (
     ArticleUpdate,
 )
 from app.services.article_service import ArticleService
+from app.services.system_action_log import SystemActionLogService
 
 router = CSRFProtectedRouter(prefix="/articles", tags=["Articles"])
 
 
-def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> ArticleService:
-    return ArticleService(db=db)
+def get_audit_logger(
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> AuditLogger:
+    return DirectAuditLogger(
+        log_service=SystemActionLogService(db=db),
+    )
+
+
+def get_service(
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+    audit_logger: Annotated[AuditLogger, Depends(get_audit_logger)],
+) -> ArticleService:
+    return ArticleService(db=db, audit_logger=audit_logger)
 
 
 ArticleServiceDependency = Annotated[ArticleService, Depends(get_service)]
