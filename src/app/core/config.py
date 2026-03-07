@@ -180,11 +180,11 @@ class AdminAuthSettings(BaseSettings):
 
 
 class DefaultRateLimitSettings(BaseSettings):
-    DEFAULT_RATE_LIMIT_LIMIT: int = 10
-    DEFAULT_RATE_LIMIT_PERIOD: int = 3600
+    DEFAULT_RATE_LIMIT_LIMIT: int = 60
+    DEFAULT_RATE_LIMIT_PERIOD: int = 60
 
-    DEFAULT_GUEST_RATE_LIMIT_LIMIT: int = 5
-    DEFAULT_GUEST_RATE_LIMIT_PERIOD: int = 3600
+    DEFAULT_GUEST_RATE_LIMIT_LIMIT: int = 20
+    DEFAULT_GUEST_RATE_LIMIT_PERIOD: int = 60
 
 
 class UserTokenSettings(BaseSettings):
