@@ -473,6 +473,14 @@ async def guest_rate_limiter_dependency(
     return await _rate_limit_user(request, db, user, use_default_guest_limit=True)
 
 
+async def any_mobile_rate_limiter_dependency(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+    user: Annotated[MobileActor, Depends(get_current_mobile_user)],
+) -> Actor:
+    return await _rate_limit_user(request, db, user, use_default_guest_limit=user.is_anonymous)
+
+
 async def get_current_admin_actor(
     request: Request,
     admin_user: Annotated[AdminActor, Depends(get_current_admin_user)],

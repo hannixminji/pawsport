@@ -518,7 +518,7 @@ class MissingReportService:
             MissingReportStatus.FOUND,
             MissingReportStatus.RETURNED,
             MissingReportStatus.FOSTERED,
-            MissingReportStatus.CLOSED,
+            MissingReportStatus.CASE_CLOSED,
         }:
             raise InvalidInputError("Missing report status is already final and cannot be changed.")
 

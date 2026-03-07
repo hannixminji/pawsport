@@ -278,17 +278,17 @@ class PetInventoryService:
         if actor.actor_type == ActorType.MOBILE_USER:
             user_id = actor.id
 
-        inventory_model = PetInventory(
-            **inventory_input.model_dump(exclude={"images"}),
-            owner_id=user_id,
-        )
-        self.db.add(inventory_model)
-        await self.db.flush()
-
-        if inventory_input.images:
-            await self._apply_image_updates(inventory_model, inventory_input.images)
-
         try:
+            inventory_model = PetInventory(
+                **inventory_input.model_dump(exclude={"images"}),
+                owner_id=user_id,
+            )
+            self.db.add(inventory_model)
+            await self.db.flush()
+
+            if inventory_input.images:
+                await self._apply_image_updates(inventory_model, inventory_input.images)
+
             await self.db.commit()
 
         except IntegrityError as error:

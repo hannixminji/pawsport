@@ -162,10 +162,26 @@ class PetReadByQR(BaseModel):
     markings: str | None
     qr_code_url: str | None
 
+    # Public Information
     _qr_show_owner_name: bool = PrivateAttr(False)
     _qr_show_email: bool = PrivateAttr(False)
     _qr_show_phone_number: bool = PrivateAttr(False)
     _qr_show_address: bool = PrivateAttr(False)
+
+    # Pet Details
+    _qr_show_pet_name: bool = PrivateAttr(True)
+    _qr_show_pet_breed: bool = PrivateAttr(True)
+    _qr_show_pet_age: bool = PrivateAttr(True)
+    _qr_show_pet_sex: bool = PrivateAttr(True)
+    _qr_show_pet_weight: bool = PrivateAttr(True)
+    _qr_show_pet_color: bool = PrivateAttr(True)
+    _qr_show_pet_markings: bool = PrivateAttr(True)
+    _qr_show_pet_sterilized: bool = PrivateAttr(True)
+
+    # Health Records
+    _qr_show_medications: bool = PrivateAttr(False)
+    _qr_show_vaccines: bool = PrivateAttr(False)
+    _qr_show_allergies: bool = PrivateAttr(False)
 
     @classmethod
     def from_data(
@@ -183,7 +199,7 @@ class PetReadByQR(BaseModel):
         allergies: list[PetAllergyRead],
         medical_conditions: list[PetMedicalConditionRead],
         vaccination_records: list[PetVaccinationRecordRead],
-        weight_kg: Decimal| None,
+        weight_kg: Decimal | None,
         color: str | None,
         markings: str | None,
         qr_code_url: str | None,
@@ -214,11 +230,33 @@ class PetReadByQR(BaseModel):
             obj._qr_show_email = preference.show_email
             obj._qr_show_phone_number = preference.show_phone_number
             obj._qr_show_address = preference.show_address
+            obj._qr_show_pet_name = preference.show_pet_name
+            obj._qr_show_pet_breed = preference.show_pet_breed
+            obj._qr_show_pet_age = preference.show_pet_age
+            obj._qr_show_pet_sex = preference.show_pet_sex
+            obj._qr_show_pet_weight = preference.show_pet_weight
+            obj._qr_show_pet_color = preference.show_pet_color
+            obj._qr_show_pet_markings = preference.show_pet_markings
+            obj._qr_show_pet_sterilized = preference.show_pet_sterilized
+            obj._qr_show_medications = preference.show_medications
+            obj._qr_show_vaccines = preference.show_vaccines
+            obj._qr_show_allergies = preference.show_allergies
         else:
             obj._qr_show_owner_name = defaults.show_owner_name if defaults else False
             obj._qr_show_email = defaults.show_email if defaults else False
             obj._qr_show_phone_number = defaults.show_phone_number if defaults else False
             obj._qr_show_address = defaults.show_address if defaults else False
+            obj._qr_show_pet_name = defaults.show_pet_name if defaults else True
+            obj._qr_show_pet_breed = defaults.show_pet_breed if defaults else True
+            obj._qr_show_pet_age = defaults.show_pet_age if defaults else True
+            obj._qr_show_pet_sex = defaults.show_pet_sex if defaults else True
+            obj._qr_show_pet_weight = defaults.show_pet_weight if defaults else True
+            obj._qr_show_pet_color = defaults.show_pet_color if defaults else True
+            obj._qr_show_pet_markings = defaults.show_pet_markings if defaults else True
+            obj._qr_show_pet_sterilized = defaults.show_pet_sterilized if defaults else True
+            obj._qr_show_medications = defaults.show_medications if defaults else False
+            obj._qr_show_vaccines = defaults.show_vaccines if defaults else False
+            obj._qr_show_allergies = defaults.show_allergies if defaults else False
 
         return obj
 
@@ -298,6 +336,61 @@ class PetReadByQR(BaseModel):
         if months == 0:
             return f"{years} year{'s' if years != 1 else ''}"
         return f"{years} year{'s' if years != 1 else ''} {months} month{'s' if months != 1 else ''}"
+
+    @computed_field(return_type=bool)
+    @property
+    def show_pet_name(self) -> bool:
+        return self._qr_show_pet_name
+
+    @computed_field(return_type=bool)
+    @property
+    def show_pet_breed(self) -> bool:
+        return self._qr_show_pet_breed
+
+    @computed_field(return_type=bool)
+    @property
+    def show_pet_age(self) -> bool:
+        return self._qr_show_pet_age
+
+    @computed_field(return_type=bool)
+    @property
+    def show_pet_sex(self) -> bool:
+        return self._qr_show_pet_sex
+
+    @computed_field(return_type=bool)
+    @property
+    def show_pet_weight(self) -> bool:
+        return self._qr_show_pet_weight
+
+    @computed_field(return_type=bool)
+    @property
+    def show_pet_color(self) -> bool:
+        return self._qr_show_pet_color
+
+    @computed_field(return_type=bool)
+    @property
+    def show_pet_markings(self) -> bool:
+        return self._qr_show_pet_markings
+
+    @computed_field(return_type=bool)
+    @property
+    def show_pet_sterilized(self) -> bool:
+        return self._qr_show_pet_sterilized
+
+    @computed_field(return_type=bool)
+    @property
+    def show_medications(self) -> bool:
+        return self._qr_show_medications
+
+    @computed_field(return_type=bool)
+    @property
+    def show_vaccines(self) -> bool:
+        return self._qr_show_vaccines
+
+    @computed_field(return_type=bool)
+    @property
+    def show_allergies(self) -> bool:
+        return self._qr_show_allergies
 
 
 class PetSearch(PetRead):

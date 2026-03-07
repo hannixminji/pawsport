@@ -19,6 +19,25 @@ from app.services.mobile_user_service import MobileUserService
 router = APIRouter(prefix="/mobile-users", tags=["Mobile Users"])
 
 
+def _static_html_response(html_content: str) -> HTMLResponse:
+    """Wrap a static (no-JS) HTML page with full security headers."""
+    response = HTMLResponse(content=html_content)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; "
+        "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+        "font-src https://fonts.gstatic.com; "
+        "script-src 'none'; "
+        "img-src 'self' data:; "
+        "base-uri 'none'; "
+        "form-action 'none'; "
+        "frame-ancestors 'none';"
+    )
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
 def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> MobileUserService:
     return MobileUserService(db=db)
 
@@ -33,7 +52,7 @@ async def verify_email_from_link(
     service: MobileUserServiceDependency,
 ) -> HTMLResponse:
     await service.verify_email(raw_token=token)
-    return HTMLResponse(content=service.render_template("email_verified.html"))
+    return _static_html_response(service.render_template("email_verified.html"))
 
 
 @router.get("/verify-email-change", response_class=HTMLResponse, status_code=status.HTTP_200_OK)
@@ -42,7 +61,7 @@ async def verify_email_change_from_link(
     service: MobileUserServiceDependency,
 ) -> HTMLResponse:
     await service.verify_email_change(raw_token=token)
-    return HTMLResponse(content=service.render_template("email_change_verified.html"))
+    return _static_html_response(service.render_template("email_change_verified.html"))
 
 
 @router.get("/me", response_model=MobileUserRead, status_code=status.HTTP_200_OK)

@@ -1,3 +1,4 @@
+import secrets
 from datetime import date
 from pathlib import Path
 from typing import Annotated
@@ -105,14 +106,32 @@ async def get_pet_by_qr(
     if "application/json" in accept:
         return JSONResponse(content=pet.model_dump(mode="json"))
 
-    return templates.TemplateResponse(
+    csp_nonce = secrets.token_urlsafe(32)
+    content = templates.TemplateResponse(
         "pet_qr.html",
         {
             "request": request,
             "pet": pet.model_dump(mode="python"),
             "today": date.today(),
+            "csp_nonce": csp_nonce,
         },
     )
+    response = HTMLResponse(content=content.body)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; "
+        f"script-src 'nonce-{csp_nonce}'; "
+        "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+        "font-src https://fonts.gstatic.com; "
+        "connect-src 'self'; "
+        "img-src 'self' https: data:; "
+        "base-uri 'none'; "
+        "form-action 'self'; "
+        "frame-ancestors 'none';"
+    )
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 @router.get("/{pet_id}", response_model=PetRead, status_code=status.HTTP_200_OK)

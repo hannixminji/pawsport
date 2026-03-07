@@ -22,10 +22,24 @@ class PetQRDefaultService:
 
     DEFAULT_PREFERENCES = PetQRDefaultRead(
         owner_id=None,
+        # Public Information
         show_owner_name=False,
         show_email=False,
         show_phone_number=False,
         show_address=False,
+        # Pet Details
+        show_pet_name=True,
+        show_pet_breed=True,
+        show_pet_age=True,
+        show_pet_sex=True,
+        show_pet_weight=True,
+        show_pet_color=True,
+        show_pet_markings=True,
+        show_pet_sterilized=True,
+        # Health Records
+        show_medications=False,
+        show_vaccines=False,
+        show_allergies=False,
     )
 
     async def _get_default_by_owner_id(self, owner_id: int) -> PetQRDefault | None:

@@ -694,7 +694,7 @@ class PetService:
                     selectinload(Pet.photos),
                     selectinload(Pet.allergies),
                     selectinload(Pet.medical_conditions),
-                    selectinload(Pet.vaccination_records),
+                    selectinload(Pet.vaccination_records).selectinload(PetVaccinationRecord.attachments),
                     selectinload(Pet.qr_preference),
                 )
                 .where(

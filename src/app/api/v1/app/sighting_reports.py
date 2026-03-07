@@ -3,7 +3,11 @@ from typing import Annotated, Any, Union
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_authenticated_actor, guest_rate_limiter_dependency, rate_limiter_dependency
+from app.api.dependencies import (
+    any_mobile_rate_limiter_dependency,
+    get_current_authenticated_actor,
+    rate_limiter_dependency,
+)
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, MapViewport, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
@@ -26,7 +30,7 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> SightingR
 SightingReportServiceDependency = Annotated[SightingReportService, Depends(get_service)]
 ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 AuthenticatedActorDependency = Annotated[Actor, Depends(get_current_authenticated_actor)]
-GuestActorDependency = Annotated[Actor, Depends(guest_rate_limiter_dependency)]
+AnyMobileActorDependency = Annotated[Actor, Depends(any_mobile_rate_limiter_dependency)]
 
 
 @router.post("/viewport", response_model=list[dict[str, Any]], status_code=status.HTTP_200_OK)
@@ -51,7 +55,7 @@ async def search_sighting_reports(
 async def create_sighting_report(
     request: Request,
     payload: SightingReportCreateWithImages,
-    actor: GuestActorDependency,
+    actor: AnyMobileActorDependency,
     service: SightingReportServiceDependency,
 ) -> SightingReportRead:
     result = await service.create(actor=actor, user_id=actor.id, report_input=payload)
@@ -68,7 +72,7 @@ async def create_sighting_report(
 )
 async def list_sighting_reports(
     request: Request,
-    actor: GuestActorDependency,
+    actor: AnyMobileActorDependency,
     service: SightingReportServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
@@ -94,7 +98,7 @@ async def list_sighting_reports(
 async def get_sighting_report(
     request: Request,
     report_id: int,
-    actor: GuestActorDependency,
+    actor: AnyMobileActorDependency,
     service: SightingReportServiceDependency,
     with_matches: Annotated[bool, Query(alias="withMatches")] = False,
 ) -> Union[SightingReportRead, SightingReportWithMatches]:
@@ -111,7 +115,7 @@ async def update_sighting_report(
     request: Request,
     report_id: int,
     payload: SightingReportUpdateWithImages,
-    actor: GuestActorDependency,
+    actor: AnyMobileActorDependency,
     service: SightingReportServiceDependency,
 ) -> None:
     await service.update(actor=actor, report_id=report_id, report_input=payload)
