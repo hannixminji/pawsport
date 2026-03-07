@@ -25,7 +25,7 @@ ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
 @cache(
     key_prefix="app:articles:list",
     resource_id_name=["page", "items_per_page"],
-    namespace="app:articles",
+    namespace="articles",
     expiration=60,
 )
 async def list_articles(

@@ -41,7 +41,7 @@ async def create_pet_allergy(
     service: PetAllergyServiceDependency,
 ) -> PetAllergyRead:
     result = await service.create(actor=actor, pet_id=pet_id, allergy_input=payload)
-    await invalidate_namespace("app:pet-allergies")
+    await invalidate_namespace("pet-allergies")
     return result
 
 
@@ -49,7 +49,7 @@ async def create_pet_allergy(
 @cache(
     key_prefix="app:pet-allergies:list",
     resource_id_name=["page", "items_per_page", "pet_id"],
-    namespace="app:pet-allergies",
+    namespace="pet-allergies",
     expiration=60,
 )
 async def list_pet_allergies(
@@ -88,7 +88,7 @@ async def get_pet_allergy(
 @cache(
     key_prefix="app:pet-allergies:detail",
     resource_id_name="allergy_id",
-    namespaces_to_invalidate=["app:pet-allergies"],
+    namespaces_to_invalidate=["pet-allergies"],
 )
 async def soft_delete_pet_allergy(
     request: Request,
@@ -103,7 +103,7 @@ async def soft_delete_pet_allergy(
 @cache(
     key_prefix="app:pet-allergies:detail",
     resource_id_name="allergy_id",
-    namespaces_to_invalidate=["app:pet-allergies"],
+    namespaces_to_invalidate=["pet-allergies"],
 )
 async def update_pet_allergy(
     request: Request,

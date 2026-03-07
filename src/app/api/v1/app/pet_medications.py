@@ -41,7 +41,7 @@ async def create_pet_medication(
     service: PetMedicationServiceDependency,
 ) -> PetMedicationRead:
     result = await service.create(actor=actor, pet_id=pet_id, medication_input=payload)
-    await invalidate_namespace("app:pet-medications")
+    await invalidate_namespace("pet-medications")
     return result
 
 
@@ -49,7 +49,7 @@ async def create_pet_medication(
 @cache(
     key_prefix="app:pet-medications:list",
     resource_id_name=["page", "items_per_page", "pet_id"],
-    namespace="app:pet-medications",
+    namespace="pet-medications",
     expiration=60,
 )
 async def list_pet_medications(
@@ -88,7 +88,7 @@ async def get_pet_medication(
 @cache(
     key_prefix="app:pet-medications:detail",
     resource_id_name="medication_id",
-    namespaces_to_invalidate=["app:pet-medications"],
+    namespaces_to_invalidate=["pet-medications"],
 )
 async def soft_delete_pet_medication(
     request: Request,
@@ -103,7 +103,7 @@ async def soft_delete_pet_medication(
 @cache(
     key_prefix="app:pet-medications:detail",
     resource_id_name="medication_id",
-    namespaces_to_invalidate=["app:pet-medications"],
+    namespaces_to_invalidate=["pet-medications"],
 )
 async def update_pet_medication(
     request: Request,

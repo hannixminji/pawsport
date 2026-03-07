@@ -47,7 +47,7 @@ async def create_inventory_item(
     service: PetInventoryServiceDependency,
 ) -> PetInventoryRead:
     result = await service.create(actor=actor, user_id=user_id, inventory_input=payload)
-    await invalidate_namespace("admin:pet-inventory")
+    await invalidate_namespace("pet-inventory")
     return result
 
 
@@ -55,7 +55,7 @@ async def create_inventory_item(
 @cache(
     key_prefix="admin:pet-inventory:list",
     resource_id_name=["page", "items_per_page", "user_id"],
-    namespace="admin:pet-inventory",
+    namespace="pet-inventory",
     expiration=60,
 )
 async def list_inventory_items(
@@ -92,14 +92,14 @@ async def bulk_soft_delete_inventory_items(
     service: PetInventoryServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, inventory_ids=payload.ids)
-    await invalidate_namespace("admin:pet-inventory")
+    await invalidate_namespace("pet-inventory")
 
 
 @router.patch("/{inventory_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-inventory:detail",
     resource_id_name="inventory_id",
-    namespaces_to_invalidate=["admin:pet-inventory"],
+    namespaces_to_invalidate=["pet-inventory"],
 )
 async def soft_delete_inventory_item(
     request: Request,
@@ -114,7 +114,7 @@ async def soft_delete_inventory_item(
 @cache(
     key_prefix="admin:pet-inventory:detail",
     resource_id_name="inventory_id",
-    namespaces_to_invalidate=["admin:pet-inventory"],
+    namespaces_to_invalidate=["pet-inventory"],
 )
 async def update_inventory_item(
     request: Request,
@@ -133,14 +133,14 @@ async def bulk_hard_delete_inventory_items(
     service: PetInventoryServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, inventory_ids=payload.ids)
-    await invalidate_namespace("admin:pet-inventory")
+    await invalidate_namespace("pet-inventory")
 
 
 @router.delete("/{inventory_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-inventory:detail",
     resource_id_name="inventory_id",
-    namespaces_to_invalidate=["admin:pet-inventory"],
+    namespaces_to_invalidate=["pet-inventory"],
 )
 async def hard_delete_inventory_item(
     request: Request,

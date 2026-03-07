@@ -45,7 +45,7 @@ async def create_pet_medical_condition(
     service: PetMedicalConditionServiceDependency,
 ) -> PetMedicalConditionRead:
     result = await service.create(actor=actor, pet_id=pet_id, medical_condition_input=payload)
-    await invalidate_namespace("app:pet-medical-conditions")
+    await invalidate_namespace("pet-medical-conditions")
     return result
 
 
@@ -53,7 +53,7 @@ async def create_pet_medical_condition(
 @cache(
     key_prefix="app:pet-medical-conditions:list",
     resource_id_name=["page", "items_per_page", "pet_id"],
-    namespace="app:pet-medical-conditions",
+    namespace="pet-medical-conditions",
     expiration=60,
 )
 async def list_pet_medical_conditions(
@@ -92,7 +92,7 @@ async def get_pet_medical_condition(
 @cache(
     key_prefix="app:pet-medical-conditions:detail",
     resource_id_name="medical_condition_id",
-    namespaces_to_invalidate=["app:pet-medical-conditions"],
+    namespaces_to_invalidate=["pet-medical-conditions"],
 )
 async def soft_delete_pet_medical_condition(
     request: Request,
@@ -107,7 +107,7 @@ async def soft_delete_pet_medical_condition(
 @cache(
     key_prefix="app:pet-medical-conditions:detail",
     resource_id_name="medical_condition_id",
-    namespaces_to_invalidate=["app:pet-medical-conditions"],
+    namespaces_to_invalidate=["pet-medical-conditions"],
 )
 async def update_pet_medical_condition(
     request: Request,

@@ -39,15 +39,15 @@ async def create_inventory_item(
     service: PetInventoryServiceDependency,
 ) -> PetInventoryRead:
     result = await service.create(actor=actor, user_id=actor.id, inventory_input=payload)
-    await invalidate_namespace("app:pet-inventory")
+    await invalidate_namespace("pet-inventory")
     return result
 
 
 @router.get("", response_model=PaginatedResponse[PetInventoryRead], status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:pet-inventory:list",
-    resource_id_name=["page", "items_per_page"],
-    namespace="app:pet-inventory",
+    resource_id_name=["page", "items_per_page", "actor.id"],
+    namespace="pet-inventory",
     expiration=60,
 )
 async def list_inventory_items(
@@ -80,7 +80,7 @@ async def get_inventory_item(
 @cache(
     key_prefix="app:pet-inventory:detail",
     resource_id_name="inventory_id",
-    namespaces_to_invalidate=["app:pet-inventory"],
+    namespaces_to_invalidate=["pet-inventory"],
 )
 async def soft_delete_inventory_item(
     request: Request,
@@ -95,7 +95,7 @@ async def soft_delete_inventory_item(
 @cache(
     key_prefix="app:pet-inventory:detail",
     resource_id_name="inventory_id",
-    namespaces_to_invalidate=["app:pet-inventory"],
+    namespaces_to_invalidate=["pet-inventory"],
 )
 async def update_inventory_item(
     request: Request,

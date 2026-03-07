@@ -48,7 +48,7 @@ async def create_pet_medication(
     service: PetMedicationServiceDependency,
 ) -> PetMedicationRead:
     result = await service.create(actor=actor, pet_id=pet_id, medication_input=payload)
-    await invalidate_namespace("admin:pet-medications")
+    await invalidate_namespace("pet-medications")
     return result
 
 
@@ -56,7 +56,7 @@ async def create_pet_medication(
 @cache(
     key_prefix="admin:pet-medications:list",
     resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
-    namespace="admin:pet-medications",
+    namespace="pet-medications",
     expiration=60,
 )
 async def list_pet_medications(
@@ -99,14 +99,14 @@ async def bulk_soft_delete_pet_medications(
     service: PetMedicationServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, medication_ids=payload.ids)
-    await invalidate_namespace("admin:pet-medications")
+    await invalidate_namespace("pet-medications")
 
 
 @router.patch("/{medication_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-medications:detail",
     resource_id_name="medication_id",
-    namespaces_to_invalidate=["admin:pet-medications"],
+    namespaces_to_invalidate=["pet-medications"],
 )
 async def soft_delete_pet_medication(
     request: Request,
@@ -121,7 +121,7 @@ async def soft_delete_pet_medication(
 @cache(
     key_prefix="admin:pet-medications:detail",
     resource_id_name="medication_id",
-    namespaces_to_invalidate=["admin:pet-medications"],
+    namespaces_to_invalidate=["pet-medications"],
 )
 async def update_pet_medication(
     request: Request,
@@ -140,14 +140,14 @@ async def bulk_hard_delete_pet_medications(
     service: PetMedicationServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, medication_ids=payload.ids)
-    await invalidate_namespace("admin:pet-medications")
+    await invalidate_namespace("pet-medications")
 
 
 @router.delete("/{medication_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-medications:detail",
     resource_id_name="medication_id",
-    namespaces_to_invalidate=["admin:pet-medications"],
+    namespaces_to_invalidate=["pet-medications"],
 )
 async def hard_delete_pet_medication(
     request: Request,

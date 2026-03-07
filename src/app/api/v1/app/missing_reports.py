@@ -42,7 +42,7 @@ async def create_missing_report(
     service: MissingReportServiceDependency,
 ) -> MissingReportRead:
     result = await service.create(actor=actor, pet_id=pet_id, report_input=payload)
-    await invalidate_namespace("app:missing-reports")
+    await invalidate_namespace("missing-reports")
     return result
 
 
@@ -50,7 +50,7 @@ async def create_missing_report(
 @cache(
     key_prefix="app:missing-reports:list",
     resource_id_name=["page", "items_per_page", "pet_id"],
-    namespace="app:missing-reports",
+    namespace="missing-reports",
     expiration=60,
 )
 async def list_missing_reports(
@@ -89,7 +89,7 @@ async def get_missing_report(
 @cache(
     key_prefix="app:missing-reports:detail",
     resource_id_name="missing_report_id",
-    namespaces_to_invalidate=["app:missing-reports"],
+    namespaces_to_invalidate=["missing-reports"],
 )
 async def update_missing_report_status(
     request: Request,
@@ -105,7 +105,7 @@ async def update_missing_report_status(
 @cache(
     key_prefix="app:missing-reports:detail",
     resource_id_name="missing_report_id",
-    namespaces_to_invalidate=["app:missing-reports"],
+    namespaces_to_invalidate=["missing-reports"],
 )
 async def update_missing_report(
     request: Request,

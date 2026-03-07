@@ -48,7 +48,7 @@ async def create_vaccination_record(
     service: PetVaccinationRecordServiceDependency,
 ) -> PetVaccinationRecordRead:
     result = await service.create(actor=actor, pet_id=pet_id, vaccination_record_input=payload)
-    await invalidate_namespace("admin:pet-vaccination-records")
+    await invalidate_namespace("pet-vaccination-records")
     return result
 
 
@@ -56,7 +56,7 @@ async def create_vaccination_record(
 @cache(
     key_prefix="admin:pet-vaccination-records:list",
     resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
-    namespace="admin:pet-vaccination-records",
+    namespace="pet-vaccination-records",
     expiration=60,
 )
 async def list_vaccination_records(
@@ -99,14 +99,14 @@ async def bulk_soft_delete_vaccination_records(
     service: PetVaccinationRecordServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, vaccination_record_ids=payload.ids)
-    await invalidate_namespace("admin:pet-vaccination-records")
+    await invalidate_namespace("pet-vaccination-records")
 
 
 @router.patch("/{vaccination_record_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
-    namespaces_to_invalidate=["admin:pet-vaccination-records"],
+    namespaces_to_invalidate=["pet-vaccination-records"],
 )
 async def soft_delete_vaccination_record(
     request: Request,
@@ -121,7 +121,7 @@ async def soft_delete_vaccination_record(
 @cache(
     key_prefix="admin:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
-    namespaces_to_invalidate=["admin:pet-vaccination-records"],
+    namespaces_to_invalidate=["pet-vaccination-records"],
 )
 async def update_vaccination_record(
     request: Request,
@@ -140,14 +140,14 @@ async def bulk_hard_delete_vaccination_records(
     service: PetVaccinationRecordServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, vaccination_record_ids=payload.ids)
-    await invalidate_namespace("admin:pet-vaccination-records")
+    await invalidate_namespace("pet-vaccination-records")
 
 
 @router.delete("/{vaccination_record_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
-    namespaces_to_invalidate=["admin:pet-vaccination-records"],
+    namespaces_to_invalidate=["pet-vaccination-records"],
 )
 async def hard_delete_vaccination_record(
     request: Request,

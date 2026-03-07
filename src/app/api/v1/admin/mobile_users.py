@@ -37,7 +37,7 @@ async def create_mobile_user(
     service: MobileUserServiceDependency,
 ) -> MobileUserRead:
     result = await service.create(actor=actor, user_input=payload)
-    await invalidate_namespace("admin:mobile-users")
+    await invalidate_namespace("mobile-users")
     return result
 
 
@@ -55,7 +55,7 @@ async def search_mobile_users(
 @cache(
     key_prefix="admin:mobile-users:list",
     resource_id_name=["page", "items_per_page"],
-    namespace="admin:mobile-users",
+    namespace="mobile-users",
     expiration=60,
 )
 async def list_mobile_users(
@@ -91,7 +91,7 @@ async def get_mobile_user(
 @cache(
     key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:mobile-users"],
+    namespaces_to_invalidate=["mobile-users"],
 )
 async def soft_delete_mobile_user(
     request: Request,
@@ -122,7 +122,7 @@ async def update_mobile_user_password(
 @cache(
     key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:mobile-users"],
+    namespaces_to_invalidate=["mobile-users"],
 )
 async def update_mobile_user_tier(
     request: Request,
@@ -138,7 +138,7 @@ async def update_mobile_user_tier(
 @cache(
     key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:mobile-users"],
+    namespaces_to_invalidate=["mobile-users"],
 )
 async def update_mobile_user_account_status(
     request: Request,
@@ -154,7 +154,7 @@ async def update_mobile_user_account_status(
 @cache(
     key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:mobile-users"],
+    namespaces_to_invalidate=["mobile-users"],
 )
 async def update_mobile_user(
     request: Request,
@@ -170,7 +170,7 @@ async def update_mobile_user(
 @cache(
     key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
-    namespaces_to_invalidate=["admin:mobile-users"],
+    namespaces_to_invalidate=["mobile-users"],
 )
 async def hard_delete_mobile_user(
     request: Request,

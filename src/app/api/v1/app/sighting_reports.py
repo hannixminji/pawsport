@@ -55,15 +55,15 @@ async def create_sighting_report(
     service: SightingReportServiceDependency,
 ) -> SightingReportRead:
     result = await service.create(actor=actor, user_id=actor.id, report_input=payload)
-    await invalidate_namespace("app:sighting-reports")
+    await invalidate_namespace("sighting-reports")
     return result
 
 
 @router.get("", response_model=PaginatedResponse[SightingReportRead], status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:sighting-reports:list",
-    resource_id_name=["page", "items_per_page"],
-    namespace="app:sighting-reports",
+    resource_id_name=["page", "items_per_page", "actor.id"],
+    namespace="sighting-reports",
     expiration=60,
 )
 async def list_sighting_reports(
@@ -88,7 +88,7 @@ async def list_sighting_reports(
 )
 @cache(
     key_prefix="app:sighting-reports:detail",
-    resource_id_name="report_id",
+    resource_id_name=["report_id", "with_matches"],
     expiration=60,
 )
 async def get_sighting_report(
@@ -105,7 +105,7 @@ async def get_sighting_report(
 @cache(
     key_prefix="app:sighting-reports:detail",
     resource_id_name="report_id",
-    namespaces_to_invalidate=["app:sighting-reports"],
+    namespaces_to_invalidate=["sighting-reports"],
 )
 async def update_sighting_report(
     request: Request,

@@ -48,7 +48,7 @@ async def create_pet_medical_condition(
     service: PetMedicalConditionServiceDependency,
 ) -> PetMedicalConditionRead:
     result = await service.create(actor=actor, pet_id=pet_id, medical_condition_input=payload)
-    await invalidate_namespace("admin:pet-medical-conditions")
+    await invalidate_namespace("pet-medical-conditions")
     return result
 
 
@@ -56,7 +56,7 @@ async def create_pet_medical_condition(
 @cache(
     key_prefix="admin:pet-medical-conditions:list",
     resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
-    namespace="admin:pet-medical-conditions",
+    namespace="pet-medical-conditions",
     expiration=60,
 )
 async def list_pet_medical_conditions(
@@ -99,14 +99,14 @@ async def bulk_soft_delete_pet_medical_conditions(
     service: PetMedicalConditionServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, medical_condition_ids=payload.ids)
-    await invalidate_namespace("admin:pet-medical-conditions")
+    await invalidate_namespace("pet-medical-conditions")
 
 
 @router.patch("/{medical_condition_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-medical-conditions:detail",
     resource_id_name="medical_condition_id",
-    namespaces_to_invalidate=["admin:pet-medical-conditions"],
+    namespaces_to_invalidate=["pet-medical-conditions"],
 )
 async def soft_delete_pet_medical_condition(
     request: Request,
@@ -121,7 +121,7 @@ async def soft_delete_pet_medical_condition(
 @cache(
     key_prefix="admin:pet-medical-conditions:detail",
     resource_id_name="medical_condition_id",
-    namespaces_to_invalidate=["admin:pet-medical-conditions"],
+    namespaces_to_invalidate=["pet-medical-conditions"],
 )
 async def update_pet_medical_condition(
     request: Request,
@@ -140,14 +140,14 @@ async def bulk_hard_delete_pet_medical_conditions(
     service: PetMedicalConditionServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, medical_condition_ids=payload.ids)
-    await invalidate_namespace("admin:pet-medical-conditions")
+    await invalidate_namespace("pet-medical-conditions")
 
 
 @router.delete("/{medical_condition_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-medical-conditions:detail",
     resource_id_name="medical_condition_id",
-    namespaces_to_invalidate=["admin:pet-medical-conditions"],
+    namespaces_to_invalidate=["pet-medical-conditions"],
 )
 async def hard_delete_pet_medical_condition(
     request: Request,

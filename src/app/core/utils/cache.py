@@ -9,31 +9,12 @@ from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from redis.asyncio import ConnectionPool, Redis
 
-from ..exceptions.cache_exceptions import CacheIdentificationInferenceError, InvalidRequestError, MissingClientError
+from ..exceptions.cache_exceptions import InvalidRequestError, MissingClientError
 
 LOGGER = logging.getLogger(__name__)
 
 pool: ConnectionPool | None = None
 client: Redis | None = None
-
-
-def _infer_resource_id(kwargs: dict[str, Any], resource_id_type: type | tuple[type, ...]) -> int | str:
-    resource_id: int | str | None = None
-    for arg_name, arg_value in kwargs.items():
-        if isinstance(arg_value, resource_id_type):
-            if (resource_id_type is int) and ("id" in arg_name):
-                resource_id = arg_value
-
-            elif (resource_id_type is int) and ("id" not in arg_name):
-                pass
-
-            elif resource_id_type is str:
-                resource_id = arg_value
-
-    if resource_id is None:
-        raise CacheIdentificationInferenceError
-
-    return resource_id
 
 
 def _extract_data_inside_brackets(input_string: str) -> list[str]:
@@ -59,8 +40,8 @@ def _format_extra_data(to_invalidate_extra: dict[str, str], kwargs: dict[str, An
     formatted_extra = {}
     for prefix, id_template in to_invalidate_extra.items():
         formatted_prefix = _format_prefix(prefix, kwargs)
-        id = _extract_data_inside_brackets(id_template)[0]
-        formatted_extra[formatted_prefix] = kwargs[id]
+        resource_id_val = _extract_data_inside_brackets(id_template)[0]
+        formatted_extra[formatted_prefix] = kwargs[resource_id_val]
 
     return formatted_extra
 
@@ -106,12 +87,19 @@ async def _delete_keys_by_pattern(pattern: str) -> None:
             break
 
 
+def _resolve_name(name: str, kwargs: dict[str, Any]) -> Any:
+    if "." in name:
+        obj_name, attr = name.split(".", 1)
+        obj = kwargs.get(obj_name)
+        return getattr(obj, attr) if obj is not None else None
+    return kwargs[name]
+
+
 def cache(
     key_prefix: str,
     resource_id_name: str | list[str] | None = None,
     resource_id: str | int | None = None,
     expiration: int = 3600,
-    resource_id_type: type | tuple[type, ...] = int,
     namespace: str | None = None,
     to_invalidate_extra: dict[str, Any] | None = None,
     pattern_to_invalidate_extra: list[str] | None = None,
@@ -125,21 +113,13 @@ def cache(
 
             if resource_id_name:
                 if isinstance(resource_id_name, list):
-                    resolved_id = ":".join(str(kwargs[name]) for name in resource_id_name)
+                    resolved_id = ":".join(str(_resolve_name(name, kwargs)) for name in resource_id_name)
                 else:
-                    if "." in resource_id_name:
-                        obj_name, attr = resource_id_name.split(".", 1)
-                        obj = kwargs.get(obj_name)
-                        resolved_id = getattr(obj, attr) if obj is not None else None
-                    else:
-                        resolved_id = kwargs[resource_id_name]
+                    resolved_id = _resolve_name(resource_id_name, kwargs)
             elif resource_id is not None:
                 resolved_id = resource_id
             else:
-                try:
-                    resolved_id = _infer_resource_id(kwargs=kwargs, resource_id_type=resource_id_type)
-                except CacheIdentificationInferenceError:
-                    resolved_id = None
+                resolved_id = None
 
             formatted_key_prefix = _format_prefix(key_prefix, kwargs)
 
@@ -184,8 +164,8 @@ def cache(
 
                     if to_invalidate_extra is not None:
                         formatted_extra = _format_extra_data(to_invalidate_extra, kwargs)
-                        for prefix, id in formatted_extra.items():
-                            await client.delete(f"{prefix}:{id}")
+                        for prefix, resource_id_val in formatted_extra.items():
+                            await client.delete(f"{prefix}:{resource_id_val}")
 
                     if pattern_to_invalidate_extra is not None:
                         for pattern in pattern_to_invalidate_extra:
@@ -207,6 +187,8 @@ def cache(
 
 
 async def async_get_redis() -> AsyncGenerator[Redis]:
+    if pool is None:
+        raise MissingClientError
     client = Redis(connection_pool=pool)
     try:
         yield client

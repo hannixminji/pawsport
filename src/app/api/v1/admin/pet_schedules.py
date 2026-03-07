@@ -48,7 +48,7 @@ async def create_pet_schedule(
     service: PetScheduleServiceDependency,
 ) -> PetScheduleRead:
     result = await service.create(actor=actor, pet_id=pet_id, schedule_input=payload)
-    await invalidate_namespace("admin:pet-schedules")
+    await invalidate_namespace("pet-schedules")
     return result
 
 
@@ -56,7 +56,7 @@ async def create_pet_schedule(
 @cache(
     key_prefix="admin:pet-schedules:list",
     resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
-    namespace="admin:pet-schedules",
+    namespace="pet-schedules",
     expiration=60,
 )
 async def list_pet_schedules(
@@ -99,14 +99,14 @@ async def bulk_soft_delete_pet_schedules(
     service: PetScheduleServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, schedule_ids=payload.ids)
-    await invalidate_namespace("admin:pet-schedules")
+    await invalidate_namespace("pet-schedules")
 
 
 @router.patch("/{schedule_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-schedules:detail",
     resource_id_name="schedule_id",
-    namespaces_to_invalidate=["admin:pet-schedules"],
+    namespaces_to_invalidate=["pet-schedules"],
 )
 async def soft_delete_pet_schedule(
     request: Request,
@@ -121,7 +121,7 @@ async def soft_delete_pet_schedule(
 @cache(
     key_prefix="admin:pet-schedules:detail",
     resource_id_name="schedule_id",
-    namespaces_to_invalidate=["admin:pet-schedules"],
+    namespaces_to_invalidate=["pet-schedules"],
 )
 async def update_pet_schedule(
     request: Request,
@@ -140,14 +140,14 @@ async def bulk_hard_delete_pet_schedules(
     service: PetScheduleServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, schedule_ids=payload.ids)
-    await invalidate_namespace("admin:pet-schedules")
+    await invalidate_namespace("pet-schedules")
 
 
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-schedules:detail",
     resource_id_name="schedule_id",
-    namespaces_to_invalidate=["admin:pet-schedules"],
+    namespaces_to_invalidate=["pet-schedules"],
 )
 async def hard_delete_pet_schedule(
     request: Request,

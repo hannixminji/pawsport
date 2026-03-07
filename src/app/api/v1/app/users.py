@@ -75,7 +75,7 @@ async def send_verification_email(
 @cache(
     key_prefix="app:mobile-users:detail",
     resource_id_name="actor.id",
-    namespaces_to_invalidate=["app:mobile-users"],
+    namespaces_to_invalidate=["mobile-users"],
 )
 async def update_mobile_user(
     request: Request,

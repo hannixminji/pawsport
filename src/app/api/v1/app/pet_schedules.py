@@ -41,7 +41,7 @@ async def create_pet_schedule(
     service: PetScheduleServiceDependency,
 ) -> PetScheduleRead:
     result = await service.create(actor=actor, pet_id=pet_id, schedule_input=payload)
-    await invalidate_namespace("app:pet-schedules")
+    await invalidate_namespace("pet-schedules")
     return result
 
 
@@ -49,7 +49,7 @@ async def create_pet_schedule(
 @cache(
     key_prefix="app:pet-schedules:list",
     resource_id_name=["page", "items_per_page", "pet_id"],
-    namespace="app:pet-schedules",
+    namespace="pet-schedules",
     expiration=60,
 )
 async def list_pet_schedules(
@@ -88,7 +88,7 @@ async def get_pet_schedule(
 @cache(
     key_prefix="app:pet-schedules:detail",
     resource_id_name="schedule_id",
-    namespaces_to_invalidate=["app:pet-schedules"],
+    namespaces_to_invalidate=["pet-schedules"],
 )
 async def soft_delete_pet_schedule(
     request: Request,
@@ -103,7 +103,7 @@ async def soft_delete_pet_schedule(
 @cache(
     key_prefix="app:pet-schedules:detail",
     resource_id_name="schedule_id",
-    namespaces_to_invalidate=["app:pet-schedules"],
+    namespaces_to_invalidate=["pet-schedules"],
 )
 async def update_pet_schedule(
     request: Request,

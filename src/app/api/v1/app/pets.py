@@ -66,15 +66,15 @@ async def create_pet(
     service: PetServiceDependency,
 ) -> PetRead:
     result = await service.create(actor=actor, user_id=actor.id, pet_input=payload)
-    await invalidate_namespace("app:pets")
+    await invalidate_namespace("pets")
     return result
 
 
 @router.get("", response_model=PaginatedResponse[PetRead], status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:pets:list",
-    resource_id_name=["page", "items_per_page"],
-    namespace="app:pets",
+    resource_id_name=["page", "items_per_page", "actor.id"],
+    namespace="pets",
     expiration=60,
 )
 async def list_pets(
@@ -134,7 +134,7 @@ async def get_pet(
 @cache(
     key_prefix="app:pets:detail",
     resource_id_name="pet_id",
-    namespaces_to_invalidate=["app:pets"],
+    namespaces_to_invalidate=["pets"],
 )
 async def soft_delete_pet(
     request: Request,
@@ -149,7 +149,7 @@ async def soft_delete_pet(
 @cache(
     key_prefix="app:pets:detail",
     resource_id_name="pet_id",
-    namespaces_to_invalidate=["app:pets"],
+    namespaces_to_invalidate=["pets"],
 )
 async def update_pet(
     request: Request,

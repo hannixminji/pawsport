@@ -45,7 +45,7 @@ async def create_vaccination_record(
     service: PetVaccinationRecordServiceDependency,
 ) -> PetVaccinationRecordRead:
     result = await service.create(actor=actor, pet_id=pet_id, vaccination_record_input=payload)
-    await invalidate_namespace("app:pet-vaccination-records")
+    await invalidate_namespace("pet-vaccination-records")
     return result
 
 
@@ -53,7 +53,7 @@ async def create_vaccination_record(
 @cache(
     key_prefix="app:pet-vaccination-records:list",
     resource_id_name=["page", "items_per_page", "pet_id"],
-    namespace="app:pet-vaccination-records",
+    namespace="pet-vaccination-records",
     expiration=60,
 )
 async def list_vaccination_records(
@@ -92,7 +92,7 @@ async def get_vaccination_record(
 @cache(
     key_prefix="app:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
-    namespaces_to_invalidate=["app:pet-vaccination-records"],
+    namespaces_to_invalidate=["pet-vaccination-records"],
 )
 async def soft_delete_vaccination_record(
     request: Request,
@@ -107,7 +107,7 @@ async def soft_delete_vaccination_record(
 @cache(
     key_prefix="app:pet-vaccination-records:detail",
     resource_id_name="vaccination_record_id",
-    namespaces_to_invalidate=["app:pet-vaccination-records"],
+    namespaces_to_invalidate=["pet-vaccination-records"],
 )
 async def update_vaccination_record(
     request: Request,

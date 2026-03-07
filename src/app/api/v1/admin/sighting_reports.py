@@ -56,7 +56,7 @@ async def create_sighting_report(
     service: SightingReportServiceDependency,
 ) -> SightingReportRead:
     result = await service.create(actor=actor, user_id=user_id, report_input=payload)
-    await invalidate_namespace("admin:sighting-reports")
+    await invalidate_namespace("sighting-reports")
     return result
 
 
@@ -64,7 +64,7 @@ async def create_sighting_report(
 @cache(
     key_prefix="admin:sighting-reports:list",
     resource_id_name=["page", "items_per_page", "user_id"],
-    namespace="admin:sighting-reports",
+    namespace="sighting-reports",
     expiration=60,
 )
 async def list_sighting_reports(
@@ -90,7 +90,7 @@ async def list_sighting_reports(
 )
 @cache(
     key_prefix="admin:sighting-reports:detail",
-    resource_id_name="report_id",
+    resource_id_name=["report_id", "with_matches"],
     expiration=60,
 )
 async def get_sighting_report(
@@ -107,7 +107,7 @@ async def get_sighting_report(
 @cache(
     key_prefix="admin:sighting-reports:detail",
     resource_id_name="report_id",
-    namespaces_to_invalidate=["admin:sighting-reports"],
+    namespaces_to_invalidate=["sighting-reports"],
 )
 async def soft_delete_sighting_report(
     request: Request,
@@ -122,7 +122,7 @@ async def soft_delete_sighting_report(
 @cache(
     key_prefix="admin:sighting-reports:detail",
     resource_id_name="report_id",
-    namespaces_to_invalidate=["admin:sighting-reports"],
+    namespaces_to_invalidate=["sighting-reports"],
 )
 async def update_sighting_report(
     request: Request,
@@ -138,7 +138,7 @@ async def update_sighting_report(
 @cache(
     key_prefix="admin:sighting-reports:detail",
     resource_id_name="report_id",
-    namespaces_to_invalidate=["admin:sighting-reports"],
+    namespaces_to_invalidate=["sighting-reports"],
 )
 async def hard_delete_sighting_report(
     request: Request,

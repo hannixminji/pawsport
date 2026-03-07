@@ -43,7 +43,7 @@ async def create_pet_allergy(
     service: PetAllergyServiceDependency,
 ) -> PetAllergyRead:
     result = await service.create(actor=actor, pet_id=pet_id, allergy_input=payload)
-    await invalidate_namespace("admin:pet-allergies")
+    await invalidate_namespace("pet-allergies")
     return result
 
 
@@ -51,7 +51,7 @@ async def create_pet_allergy(
 @cache(
     key_prefix="admin:pet-allergies:list",
     resource_id_name=["page", "items_per_page", "user_id", "pet_id"],
-    namespace="admin:pet-allergies",
+    namespace="pet-allergies",
     expiration=60,
 )
 async def list_pet_allergies(
@@ -94,14 +94,14 @@ async def bulk_soft_delete_pet_allergies(
     service: PetAllergyServiceDependency,
 ) -> None:
     await service.bulk_soft_delete(actor=actor, allergy_ids=payload.ids)
-    await invalidate_namespace("admin:pet-allergies")
+    await invalidate_namespace("pet-allergies")
 
 
 @router.patch("/{allergy_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-allergies:detail",
     resource_id_name="allergy_id",
-    namespaces_to_invalidate=["admin:pet-allergies"],
+    namespaces_to_invalidate=["pet-allergies"],
 )
 async def soft_delete_pet_allergy(
     request: Request,
@@ -116,7 +116,7 @@ async def soft_delete_pet_allergy(
 @cache(
     key_prefix="admin:pet-allergies:detail",
     resource_id_name="allergy_id",
-    namespaces_to_invalidate=["admin:pet-allergies"],
+    namespaces_to_invalidate=["pet-allergies"],
 )
 async def update_pet_allergy(
     request: Request,
@@ -135,14 +135,14 @@ async def bulk_hard_delete_pet_allergies(
     service: PetAllergyServiceDependency,
 ) -> None:
     await service.bulk_hard_delete(actor=actor, allergy_ids=payload.ids)
-    await invalidate_namespace("admin:pet-allergies")
+    await invalidate_namespace("pet-allergies")
 
 
 @router.delete("/{allergy_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:pet-allergies:detail",
     resource_id_name="allergy_id",
-    namespaces_to_invalidate=["admin:pet-allergies"],
+    namespaces_to_invalidate=["pet-allergies"],
 )
 async def hard_delete_pet_allergy(
     request: Request,
