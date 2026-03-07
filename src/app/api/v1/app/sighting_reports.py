@@ -51,7 +51,7 @@ async def search_sighting_reports(
 async def create_sighting_report(
     request: Request,
     payload: SightingReportCreateWithImages,
-    actor: ActorDependency,
+    actor: GuestActorDependency,
     service: SightingReportServiceDependency,
 ) -> SightingReportRead:
     result = await service.create(actor=actor, user_id=actor.id, report_input=payload)
