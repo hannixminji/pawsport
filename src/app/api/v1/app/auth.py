@@ -1,3 +1,4 @@
+import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
@@ -99,7 +100,21 @@ async def reset_password_page(
     token: str,
     service: MobileUserServiceDependency,
 ) -> HTMLResponse:
-    return HTMLResponse(content=service.render_template("password_reset_form.html", token=token))
+    csp_nonce = secrets.token_urlsafe(32)
+    content = service.render_template("password_reset_form.html", token=token, csp_nonce=csp_nonce)
+    response = HTMLResponse(content=content)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; "
+        f"script-src 'nonce-{csp_nonce}'; "
+        "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+        "font-src https://fonts.gstatic.com; "
+        "connect-src 'self'; "
+        "img-src 'self' data:; "
+        "base-uri 'none'; "
+        "form-action 'self'; "
+        "frame-ancestors 'none';"
+    )
+    return response
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
