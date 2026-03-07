@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 class PetQRPreference(TimestampMixin, Base):
     __tablename__ = "pet_qr_preference"
 
-    pet_id: Mapped[int] = mapped_column(Integer, ForeignKey("pet.id", ondelete="CASCADE"), primary_key=True, init=False)
+    pet_id: Mapped[int] = mapped_column(Integer, ForeignKey("pet.id", ondelete="CASCADE"), primary_key=True)
 
     pet: Mapped["Pet"] = relationship("Pet", uselist=False, back_populates="qr_preference", lazy="raise", init=False)
 

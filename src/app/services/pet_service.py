@@ -302,9 +302,6 @@ class PetService:
 
         return deleted_photo_uuids, new_photo_models, new_object_keys
 
-    def _build_qr_preference(self, pet_id: int, qr_preference_input: Any) -> PetQRPreference:
-        return PetQRPreference(pet_id=pet_id, **qr_preference_input.model_dump())
-
     async def _apply_qr_preference_update(
         self,
         pet_id: int,

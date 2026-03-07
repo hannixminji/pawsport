@@ -13,12 +13,7 @@ if TYPE_CHECKING:
 class PetQRDefault(TimestampMixin, Base):
     __tablename__ = "pet_qr_default"
 
-    owner_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("mobile_user.id", ondelete="CASCADE"),
-        primary_key=True,
-        init=False,
-    )
+    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("mobile_user.id", ondelete="CASCADE"), primary_key=True)
 
     owner: Mapped["MobileUser"] = relationship(
         "MobileUser",
