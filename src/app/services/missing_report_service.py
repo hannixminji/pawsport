@@ -177,7 +177,6 @@ class MissingReportService:
                 "pet_id": str(pet_id),
                 "missing_report_id": str(report_id),
                 "pet_type": pet_label,
-                "username": actor.username,
             },
             notification_feature="nearby_report_alerts",
             radius_in_meters=settings.NEARBY_ALERT_CENTER_RADIUS_METERS,
