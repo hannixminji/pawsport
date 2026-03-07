@@ -4,7 +4,7 @@ from fastapi import Depends, Query, Request, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.csrf_router import CSRFProtectedRouter
+from app.api.csrf_router import CSRFProtectedRouter, csrf_exempt
 from app.api.dependencies import get_current_superuser_actor, get_redis_client
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
@@ -32,6 +32,16 @@ AdminPermissionServiceDependency = Annotated[AdminPermissionService, Depends(get
 SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
 
 
+@csrf_exempt
+@router.post("/search", response_model=PaginatedResponse[AdminPermissionRead], status_code=status.HTTP_200_OK)
+async def search_permissions(
+    search_request: SearchRequest,
+    actor: SuperuserActorDependency,
+    service: AdminPermissionServiceDependency,
+) -> PaginatedResponse[AdminPermissionRead]:
+    return await service.search(actor=actor, search_request=search_request)
+
+
 @router.post("", response_model=AdminPermissionRead, status_code=status.HTTP_201_CREATED)
 async def create_permission(
     request: Request,
@@ -42,15 +52,6 @@ async def create_permission(
     result = await service.create(actor=actor, permission_input=payload)
     await invalidate_namespace("admin:permissions")
     return result
-
-
-@router.post("/search", response_model=PaginatedResponse[AdminPermissionRead], status_code=status.HTTP_200_OK)
-async def search_permissions(
-    search_request: SearchRequest,
-    actor: SuperuserActorDependency,
-    service: AdminPermissionServiceDependency,
-) -> PaginatedResponse[AdminPermissionRead]:
-    return await service.search(actor=actor, search_request=search_request)
 
 
 @router.get("", response_model=PaginatedResponse[AdminPermissionRead], status_code=status.HTTP_200_OK)

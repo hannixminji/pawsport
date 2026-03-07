@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.csrf_router import CSRFProtectedRouter
+from app.api.csrf_router import CSRFProtectedRouter, csrf_exempt
 from app.api.dependencies import get_current_superuser_actor, require_permission
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
@@ -28,6 +28,7 @@ PetMedicationServiceDependency = Annotated[PetMedicationService, Depends(get_ser
 SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
 
 
+@csrf_exempt
 @router.post("/search", response_model=PaginatedResponse[PetMedicationRead], status_code=status.HTTP_200_OK)
 async def search_pet_medications(
     search_request: SearchRequest,

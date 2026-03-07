@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.csrf_router import CSRFProtectedRouter
+from app.api.csrf_router import CSRFProtectedRouter, csrf_exempt
 from app.api.dependencies import get_current_superuser_actor, require_permission
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
@@ -23,6 +23,16 @@ TierServiceDependency = Annotated[TierService, Depends(get_service)]
 SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
 
 
+@csrf_exempt
+@router.post("/search", response_model=PaginatedResponse[TierRead], status_code=status.HTTP_200_OK)
+async def search_tiers(
+    search_request: SearchRequest,
+    actor: Annotated[Actor, Depends(require_permission("tier:search"))],
+    service: TierServiceDependency,
+) -> PaginatedResponse[TierRead]:
+    return await service.search(actor=actor, search_request=search_request)
+
+
 @router.post("", response_model=TierRead, status_code=status.HTTP_201_CREATED)
 async def create_tier(
     request: Request,
@@ -33,15 +43,6 @@ async def create_tier(
     result = await service.create(actor=actor, tier_input=payload)
     await invalidate_namespace("admin:tiers")
     return result
-
-
-@router.post("/search", response_model=PaginatedResponse[TierRead], status_code=status.HTTP_200_OK)
-async def search_tiers(
-    search_request: SearchRequest,
-    actor: Annotated[Actor, Depends(require_permission("tier:search"))],
-    service: TierServiceDependency,
-) -> PaginatedResponse[TierRead]:
-    return await service.search(actor=actor, search_request=search_request)
 
 
 @router.get("", response_model=PaginatedResponse[TierRead], status_code=status.HTTP_200_OK)

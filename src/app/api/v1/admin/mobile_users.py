@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.csrf_router import CSRFProtectedRouter
+from app.api.csrf_router import CSRFProtectedRouter, csrf_exempt
 from app.api.dependencies import get_current_superuser_actor, require_permission
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor, PaginatedResponse
@@ -29,6 +29,17 @@ MobileUserServiceDependency = Annotated[MobileUserService, Depends(get_service)]
 SuperuserActorDependency = Annotated[Actor, Depends(get_current_superuser_actor)]
 
 
+@csrf_exempt
+@router.post("/search", response_model=PaginatedResponse[MobileUserRead], status_code=status.HTTP_200_OK)
+async def search_mobile_users(
+    search_request: SearchRequest,
+    actor: Annotated[Actor, Depends(require_permission("mobile_user:search"))],
+    service: MobileUserServiceDependency,
+    user_id: Annotated[int | None, Query(alias="userId")] = None,
+) -> PaginatedResponse[MobileUserRead]:
+    return await service.search(actor=actor, search_request=search_request, user_id=user_id)
+
+
 @router.post("", response_model=MobileUserRead, status_code=status.HTTP_201_CREATED)
 async def create_mobile_user(
     request: Request,
@@ -39,16 +50,6 @@ async def create_mobile_user(
     result = await service.create(actor=actor, user_input=payload)
     await invalidate_namespace("mobile-users")
     return result
-
-
-@router.post("/search", response_model=PaginatedResponse[MobileUserRead], status_code=status.HTTP_200_OK)
-async def search_mobile_users(
-    search_request: SearchRequest,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:search"))],
-    service: MobileUserServiceDependency,
-    user_id: Annotated[int | None, Query(alias="userId")] = None,
-) -> PaginatedResponse[MobileUserRead]:
-    return await service.search(actor=actor, search_request=search_request, user_id=user_id)
 
 
 @router.get("", response_model=PaginatedResponse[MobileUserRead], status_code=status.HTTP_200_OK)
