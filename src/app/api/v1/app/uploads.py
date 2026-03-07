@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import rate_limiter_dependency
+from app.api.dependencies import any_mobile_rate_limiter_dependency
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor
 from app.schemas.upload import SignedPostPolicyRequest, SignedPostPolicyResponse
@@ -17,7 +17,7 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> UploadSer
 
 
 UploadServiceDependency = Annotated[UploadService, Depends(get_service)]
-ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
+ActorDependency = Annotated[Actor, Depends(any_mobile_rate_limiter_dependency)]
 
 
 @router.post("/signed-policies/images", response_model=SignedPostPolicyResponse, status_code=status.HTTP_200_OK)
