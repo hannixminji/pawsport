@@ -1,3 +1,4 @@
+import uuid as uuid_pkg
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -5,9 +6,10 @@ from geoalchemy2 import Geography
 from geoalchemy2.elements import WKBElement
 from geoalchemy2.shape import to_shape
 from shapely.geometry import Point
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, text
+from sqlalchemy import UUID, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from uuid6 import uuid7
 
 from ..core.db.database import Base
 from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
@@ -67,6 +69,8 @@ class SightingReport(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         lazy="raise",
         init=False,
     )
+
+    uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, default_factory=uuid7, init=False)
 
     @property
     def sighting_location_dict(self) -> dict[str, float]:

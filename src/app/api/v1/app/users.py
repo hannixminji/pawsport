@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import rate_limiter_dependency
+from app.api.dependencies import ip_rate_limit_dependency, rate_limiter_dependency
 from app.core.db.database import async_get_db
 from app.core.schemas import Actor
 from app.core.utils.cache import cache
@@ -20,7 +20,6 @@ router = APIRouter(prefix="/mobile-users", tags=["Mobile Users"])
 
 
 def _static_html_response(html_content: str) -> HTMLResponse:
-    """Wrap a static (no-JS) HTML page with full security headers."""
     response = HTMLResponse(content=html_content)
     response.headers["Content-Security-Policy"] = (
         "default-src 'none'; "
@@ -44,12 +43,14 @@ def get_service(db: Annotated[AsyncSession, Depends(async_get_db)]) -> MobileUse
 
 MobileUserServiceDependency = Annotated[MobileUserService, Depends(get_service)]
 ActorDependency = Annotated[Actor, Depends(rate_limiter_dependency)]
+IpRateLimitDependency = Depends(ip_rate_limit_dependency)
 
 
 @router.get("/verify-email", response_class=HTMLResponse, status_code=status.HTTP_200_OK)
 async def verify_email_from_link(
     token: Annotated[str, Query()],
     service: MobileUserServiceDependency,
+    _: Annotated[None, IpRateLimitDependency],
 ) -> HTMLResponse:
     await service.verify_email(raw_token=token)
     return _static_html_response(service.render_template("email_verified.html"))
@@ -59,6 +60,7 @@ async def verify_email_from_link(
 async def verify_email_change_from_link(
     token: Annotated[str, Query()],
     service: MobileUserServiceDependency,
+    _: Annotated[None, IpRateLimitDependency],
 ) -> HTMLResponse:
     await service.verify_email_change(raw_token=token)
     return _static_html_response(service.render_template("email_change_verified.html"))

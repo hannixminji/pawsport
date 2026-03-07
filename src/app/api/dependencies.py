@@ -481,6 +481,28 @@ async def any_mobile_rate_limiter_dependency(
     return await _rate_limit_user(request, db, user, use_default_guest_limit=user.is_anonymous)
 
 
+async def ip_rate_limit_dependency(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+) -> None:
+    client_ip = (
+        request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        or request.headers.get("X-Real-IP", "").strip()
+        or (request.client.host if request.client else "unknown")
+    )
+
+    is_limited = await rate_limiter.is_rate_limited(
+        db=db,
+        user_id=f"ip:{client_ip}",
+        path=request.url.path,
+        limit=settings.DEFAULT_RATE_LIMIT_LIMIT,
+        period=settings.DEFAULT_RATE_LIMIT_PERIOD,
+    )
+
+    if is_limited:
+        raise RateLimitException("Rate limit exceeded.")
+
+
 async def get_current_admin_actor(
     request: Request,
     admin_user: Annotated[AdminActor, Depends(get_current_admin_user)],

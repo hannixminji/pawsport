@@ -107,7 +107,7 @@ async def get_pet_by_qr(
         return JSONResponse(content=pet.model_dump(mode="json"))
 
     csp_nonce = secrets.token_urlsafe(32)
-    content = templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "pet_qr.html",
         {
             "request": request,
@@ -116,7 +116,6 @@ async def get_pet_by_qr(
             "csp_nonce": csp_nonce,
         },
     )
-    response = HTMLResponse(content=content.body)
     response.headers["Content-Security-Policy"] = (
         "default-src 'none'; "
         f"script-src 'nonce-{csp_nonce}'; "
