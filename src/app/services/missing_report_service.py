@@ -219,9 +219,9 @@ class MissingReportService:
         )
         self.db.add(missing_report)
 
-        await self._update_pet_missing_status(pet_id, True)
-
         try:
+            await self._update_pet_missing_status(pet_id, True)
+
             await self.db.commit()
 
         except IntegrityError as error:

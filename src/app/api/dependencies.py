@@ -319,7 +319,7 @@ async def get_current_mobile_user(
             is_anonymous=mobile_user.is_anonymous,
         )
 
-    raise UnauthorizedException("User not authenticated.")
+    raise UnauthorizedException("User not authenticatedaaaaaaaa.")
 
 
 async def get_current_admin_user(

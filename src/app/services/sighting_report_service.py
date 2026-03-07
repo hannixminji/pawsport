@@ -550,8 +550,6 @@ class SightingReportService:
                 "Failed to create the sighting report."
             ) from error
 
-        await self.db.refresh(report_model)
-
         try:
             await self._enqueue_nearby_users_notification(
                 actor=actor,
@@ -572,7 +570,13 @@ class SightingReportService:
             except Exception as error:
                 LOGGER.warning(f"Failed to enqueue extract_features_task: {error}")
 
-        return SightingReportRead.model_validate(report_model)
+        result = await self.db.scalar(
+            select(SightingReport)
+            .options(selectinload(SightingReport.images))
+            .where(SightingReport.id == report_model.id)
+        )
+
+        return SightingReportRead.model_validate(result)
 
     async def get_combined_reports_by_viewport(
         self,

@@ -1,8 +1,10 @@
+import uuid as uuid_pkg
 from typing import TYPE_CHECKING
 
+from sqlalchemy import UUID, ForeignKey, Index, Integer, String, text
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from uuid6 import uuid7
 
 from ..core.db.database import Base
 from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
@@ -43,6 +45,8 @@ class SightingReportImage(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base)
         default=None,
         server_default=text("NULL"),
     )
+
+    uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, default_factory=uuid7, init=False)
 
     @property
     def image_url(self) -> str:
