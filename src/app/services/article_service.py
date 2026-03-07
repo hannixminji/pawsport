@@ -1,13 +1,12 @@
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import ClassVar
 
 from sqlalchemy import any_, delete, func, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.audit.protocol import AuditLogger
-from ..core.enums import ActionStatus, ActorType
+from ..core.enums import ActorType
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
 from ..core.exceptions.domain_exceptions import InvalidInputError, NotFoundError
@@ -15,7 +14,6 @@ from ..core.schemas import Actor, PaginatedResponse
 from ..core.search_engine.engine import SearchEngine
 from ..core.search_engine.enums import FilterOp
 from ..core.search_engine.schemas import SearchRequest
-from ..core.utils.diff import extract_changed_fields
 from ..core.utils.pagination import compute_offset
 from ..core.utils.update import apply_partial_update
 from ..models.article import Article
@@ -23,13 +21,10 @@ from ..schemas.article import ArticleCreate, ArticleRead, ArticleUpdate
 
 LOGGER = logging.getLogger(__name__)
 
-_RESOURCE_TYPE = "article"
-
 
 @dataclass(slots=True)
 class ArticleService:
     db: AsyncSession
-    audit_logger: AuditLogger | None = field(default=None)
 
     ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
         "id",
@@ -98,42 +93,13 @@ class ArticleService:
         except IntegrityError as error:
             await self.db.rollback()
 
-            duplicate_field = None
             if self._is_unique_constraint_violation(error, "uq_article_title_active"):
-                duplicate_field = "title"
-
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.create",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    error_code="DUPLICATE_ENTRY",
-                    error_message=str(error),
-                    extra_metadata={
-                        "title": article_input.title,
-                        "duplicate_field": duplicate_field,
-                    },
-                )
-
-            if duplicate_field == "title":
                 raise InvalidInputError("An article with this title already exists.")
 
             raise InvalidInputError("Unable to create the article.")
 
         except OperationalError as error:
             await self.db.rollback()
-
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.create",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    error_code="TRANSIENT_DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"title": article_input.title},
-                )
 
             raise TransientDatabaseError(
                 "Failed to create the article. Please try again later."
@@ -142,37 +108,12 @@ class ArticleService:
         except SQLAlchemyError as error:
             await self.db.rollback()
 
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.create",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    error_code="DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"title": article_input.title},
-                )
-
             raise NonTransientDatabaseError(
                 "Failed to create the article."
             ) from error
 
         await self.db.refresh(article_model)
-
-        article_read = ArticleRead.model_validate(article_model)
-
-        if self.audit_logger:
-            await self.audit_logger.log(
-                actor=actor,
-                action="article.create",
-                status=ActionStatus.SUCCESS,
-                resource_type=_RESOURCE_TYPE,
-                resource_id=article_model.id,
-                after_state=article_read.model_dump(mode="json"),
-                extra_metadata={"title": article_model.title, "category": article_model.category},
-            )
-
-        return article_read
+        return ArticleRead.model_validate(article_model)
 
     async def search(
         self,
@@ -219,6 +160,9 @@ class ArticleService:
         page: int,
         items_per_page: int,
     ) -> PaginatedResponse[ArticleRead]:
+        if actor.actor_type not in (ActorType.ADMIN_USER, ActorType.MOBILE_USER):
+            raise ForbiddenError("Admin privileges are required to perform this action.")
+
         db_articles = (
             await self.db.execute(
                 select(Article)
@@ -250,6 +194,9 @@ class ArticleService:
         actor: Actor,
         article_id: int,
     ) -> ArticleRead:
+        if actor.actor_type not in (ActorType.ADMIN_USER, ActorType.MOBILE_USER):
+            raise ForbiddenError("Admin privileges are required to perform this action.")
+
         db_article = await self._get_article_by_id(article_id)
         if db_article is None:
             raise NotFoundError("Article not found.")
@@ -270,8 +217,6 @@ class ArticleService:
         if db_article is None:
             raise NotFoundError("Article not found.")
 
-        before_snapshot = ArticleRead.model_validate(db_article).model_dump(mode="json")
-
         apply_partial_update(target=db_article, input=article_input)
 
         try:
@@ -280,44 +225,13 @@ class ArticleService:
         except IntegrityError as error:
             await self.db.rollback()
 
-            duplicate_field = None
             if self._is_unique_constraint_violation(error, "uq_article_title_active"):
-                duplicate_field = "title"
-
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.update",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    resource_id=article_id,
-                    error_code="DUPLICATE_ENTRY",
-                    error_message=str(error),
-                    extra_metadata={
-                        "title": article_input.title,
-                        "duplicate_field": duplicate_field,
-                    },
-                )
-
-            if duplicate_field == "title":
                 raise InvalidInputError("An article with this title already exists.")
 
             raise InvalidInputError("Unable to update the article.")
 
         except OperationalError as error:
             await self.db.rollback()
-
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.update",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    resource_id=article_id,
-                    error_code="TRANSIENT_DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"title": article_input.title},
-                )
 
             raise TransientDatabaseError(
                 "Failed to update the article. Please try again later."
@@ -326,38 +240,9 @@ class ArticleService:
         except SQLAlchemyError as error:
             await self.db.rollback()
 
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.update",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    resource_id=article_id,
-                    error_code="DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"title": article_input.title},
-                )
-
             raise NonTransientDatabaseError(
                 "Failed to update the article."
             ) from error
-
-        await self.db.refresh(db_article)
-
-        after_snapshot = ArticleRead.model_validate(db_article).model_dump(mode="json")
-        before_state, after_state = extract_changed_fields(before_snapshot, after_snapshot)
-
-        if self.audit_logger:
-            await self.audit_logger.log(
-                actor=actor,
-                action="article.update",
-                status=ActionStatus.SUCCESS,
-                resource_type=_RESOURCE_TYPE,
-                resource_id=article_id,
-                before_state=before_state,
-                after_state=after_state,
-                extra_metadata={"title": db_article.title, "category": db_article.category},
-            )
 
     async def soft_delete(
         self,
@@ -367,8 +252,6 @@ class ArticleService:
     ) -> None:
         if actor.actor_type != ActorType.ADMIN_USER:
             raise ForbiddenError("Admin privileges are required to delete an article.")
-
-        db_article = await self._get_article_by_id(article_id)
 
         statement = (
             update(Article)
@@ -389,18 +272,6 @@ class ArticleService:
         except OperationalError as error:
             await self.db.rollback()
 
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.soft_delete",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    resource_id=article_id,
-                    error_code="TRANSIENT_DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"title": db_article.title if db_article else None},
-                )
-
             raise TransientDatabaseError(
                 "Failed to delete the article. Please try again later."
             ) from error
@@ -408,31 +279,9 @@ class ArticleService:
         except SQLAlchemyError as error:
             await self.db.rollback()
 
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.soft_delete",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    resource_id=article_id,
-                    error_code="DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"title": db_article.title if db_article else None},
-                )
-
             raise NonTransientDatabaseError(
                 "Failed to delete the article."
             ) from error
-
-        if self.audit_logger:
-            await self.audit_logger.log(
-                actor=actor,
-                action="article.soft_delete",
-                status=ActionStatus.SUCCESS,
-                resource_type=_RESOURCE_TYPE,
-                resource_id=article_id,
-                extra_metadata={"title": db_article.title if db_article else None},
-            )
 
     async def bulk_soft_delete(
         self,
@@ -445,8 +294,6 @@ class ArticleService:
 
         if not article_ids:
             return
-
-        sorted_article_ids = sorted(article_ids)
 
         statement = (
             update(Article)
@@ -467,17 +314,6 @@ class ArticleService:
         except OperationalError as error:
             await self.db.rollback()
 
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.bulk_soft_delete",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    error_code="TRANSIENT_DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"article_ids": sorted_article_ids, "count": len(sorted_article_ids)},
-                )
-
             raise TransientDatabaseError(
                 "Failed to delete articles. Please try again later."
             ) from error
@@ -485,29 +321,9 @@ class ArticleService:
         except SQLAlchemyError as error:
             await self.db.rollback()
 
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.bulk_soft_delete",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    error_code="DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"article_ids": sorted_article_ids, "count": len(sorted_article_ids)},
-                )
-
             raise NonTransientDatabaseError(
                 "Failed to delete articles."
             ) from error
-
-        if self.audit_logger:
-            await self.audit_logger.log(
-                actor=actor,
-                action="article.bulk_soft_delete",
-                status=ActionStatus.SUCCESS,
-                resource_type=_RESOURCE_TYPE,
-                extra_metadata={"article_ids": sorted_article_ids, "count": len(sorted_article_ids)},
-            )
 
     async def hard_delete(
         self,
@@ -517,8 +333,6 @@ class ArticleService:
     ) -> None:
         if actor.actor_type != ActorType.ADMIN_USER:
             raise ForbiddenError("Admin privileges are required to permanently delete an article.")
-
-        db_article = await self._get_article_by_id(article_id)
 
         statement = (
             delete(Article)
@@ -532,18 +346,6 @@ class ArticleService:
         except OperationalError as error:
             await self.db.rollback()
 
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.hard_delete",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    resource_id=article_id,
-                    error_code="TRANSIENT_DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"title": db_article.title if db_article else None},
-                )
-
             raise TransientDatabaseError(
                 "Failed to permanently delete the article. Please try again later."
             ) from error
@@ -551,31 +353,9 @@ class ArticleService:
         except SQLAlchemyError as error:
             await self.db.rollback()
 
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.hard_delete",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    resource_id=article_id,
-                    error_code="DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"title": db_article.title if db_article else None},
-                )
-
             raise NonTransientDatabaseError(
                 "Failed to permanently delete the article."
             ) from error
-
-        if self.audit_logger:
-            await self.audit_logger.log(
-                actor=actor,
-                action="article.hard_delete",
-                status=ActionStatus.SUCCESS,
-                resource_type=_RESOURCE_TYPE,
-                resource_id=article_id,
-                extra_metadata={"title": db_article.title if db_article else None},
-            )
 
     async def bulk_hard_delete(
         self,
@@ -589,8 +369,6 @@ class ArticleService:
         if not article_ids:
             return
 
-        sorted_article_ids = sorted(article_ids)
-
         statement = (
             delete(Article)
             .where(Article.id == any_(list(article_ids)))
@@ -603,17 +381,6 @@ class ArticleService:
         except OperationalError as error:
             await self.db.rollback()
 
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.bulk_hard_delete",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    error_code="TRANSIENT_DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"article_ids": sorted_article_ids, "count": len(sorted_article_ids)},
-                )
-
             raise TransientDatabaseError(
                 "Failed to permanently delete articles. Please try again later."
             ) from error
@@ -621,26 +388,6 @@ class ArticleService:
         except SQLAlchemyError as error:
             await self.db.rollback()
 
-            if self.audit_logger:
-                await self.audit_logger.log(
-                    actor=actor,
-                    action="article.bulk_hard_delete",
-                    status=ActionStatus.FAILURE,
-                    resource_type=_RESOURCE_TYPE,
-                    error_code="DB_ERROR",
-                    error_message=str(error),
-                    extra_metadata={"article_ids": sorted_article_ids, "count": len(sorted_article_ids)},
-                )
-
             raise NonTransientDatabaseError(
                 "Failed to permanently delete articles."
             ) from error
-
-        if self.audit_logger:
-            await self.audit_logger.log(
-                actor=actor,
-                action="article.bulk_hard_delete",
-                status=ActionStatus.SUCCESS,
-                resource_type=_RESOURCE_TYPE,
-                extra_metadata={"article_ids": sorted_article_ids, "count": len(sorted_article_ids)},
-            )
