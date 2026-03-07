@@ -61,7 +61,7 @@ async def extract_features_task(ctx, data: list[dict], collection_name: str = "p
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
             payload = json.dumps(
-                [{"id": str(item["id"]), "object_key": item["object_key"]} for item in data]
+                [{"id": str(item["id"]), "object_key": item["image_object_key"]} for item in data]
             )
 
             species_raw = data[0].get("payload", {}).get("species")
