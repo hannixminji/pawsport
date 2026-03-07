@@ -630,13 +630,18 @@ class SightingReportService:
         ):
             base_query = (
                 select(SightingReport)
+                .options(selectinload(SightingReport.images))
                 .where(
                     SightingReport.mobile_user_id == user_id,
                     SightingReport.is_deleted.is_(False),
                 )
             )
         else:
-            base_query = select(SightingReport).where(SightingReport.is_deleted.is_(False))
+            base_query = (
+                select(SightingReport)
+                .options(selectinload(SightingReport.images))
+                .where(SightingReport.is_deleted.is_(False))
+            )
 
         engine = SearchEngine(
             db=self.db,
