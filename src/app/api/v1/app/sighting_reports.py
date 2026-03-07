@@ -68,7 +68,7 @@ async def create_sighting_report(
 )
 async def list_sighting_reports(
     request: Request,
-    actor: ActorDependency,
+    actor: GuestActorDependency,
     service: SightingReportServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     items_per_page: Annotated[int, Query(ge=1, le=100, alias="itemsPerPage")] = 10,
@@ -94,7 +94,7 @@ async def list_sighting_reports(
 async def get_sighting_report(
     request: Request,
     report_id: int,
-    actor: ActorDependency,
+    actor: GuestActorDependency,
     service: SightingReportServiceDependency,
     with_matches: Annotated[bool, Query(alias="withMatches")] = False,
 ) -> Union[SightingReportRead, SightingReportWithMatches]:
@@ -111,7 +111,7 @@ async def update_sighting_report(
     request: Request,
     report_id: int,
     payload: SightingReportUpdateWithImages,
-    actor: ActorDependency,
+    actor: GuestActorDependency,
     service: SightingReportServiceDependency,
 ) -> None:
     await service.update(actor=actor, report_id=report_id, report_input=payload)
