@@ -823,8 +823,8 @@ class PetService:
             try:
                 await queue.pool.enqueue_job(
                     "qdrant_soft_delete_embeddings_task",
-                    "pet_photos",
-                    deleted_photo_uuids,
+                    collection_name="pet_photos",
+                    point_ids=deleted_photo_uuids,
                 )
 
             except Exception as error:
@@ -995,8 +995,8 @@ class PetService:
             try:
                 await queue.pool.enqueue_job(
                     "qdrant_soft_delete_embeddings_task",
-                    "pet_photos",
-                    photo_uuids,
+                    collection_name="pet_photos",
+                    point_ids=photo_uuids,
                 )
 
             except Exception as error:
@@ -1048,8 +1048,8 @@ class PetService:
             try:
                 await queue.pool.enqueue_job(
                     "qdrant_hard_delete_embeddings_task",
-                    "pet_photos",
-                    photo_uuids,
+                    collection_name="pet_photos",
+                    point_ids=photo_uuids,
                 )
 
             except Exception as error:

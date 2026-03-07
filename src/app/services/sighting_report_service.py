@@ -454,8 +454,8 @@ class SightingReportService:
     ) -> None:
         await queue.pool.enqueue_job(
             "qdrant_soft_delete_embeddings_task",
-            "report_sightings",
-            image_uuids,
+            collection_name="report_sightings",
+            point_ids=image_uuids,
         )
 
     async def _enqueue_sighting_image_hard_delete_embeddings(
@@ -465,8 +465,8 @@ class SightingReportService:
     ) -> None:
         await queue.pool.enqueue_job(
             "qdrant_hard_delete_embeddings_task",
-            "report_sightings",
-            image_uuids,
+            collection_name="report_sightings",
+            point_ids=image_uuids,
         )
 
     async def create(
