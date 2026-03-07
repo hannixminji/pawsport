@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import rate_limiter_dependency
 from app.core.db.database import async_get_db
-from app.core.enums import MissingReportStatus
+from app.core.enums import MobileMissingReportStatus
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
 from app.core.utils.cache import cache, invalidate_namespace
@@ -94,7 +94,7 @@ async def get_missing_report(
 async def update_missing_report_status(
     request: Request,
     missing_report_id: int,
-    report_status: MissingReportStatus,
+    report_status: MobileMissingReportStatus,
     actor: ActorDependency,
     service: MissingReportServiceDependency,
 ) -> None:

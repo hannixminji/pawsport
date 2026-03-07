@@ -153,6 +153,13 @@ class MissingReportStatus(StrEnum):
     CASE_CLOSED = "case_closed"
 
 
+class MobileMissingReportStatus(StrEnum):
+    LOST = "lost"
+    FOUND = "found"
+    RETURNED = "returned"
+    CASE_CLOSED = "case_closed"
+
+
 # -------------- notifications --------------
 class NotificationFeature(StrEnum):
     NEARBY_REPORT_ALERTS = "nearby_report_alerts"
