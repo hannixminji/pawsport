@@ -1038,8 +1038,7 @@
                             <img src="{{ img.photo_url }}"
                                  alt="{{ pet.name }} photo {{ loop.index }}"
                                  class="{% if loop.first %}active{% endif %}"
-                                 loading="lazy"
-                                 crossorigin="anonymous">
+                                 loading="{% if loop.first %}eager{% else %}lazy{% endif %}">
                             {% endif %}
                             {% endfor %}
                         </div>
