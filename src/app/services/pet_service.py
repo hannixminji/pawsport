@@ -391,7 +391,7 @@ class PetService:
             ]
             self.db.add_all(photo_models)
 
-            qr_preference_model = PetQRPreference(**pet_input.qr_preference.model_dump())
+            qr_preference_model = PetQRPreference(pet_id=pet_model.id, **pet_input.qr_preference.model_dump())
             self.db.add(qr_preference_model)
             pet_model.qr_preference = qr_preference_model
 
