@@ -519,9 +519,13 @@ class MissingReportService:
             MissingReportStatus.FOSTERED,
             MissingReportStatus.CASE_CLOSED,
         }:
-            raise InvalidInputError("Missing report status is already final and cannot be changed.")
+            if actor.actor_type == ActorType.MOBILE_USER:
+                raise InvalidInputError("Missing report status is already final and cannot be changed.")
 
-        if status == MissingReportStatus.LOST:
+            if status == MissingReportStatus.LOST:
+                raise InvalidInputError("Cannot revert a final missing report back to lost.")
+
+        if actor.actor_type == ActorType.MOBILE_USER and status == MissingReportStatus.LOST:
             return
 
         try:
