@@ -814,16 +814,6 @@ class SightingReportService:
         if db_report is None:
             raise NotFoundError("Sighting report not found.")
 
-        if report_input.sighting_location is not None:
-            wkb_location = from_shape(
-                Point(
-                    report_input.sighting_location.longitude,
-                    report_input.sighting_location.latitude,
-                ),
-                srid=4326,
-            )
-            db_report.sighting_location = wkb_location
-
         apply_partial_update(
             target=db_report,
             input=report_input,
