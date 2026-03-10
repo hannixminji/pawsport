@@ -8,11 +8,12 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Final, NotRequired, TypedDict
 
-from fastapi import HTTPException, Request, Response, status
+from fastapi import Request, Response
 from itsdangerous import BadData, SignatureExpired, URLSafeTimedSerializer
 from redis.asyncio import Redis
 
 from ..config import settings
+from ..exceptions.http_exceptions import ForbiddenException, UnauthorizedException
 
 logger = logging.getLogger(__name__)
 
@@ -662,10 +663,7 @@ class SessionManager:
     async def require_session(self, *, request: Request) -> SessionInfo:
         session_info = await self.get_session(request=request)
         if not session_info:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Not authenticated",
-            )
+            raise UnauthorizedException("Not authenticated")
         return session_info
 
     async def enforce_csrf(self, *, request: Request) -> SessionInfo:
@@ -674,16 +672,16 @@ class SessionManager:
 
         signed_cookie = request.cookies.get(SESSION_COOKIE_NAME)
         if not signed_cookie:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+            raise UnauthorizedException("Not authenticated")
 
         session_id = self.unsign_session_id(signed_cookie)
         if not session_id:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+            raise UnauthorizedException("Not authenticated")
 
         csrf_header = request.headers.get("x-csrf-token")
         if not csrf_header:
             self.log_event(SessionEvent.CSRF_FAILED, session_id=session_id, log_level=logging.WARNING)
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF validation failed")
+            raise ForbiddenException("CSRF validation failed")
 
         now = _now_seconds()
         result: Any = await self._redis.eval(
@@ -698,20 +696,20 @@ class SessionManager:
 
         if not result:
             self.log_event(SessionEvent.CSRF_FAILED, session_id=session_id, log_level=logging.WARNING)
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF validation failed")
+            raise ForbiddenException("CSRF validation failed")
 
         session_json, csrf_raw, _ttl = result
         stored_csrf = _decode_bytes(csrf_raw) if csrf_raw else ""
         if not secrets.compare_digest(stored_csrf or "", csrf_header):
             self.log_event(SessionEvent.CSRF_FAILED, session_id=session_id, log_level=logging.WARNING)
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF validation failed")
+            raise ForbiddenException("CSRF validation failed")
 
         session_data = _parse_session_payload(session_json, session_id, self.log_event)
         if not session_data:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+            raise UnauthorizedException("Not authenticated")
 
         if not self._check_fingerprint(request, session_id, session_data):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+            raise UnauthorizedException("Not authenticated")
 
         return {**session_data, "session_id": session_id}
 
