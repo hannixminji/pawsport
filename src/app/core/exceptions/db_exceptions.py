@@ -1,10 +1,23 @@
-class DatabaseError(Exception):
-    """Base class for all database-related failures."""
+from ..error_codes import ErrorCode
+from . import AppException
+
+
+class DatabaseError(AppException):
+    status_code = 500
+
+    def _default_code(self):
+        return ErrorCode.DATABASE_ERROR
 
 
 class TransientDatabaseError(DatabaseError):
-    """Retryable database failure (deadlock, timeout, connection drop)."""
+    status_code = 503
+
+    def _default_code(self):
+        return ErrorCode.DATABASE_TRANSIENT_ERROR
 
 
 class NonTransientDatabaseError(DatabaseError):
-    """Non-retryable database failure (constraint violation, schema issue)."""
+    status_code = 500
+
+    def _default_code(self):
+        return ErrorCode.DATABASE_ERROR
