@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import logging
@@ -8,7 +9,7 @@ from enum import StrEnum
 from typing import Any, Final, NotRequired, TypedDict
 
 from fastapi import HTTPException, Request, Response, status
-from itsdangerous import BadData, URLSafeSerializer
+from itsdangerous import BadData, SignatureExpired, URLSafeTimedSerializer
 from redis.asyncio import Redis
 
 from ..config import settings
@@ -66,6 +67,13 @@ local created_at       = tonumber(ARGV[6])
 local session_id       = ARGV[7]
 local session_prefix   = ARGV[8]
 local csrf_prefix      = ARGV[9]
+
+local all_sids = redis.call('ZRANGE', zset_key, 0, -1)
+for i = 1, #all_sids do
+  if redis.call('EXISTS', session_prefix .. all_sids[i]) == 0 then
+    redis.call('ZREM', zset_key, all_sids[i])
+  end
+end
 
 local count   = redis.call('ZCARD', zset_key)
 local evicted = 0
@@ -153,6 +161,24 @@ local ex = tonumber(ARGV[3])
 redis.call('SET',  KEYS[3], ARGV[1], 'EX', ex)
 redis.call('SET',  KEYS[4], ARGV[2], 'EX', ex)
 redis.call('ZADD', KEYS[5], tonumber(ARGV[6]), ARGV[5])
+redis.call('EXPIRE', KEYS[5], ex)
+
+return 1
+"""
+
+_DELETE_SESSION_LUA: Final[str] = r"""
+local session_val = redis.call('GET', KEYS[1])
+if not session_val then
+  redis.call('DEL', KEYS[2])
+  return 0
+end
+
+local user_id_str = session_val:match('"user_id":(%d+)')
+redis.call('DEL', KEYS[1], KEYS[2])
+
+if user_id_str and ARGV[1] ~= '' then
+  redis.call('ZREM', ARGV[1] .. user_id_str, KEYS[3])
+end
 
 return 1
 """
@@ -219,6 +245,7 @@ def set_admin_cookies(
     signed_session: str,
     csrf_token: str,
     cookie_secure: bool,
+    max_age: int,
 ) -> None:
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
@@ -227,6 +254,7 @@ def set_admin_cookies(
         secure=cookie_secure,
         samesite=settings.ADMIN_SESSION_COOKIE_SAMESITE,
         path=settings.ADMIN_SESSION_COOKIE_PATH,
+        max_age=max_age,
     )
     response.set_cookie(
         key=CSRF_COOKIE_NAME,
@@ -235,12 +263,18 @@ def set_admin_cookies(
         secure=cookie_secure,
         samesite=settings.ADMIN_SESSION_COOKIE_SAMESITE,
         path=settings.ADMIN_SESSION_COOKIE_PATH,
+        max_age=max_age,
     )
 
 
-def clear_admin_cookies(response: Response) -> None:
-    response.delete_cookie(key=SESSION_COOKIE_NAME, path=settings.ADMIN_SESSION_COOKIE_PATH)
-    response.delete_cookie(key=CSRF_COOKIE_NAME, path=settings.ADMIN_SESSION_COOKIE_PATH)
+def clear_admin_cookies(response: Response, *, cookie_secure: bool) -> None:
+    for name in (SESSION_COOKIE_NAME, CSRF_COOKIE_NAME):
+        response.delete_cookie(
+            key=name,
+            path=settings.ADMIN_SESSION_COOKIE_PATH,
+            secure=cookie_secure,
+            samesite=settings.ADMIN_SESSION_COOKIE_SAMESITE,
+        )
 
 
 def _now_seconds() -> int:
@@ -354,7 +388,7 @@ class SessionManager:
         _validate_session_configuration(session_configuration)
         self._redis = redis_client
         self._cfg = session_configuration
-        self._serializer: URLSafeSerializer = URLSafeSerializer(
+        self._serializer: URLSafeTimedSerializer = URLSafeTimedSerializer(
             signing_secret, salt=SESSION_SIGNING_SALT
         )
 
@@ -367,8 +401,11 @@ class SessionManager:
 
     def unsign_session_id(self, signed_value: str) -> str | None:
         try:
-            payload: Any = self._serializer.loads(signed_value)
-        except BadData:
+            payload: Any = self._serializer.loads(
+                signed_value,
+                max_age=self._cfg.absolute_time_to_live_seconds,
+            )
+        except (BadData, SignatureExpired):
             return None
         if not isinstance(payload, dict):
             return None
@@ -429,33 +466,22 @@ class SessionManager:
             raise RuntimeError("Session configuration produced a non-positive expiration_seconds")
 
         user_key = _user_sessions_key(user_id)
-        try:
-            evicted = await self._redis.eval(
-                _EVICT_AND_INSERT_LUA,
-                3,
-                _session_key(session_id),
-                _csrf_key(session_id),
-                user_key,
-                serialized,
-                csrf_token,
-                str(expiration_seconds),
-                str(self._cfg.absolute_time_to_live_seconds),
-                str(self._cfg.maximum_sessions_per_user),
-                str(created_at),
-                session_id,
-                SESSION_REDIS_KEY_PREFIX,
-                CSRF_REDIS_KEY_PREFIX,
-            )
-        except Exception:
-            try:
-                async with self._redis.pipeline(transaction=True) as p:
-                    p.delete(_session_key(session_id))
-                    p.delete(_csrf_key(session_id))
-                    p.zrem(user_key, session_id)
-                    await p.execute()
-            except Exception:
-                pass
-            raise
+        evicted = await self._redis.eval(
+            _EVICT_AND_INSERT_LUA,
+            3,
+            _session_key(session_id),
+            _csrf_key(session_id),
+            user_key,
+            serialized,
+            csrf_token,
+            str(expiration_seconds),
+            str(self._cfg.absolute_time_to_live_seconds),
+            str(self._cfg.maximum_sessions_per_user),
+            str(created_at),
+            session_id,
+            SESSION_REDIS_KEY_PREFIX,
+            CSRF_REDIS_KEY_PREFIX,
+        )
 
         evicted_count = int(evicted)
         if evicted_count > 0:
@@ -562,22 +588,26 @@ class SessionManager:
         return session_data
 
     async def delete_session(self, *, session_id: str, user_id: int | None = None) -> None:
-        resolved_user_id = user_id
-        if resolved_user_id is None:
-            existing = await self.read_session(session_id=session_id)
-            resolved_user_id = existing["user_id"] if existing else None
-
-        async with self._redis.pipeline(transaction=True) as pipe:
-            pipe.delete(_session_key(session_id))
-            pipe.delete(_csrf_key(session_id))
-            if resolved_user_id is not None:
-                pipe.zrem(_user_sessions_key(resolved_user_id), session_id)
-            await pipe.execute()
+        if user_id is not None:
+            async with self._redis.pipeline(transaction=True) as pipe:
+                pipe.delete(_session_key(session_id))
+                pipe.delete(_csrf_key(session_id))
+                pipe.zrem(_user_sessions_key(user_id), session_id)
+                await pipe.execute()
+        else:
+            await self._redis.eval(
+                _DELETE_SESSION_LUA,
+                3,
+                _session_key(session_id),
+                _csrf_key(session_id),
+                session_id,
+                USER_SESSIONS_REDIS_KEY_PREFIX,
+            )
 
         self.log_event(
             SessionEvent.SESSION_DELETED,
             session_id=session_id,
-            user_id=resolved_user_id,
+            user_id=user_id,
         )
 
     async def delete_all_user_sessions(self, *, user_id: int) -> int:
@@ -657,11 +687,10 @@ class SessionManager:
 
         now = _now_seconds()
         result: Any = await self._redis.eval(
-            _VALIDATE_CSRF_AND_REFRESH_LUA,
+            _REFRESH_AND_READ_LUA,
             2,
             _session_key(session_id),
             _csrf_key(session_id),
-            csrf_header,
             str(now),
             str(self._cfg.sliding_time_to_live_seconds),
             str(self._cfg.absolute_time_to_live_seconds),
@@ -671,7 +700,12 @@ class SessionManager:
             self.log_event(SessionEvent.CSRF_FAILED, session_id=session_id, log_level=logging.WARNING)
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF validation failed")
 
-        session_json, _ttl = result
+        session_json, csrf_raw, _ttl = result
+        stored_csrf = _decode_bytes(csrf_raw) if csrf_raw else ""
+        if not secrets.compare_digest(stored_csrf or "", csrf_header):
+            self.log_event(SessionEvent.CSRF_FAILED, session_id=session_id, log_level=logging.WARNING)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF validation failed")
+
         session_data = _parse_session_payload(session_json, session_id, self.log_event)
         if not session_data:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -699,7 +733,13 @@ class SessionManager:
 
         stored = session_data.get("request_fingerprint")
         if not stored:
-            return True
+            self.log_event(
+                SessionEvent.SESSION_BINDING_MISMATCH,
+                session_id=session_id,
+                user_id=session_data["user_id"],
+                log_level=logging.WARNING,
+            )
+            return False
 
         if stored != _fingerprint(request):
             self.log_event(
@@ -708,12 +748,12 @@ class SessionManager:
                 user_id=session_data["user_id"],
                 log_level=logging.WARNING,
             )
-            import asyncio
-            asyncio.ensure_future(
+            task = asyncio.create_task(
                 self.delete_session(
                     session_id=session_id, user_id=session_data["user_id"]
                 )
             )
+            task.add_done_callback(lambda _: None)
             return False
 
         return True

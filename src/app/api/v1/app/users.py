@@ -9,7 +9,9 @@ from app.core.db.database import async_get_db
 from app.core.schemas import Actor
 from app.core.utils.cache import cache
 from app.schemas.mobile_user import (
-    MobileUserEmailUpdate,
+    MobileUserEmailChangeOtpVerify,
+    MobileUserEmailChangeRequest,
+    MobileUserLinkedProvidersRead,
     MobileUserPasswordUpdate,
     MobileUserRead,
     MobileUserUpdate,
@@ -56,16 +58,6 @@ async def verify_email_from_link(
     return _static_html_response(service.render_template("email_verified.html"))
 
 
-@router.get("/verify-email-change", response_class=HTMLResponse, status_code=status.HTTP_200_OK)
-async def verify_email_change_from_link(
-    token: Annotated[str, Query()],
-    service: MobileUserServiceDependency,
-    _: Annotated[None, IpRateLimitDependency],
-) -> HTMLResponse:
-    await service.verify_email_change(raw_token=token)
-    return _static_html_response(service.render_template("email_change_verified.html"))
-
-
 @router.get("/me", response_model=MobileUserRead, status_code=status.HTTP_200_OK)
 @cache(
     key_prefix="app:mobile-users:detail",
@@ -80,6 +72,15 @@ async def get_mobile_user(
     return await service.get_mobile_user(actor=actor, user_id=actor.id)
 
 
+@router.get("/me/providers", response_model=MobileUserLinkedProvidersRead, status_code=status.HTTP_200_OK)
+async def get_mobile_user_linked_providers(
+    request: Request,
+    actor: ActorDependency,
+    service: MobileUserServiceDependency,
+) -> MobileUserLinkedProvidersRead:
+    return await service.get_linked_providers(actor=actor, user_id=actor.id)
+
+
 @router.post("/email/verification", status_code=status.HTTP_204_NO_CONTENT)
 async def send_verification_email(
     request: Request,
@@ -90,6 +91,57 @@ async def send_verification_email(
         actor=actor,
         user_id=actor.id,
     )
+
+
+@router.post("/email/change/request-otp", status_code=status.HTTP_204_NO_CONTENT)
+async def request_email_change_otp(
+    request: Request,
+    actor: ActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.request_email_change_otp(
+        actor=actor,
+        user_id=actor.id,
+    )
+
+
+@router.post("/email/change/verify-otp", status_code=status.HTTP_204_NO_CONTENT)
+async def verify_email_change_otp(
+    request: Request,
+    payload: MobileUserEmailChangeOtpVerify,
+    actor: ActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.verify_email_change_otp(
+        actor=actor,
+        user_id=actor.id,
+        otp=payload.otp,
+    )
+
+
+@router.post("/email/change", status_code=status.HTTP_204_NO_CONTENT)
+async def request_email_change(
+    request: Request,
+    payload: MobileUserEmailChangeRequest,
+    actor: ActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.request_email_change(
+        actor=actor,
+        user_id=actor.id,
+        new_email=payload.new_email,
+        current_password=payload.current_password.get_secret_value() if payload.current_password else None,
+    )
+
+
+@router.get("/email/verify-new", response_class=HTMLResponse, status_code=status.HTTP_200_OK)
+async def verify_new_email_from_link(
+    token: Annotated[str, Query()],
+    service: MobileUserServiceDependency,
+    _: Annotated[None, IpRateLimitDependency],
+) -> HTMLResponse:
+    await service.verify_new_email(raw_token=token)
+    return _static_html_response(service.render_template("email_change_verified.html"))
 
 
 @router.patch("/me", status_code=status.HTTP_204_NO_CONTENT)
@@ -105,20 +157,6 @@ async def update_mobile_user(
     service: MobileUserServiceDependency,
 ) -> None:
     await service.update(actor=actor, user_id=actor.id, user_input=payload)
-
-
-@router.patch("/email", status_code=status.HTTP_204_NO_CONTENT)
-async def request_email_change(
-    request: Request,
-    payload: MobileUserEmailUpdate,
-    actor: ActorDependency,
-    service: MobileUserServiceDependency,
-) -> None:
-    await service.request_email_change(
-        actor=actor,
-        user_id=actor.id,
-        new_email=payload.new_email,
-    )
 
 
 @router.patch("/password", status_code=status.HTTP_204_NO_CONTENT)

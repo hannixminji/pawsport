@@ -82,7 +82,7 @@ async def refresh(
 async def logout(
     body: LogoutRequest,
     service: MobileUserServiceDependency,
-    current_user: Annotated[MobileActor, Depends(get_current_mobile_user)],
+    _current_user: Annotated[MobileActor, Depends(get_current_mobile_user)],
 ) -> dict[str, str]:
     return await service.logout(refresh_token=body.refresh_token)
 
@@ -100,6 +100,7 @@ async def reset_password_page(
     token: str,
     service: MobileUserServiceDependency,
 ) -> HTMLResponse:
+    await service.validate_password_reset_token(raw_token=token)
     csp_nonce = secrets.token_urlsafe(32)
     content = service.render_template("password_reset_form.html", token=token, csp_nonce=csp_nonce)
     response = HTMLResponse(content=content)

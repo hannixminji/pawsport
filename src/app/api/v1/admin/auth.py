@@ -151,6 +151,7 @@ async def admin_login(
         signed_session=signed,
         csrf_token=csrf_token,
         cookie_secure=sm.cookie_secure,
+        max_age=settings.ADMIN_SESSION_TTL_SECONDS,
     )
 
     sm.log_event(
@@ -171,7 +172,7 @@ async def admin_logout(
     sm: Annotated[SessionManager, Depends(get_session_manager)],
 ) -> dict[str, Any]:
     await sm.delete_session(session_id=session["session_id"], user_id=session["user_id"])
-    clear_admin_cookies(response)
+    clear_admin_cookies(response, cookie_secure=sm.cookie_secure)
     sm.log_event(
         SessionEvent.LOGOUT,
         session_id=session["session_id"],
@@ -204,12 +205,12 @@ async def admin_me(
 
     if user is None:
         await sm.delete_session(session_id=session["session_id"], user_id=user_id)
-        clear_admin_cookies(response)
+        clear_admin_cookies(response, cookie_secure=sm.cookie_secure)
         raise UnauthorizedException("Not authenticated")
 
     if user.account_status in (AdminAccountStatus.SUSPENDED, AdminAccountStatus.INACTIVE):
         await sm.delete_session(session_id=session["session_id"], user_id=user_id)
-        clear_admin_cookies(response)
+        clear_admin_cookies(response, cookie_secure=sm.cookie_secure)
         raise ForbiddenException("Your account is not active.")
 
     return AdminUserRead.model_validate(user)
@@ -222,7 +223,7 @@ async def admin_logout_all(
     sm: Annotated[SessionManager, Depends(get_session_manager)],
 ) -> dict[str, Any]:
     await sm.delete_all_user_sessions(user_id=session["user_id"])
-    clear_admin_cookies(response)
+    clear_admin_cookies(response, cookie_secure=sm.cookie_secure)
     sm.log_event(
         SessionEvent.LOGOUT,
         user_id=session["user_id"],

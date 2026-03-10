@@ -70,6 +70,15 @@ class SightingReport(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         init=False,
     )
 
+    reporter_name: Mapped[str | None] = mapped_column(Text, nullable=True, default=None, server_default=text("NULL"))
+    reporter_email: Mapped[str | None] = mapped_column(Text, nullable=True, default=None, server_default=text("NULL"))
+    reporter_phone_number: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        default=None,
+        server_default=text("NULL"),
+    )
+
     uuid: Mapped[uuid_pkg.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, default_factory=uuid7, init=False)
 
     @property

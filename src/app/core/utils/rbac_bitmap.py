@@ -353,4 +353,17 @@ async def on_bulk_roles_permission_changed(redis: Redis, role_ids: set[int]) -> 
 
 
 async def on_permission_schema_changed(redis: Redis) -> None:
-    await redis.incr(PERM_SCHEMA_VERSION_KEY)
+    old_version = await _get_int(redis, PERM_SCHEMA_VERSION_KEY)
+    new_version = await redis.incr(PERM_SCHEMA_VERSION_KEY)
+
+    if new_version != old_version + 1:
+        return
+
+    pattern = f"{PERM_BM_PREFIX}:s{old_version}:*"
+    cursor = 0
+    while True:
+        cursor, keys = await redis.scan(cursor, match=pattern, count=100)
+        if keys:
+            await redis.delete(*keys)
+        if cursor == 0:
+            break

@@ -11,7 +11,7 @@ from .api import router
 from .core.config import settings
 from .core.exceptions.authorization_exceptions import ForbiddenError
 from .core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
-from .core.exceptions.domain_exceptions import InvalidInputError, NotFoundError
+from .core.exceptions.domain_exceptions import DuplicateValueError, InvalidInputError, NotFoundError, UnauthorizedError
 from .core.setup import create_application, lifespan_factory
 from .core.utils.qdrant_cloud import init_collections
 
@@ -39,6 +39,11 @@ async def request_id_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+@app.exception_handler(UnauthorizedError)
+async def unauthorized_error_handler(request: Request, error: UnauthorizedError) -> JSONResponse:
+    return JSONResponse(status_code=401, content={"detail": str(error)})
+
+
 @app.exception_handler(ForbiddenError)
 async def forbidden_error_handler(request: Request, error: ForbiddenError) -> JSONResponse:
     return JSONResponse(status_code=403, content={"detail": str(error)})
@@ -47,6 +52,11 @@ async def forbidden_error_handler(request: Request, error: ForbiddenError) -> JS
 @app.exception_handler(NotFoundError)
 async def not_found_error_handler(request: Request, error: NotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(error)})
+
+
+@app.exception_handler(DuplicateValueError)
+async def duplicate_value_error_handler(request: Request, error: DuplicateValueError) -> JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": str(error)})
 
 
 @app.exception_handler(InvalidInputError)

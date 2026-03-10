@@ -333,7 +333,7 @@ async def get_current_admin_user(
 
     async def _invalidate_session() -> None:
         await session_manager.delete_session(session_id=session_id, user_id=user_id)
-        clear_admin_cookies(response)
+        clear_admin_cookies(response, cookie_secure=session_manager.cookie_secure)
 
     try:
         admin_user = (

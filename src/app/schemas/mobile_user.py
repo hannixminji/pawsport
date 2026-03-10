@@ -7,7 +7,7 @@ from fastapi import Request
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, conint, field_validator
 from pydantic_extra_types.phone_numbers import PhoneNumber
 
-from ..core.enums import ActorType, MobileUserAccountStatus
+from ..core.enums import ActorType, AuthProvider, MobileUserAccountStatus
 from ..core.schemas import Actor, GeoPoint, PersistentDeletion, StrongPassword, TimestampSchema
 from ..core.utils.request import get_client_ip
 
@@ -159,6 +159,10 @@ class MobileUserRead(BaseModel):
                 s = s[4:].strip()
             return s or None
         return v
+
+
+class MobileUserLinkedProvidersRead(BaseModel):
+    auth_providers: list[AuthProvider]
 
 
 class MobileActor(BaseModel):
@@ -339,8 +343,24 @@ class MobileUserUpdate(BaseModel):
         return v
 
 
-class MobileUserEmailUpdate(BaseModel):
+class MobileUserEmailChangeOtpVerify(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    otp: Annotated[str, Field(min_length=6, max_length=6, pattern=r"^\d{6}$", examples=["123456"])]
+
+
+class MobileUserEmailChangeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     new_email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
+    current_password: Annotated[StrongPassword | None, Field(examples=["CurrentPass123!"], default=None)]
+
+    @field_validator("new_email", mode="before")
+    @classmethod
+    def normalize_email(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
 
 
 class MobileUserTierUpdate(BaseModel):

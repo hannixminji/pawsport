@@ -101,17 +101,6 @@ class RedisCacheSettings(BaseSettings):
         return self
 
 
-class RedisAdminSessionSettings(BaseSettings):
-    REDIS_ADMIN_SESSION_HOST: str = "localhost"
-    REDIS_ADMIN_SESSION_PORT: int = 6379
-    REDIS_ADMIN_SESSION_DB: int = 1
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def REDIS_ADMIN_SESSION_URL(self) -> str:
-        return f"redis://{self.REDIS_ADMIN_SESSION_HOST}:{self.REDIS_ADMIN_SESSION_PORT}/{self.REDIS_ADMIN_SESSION_DB}"
-
-
 class RedisQueueSettings(BaseSettings):
     REDIS_QUEUE_HOST: str = "localhost"
     REDIS_QUEUE_PORT: int = 6379
@@ -127,6 +116,17 @@ class RedisRateLimiterSettings(BaseSettings):
         return f"redis://{self.REDIS_RATE_LIMIT_HOST}:{self.REDIS_RATE_LIMIT_PORT}"
 
 
+class RedisAdminSessionSettings(BaseSettings):
+    REDIS_ADMIN_SESSION_HOST: str = "localhost"
+    REDIS_ADMIN_SESSION_PORT: int = 6379
+    REDIS_ADMIN_SESSION_DB: int = 1
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def REDIS_ADMIN_SESSION_URL(self) -> str:
+        return f"redis://{self.REDIS_ADMIN_SESSION_HOST}:{self.REDIS_ADMIN_SESSION_PORT}/{self.REDIS_ADMIN_SESSION_DB}"
+
+
 class ClientSideCacheSettings(BaseSettings):
     CLIENT_CACHE_MAX_AGE: int = 60
 
@@ -139,12 +139,12 @@ class CryptSettings(BaseSettings):
 
 
 class Argon2Settings(BaseSettings):
-    TIME_COST: int = int(os.getenv("ARGON2_TIME_COST", 4))
-    MEMORY_COST: int = int(os.getenv("ARGON2_MEMORY_COST", 131072))
-    PARALLELISM: int = int(os.getenv("ARGON2_PARALLELISM", 4))
-    HASH_LEN: int = int(os.getenv("ARGON2_HASH_LEN", 32))
-    SALT_LEN: int = int(os.getenv("ARGON2_SALT_LEN", 16))
-    ENCODING: str = os.getenv("ARGON2_ENCODING", "utf-8")
+    TIME_COST: int = 3
+    MEMORY_COST: int = 65536
+    PARALLELISM: int = 1
+    HASH_LEN: int = 32
+    SALT_LEN: int = 16
+    ENCODING: str = "utf-8"
     TYPE: Type = Type.ID
 
     @computed_field
@@ -159,6 +159,21 @@ class Argon2Settings(BaseSettings):
             encoding=self.ENCODING,
             type=self.TYPE,
         )
+
+
+class UserTokenSettings(BaseSettings):
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 60
+    EMAIL_CHANGE_OTP_EXPIRE_MINUTES: int = 10
+    EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES: int = 15
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 15
+
+
+class DefaultRateLimitSettings(BaseSettings):
+    DEFAULT_RATE_LIMIT_LIMIT: int = 60
+    DEFAULT_RATE_LIMIT_PERIOD: int = 60
+
+    DEFAULT_GUEST_RATE_LIMIT_LIMIT: int = 20
+    DEFAULT_GUEST_RATE_LIMIT_PERIOD: int = 60
 
 
 class AdminSessionSettings(BaseSettings):
@@ -179,20 +194,6 @@ class AdminAuthSettings(BaseSettings):
     LOGIN_MAX_ATTEMPTS_PER_IP: int = 10
 
 
-class DefaultRateLimitSettings(BaseSettings):
-    DEFAULT_RATE_LIMIT_LIMIT: int = 60
-    DEFAULT_RATE_LIMIT_PERIOD: int = 60
-
-    DEFAULT_GUEST_RATE_LIMIT_LIMIT: int = 20
-    DEFAULT_GUEST_RATE_LIMIT_PERIOD: int = 60
-
-
-class UserTokenSettings(BaseSettings):
-    EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 30
-    EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES: int = 30
-    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 15
-
-
 class FirstUserSettings(BaseSettings):
     ADMIN_NAME: str = "admin"
     ADMIN_EMAIL: str = "admin@admin.com"
@@ -205,6 +206,10 @@ class TierSettings(BaseSettings):
     GUEST_TIER_NAME: str = "guest"
     DEFAULT_MOBILE_USER_TIER: str = "free"
     DEFAULT_GUEST_USER_TIER: str = "guest"
+
+
+class NotificationSettings(BaseSettings):
+    NEARBY_ALERT_CENTER_RADIUS_METERS: int = 3_000
 
 
 class GCSSettings(BaseSettings):
@@ -227,10 +232,6 @@ class QdrantCloudSettings(BaseSettings):
     QDRANT_CLOUD_API_KEY: SecretStr = SecretStr("")
 
 
-class NotificationSettings(BaseSettings):
-    NEARBY_ALERT_CENTER_RADIUS_METERS: int = 3_000
-
-
 class MLServiceSettings(BaseSettings):
     ML_BASE_URL: str = "http://ml:9000"
 
@@ -250,22 +251,22 @@ class Settings(
     SQLiteSettings,
     PostgresSettings,
     RedisCacheSettings,
-    RedisAdminSessionSettings,
     RedisQueueSettings,
     RedisRateLimiterSettings,
+    RedisAdminSessionSettings,
     ClientSideCacheSettings,
     CryptSettings,
     Argon2Settings,
+    UserTokenSettings,
+    DefaultRateLimitSettings,
     AdminSessionSettings,
     AdminAuthSettings,
-    DefaultRateLimitSettings,
-    UserTokenSettings,
     FirstUserSettings,
     TierSettings,
+    NotificationSettings,
     GCSSettings,
     EmailSettings,
     QdrantCloudSettings,
-    NotificationSettings,
     MLServiceSettings,
     PetSettings,
     TestSettings,

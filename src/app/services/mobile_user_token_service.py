@@ -29,6 +29,7 @@ class MobileUserTokenService:
     def _get_expire_minutes(token_type: UserTokenType) -> int:
         return {
             UserTokenType.EMAIL_VERIFICATION: settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES,
+            UserTokenType.EMAIL_CHANGE_OTP: settings.EMAIL_CHANGE_OTP_EXPIRE_MINUTES,
             UserTokenType.EMAIL_CHANGE: settings.EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES,
             UserTokenType.PASSWORD_RESET: settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
         }[token_type]
@@ -39,8 +40,10 @@ class MobileUserTokenService:
         mobile_user_id: int,
         token_type: UserTokenType,
         payload: dict | None = None,
+        raw_token: str | None = None,
     ) -> str:
-        raw_token = secrets.token_urlsafe(32)
+        if raw_token is None:
+            raw_token = secrets.token_urlsafe(32)
         token_hash = self._hash_token(raw_token)
         expires_at = datetime.now(UTC) + timedelta(minutes=self._get_expire_minutes(token_type))
 

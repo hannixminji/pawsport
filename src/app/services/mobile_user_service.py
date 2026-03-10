@@ -1,4 +1,5 @@
 import logging
+import secrets
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,8 +17,7 @@ from ..core.config import settings
 from ..core.enums import ActorType, AuthProvider, MobileUserAccountStatus, UserTokenType
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
-from ..core.exceptions.domain_exceptions import InvalidInputError, NotFoundError
-from ..core.exceptions.http_exceptions import DuplicateValueException, UnauthorizedException
+from ..core.exceptions.domain_exceptions import DuplicateValueError, InvalidInputError, NotFoundError, UnauthorizedError
 from ..core.schemas import Actor, PaginatedResponse
 from ..core.search_engine.engine import SearchEngine
 from ..core.search_engine.enums import FilterOp
@@ -44,6 +44,7 @@ from ..schemas.mobile_user import (
     MobileUserCreate,
     MobileUserEmailPasswordLogin,
     MobileUserEmailPasswordRegister,
+    MobileUserLinkedProvidersRead,
     MobileUserRead,
     MobileUserUpdate,
 )
@@ -143,7 +144,7 @@ class MobileUserService:
         errors = _GUEST_ACCOUNT_STATUS_ERRORS if user.is_anonymous else _ACCOUNT_STATUS_ERRORS
         message = errors.get(user.account_status)
         if message:
-            raise UnauthorizedException(message)
+            raise UnauthorizedError(message)
 
     async def _get_mobile_user(self, user_id: int, actor: Actor | None = None) -> MobileUser | None:
         query = (
@@ -212,7 +213,7 @@ class MobileUserService:
             )
         ).scalar_one_or_none()
         if existing_user is not None:
-            raise DuplicateValueException("A user with this email already exists.")
+            raise DuplicateValueError("A user with this email already exists.")
 
         free_tier_id = await self._get_tier_id_by_name(settings.FREE_TIER_NAME)
 
@@ -247,22 +248,26 @@ class MobileUserService:
             await self.db.rollback()
 
             if self._is_unique_constraint_violation(error, "uq_mobile_user_email_active"):
-                raise DuplicateValueException("A user with this email already exists.")
+                raise DuplicateValueError("A user with this email already exists.")
 
             if self._is_unique_constraint_violation(error, "uq_mobile_user_username_active"):
-                raise DuplicateValueException("Username conflict. Please try again.")
+                raise DuplicateValueError("Username conflict. Please try again.")
 
-            raise DuplicateValueException("Unable to complete registration. Please try again.")
+            raise DuplicateValueError("Unable to complete registration. Please try again.")
 
-        except OperationalError:
+        except OperationalError as error:
             await self.db.rollback()
 
-            raise UnauthorizedException("Failed to create account. Please try again later.")
+            raise TransientDatabaseError(
+                "Failed to create account. Please try again later."
+            ) from error
 
-        except SQLAlchemyError:
+        except SQLAlchemyError as error:
             await self.db.rollback()
 
-            raise UnauthorizedException("Failed to create account.")
+            raise NonTransientDatabaseError(
+                "Failed to create account."
+            ) from error
 
         await self.db.refresh(new_user)
 
@@ -305,14 +310,14 @@ class MobileUserService:
         ).scalar_one_or_none()
 
         if linked_account is None or linked_account.mobile_user is None or linked_account.mobile_user.is_deleted:
-            raise UnauthorizedException("Invalid email or password.")
+            raise UnauthorizedError("Invalid email or password.")
 
         is_valid, _ = await verify_password(
             payload.password.get_secret_value(),
             linked_account.hashed_password,
         )
         if not is_valid:
-            raise UnauthorizedException("Invalid email or password.")
+            raise UnauthorizedError("Invalid email or password.")
 
         self._assert_account_active(linked_account.mobile_user)
 
@@ -326,12 +331,12 @@ class MobileUserService:
         except OperationalError:
             await self.db.rollback()
 
-            raise UnauthorizedException("Failed to create session. Please try again later.")
+            raise UnauthorizedError("Failed to create session. Please try again later.")
 
         except SQLAlchemyError:
             await self.db.rollback()
 
-            raise UnauthorizedException("Failed to create session.")
+            raise UnauthorizedError("Failed to create session.")
 
         return TokenResponse(
             access_token=access_token,
@@ -348,20 +353,20 @@ class MobileUserService:
         try:
             token_data = verify_firebase_token(token)
         except ValueError as error:
-            raise UnauthorizedException(str(error))
+            raise UnauthorizedError(str(error))
         except Exception as error:
-            raise UnauthorizedException(str(error))
+            raise UnauthorizedError(str(error))
 
         sign_in_provider = token_data.get("firebase", {}).get("sign_in_provider")
         identities = token_data.get("firebase", {}).get("identities", {})
         provider_ids = identities.get(sign_in_provider)
         if not provider_ids:
-            raise UnauthorizedException("Missing provider user ID in token")
+            raise UnauthorizedError("Missing provider user ID in token")
         provider_user_id = provider_ids[0]
 
         email = token_data.get("email")
         if not email:
-            raise UnauthorizedException("Email not provided in token")
+            raise UnauthorizedError("Email not provided in token")
 
         async def get_linked_account() -> UserLinkedAccount | None:
             return (
@@ -388,56 +393,13 @@ class MobileUserService:
             self._assert_account_active(linked_account.mobile_user)
             return MobileUserRead.model_validate(linked_account.mobile_user)
 
-        mobile_user = (
-            await self.db.execute(
-                select(MobileUser)
-                .where(
-                    MobileUser.email == email,
-                    MobileUser.is_deleted.is_(False),
-                )
-            )
-        ).scalar_one_or_none()
-
-        if mobile_user:
-            if not mobile_user.is_email_verified:
-                raise UnauthorizedException(
-                    "An account with this email exists but has not been verified. Please verify your email first."
-                )
-            self._assert_account_active(mobile_user)
-            new_linked_account = UserLinkedAccount(
-                mobile_user_id=mobile_user.id,
-                provider=sign_in_provider,
-                provider_user_id=provider_user_id,
-                provider_email=email,
-            )
-            self.db.add(new_linked_account)
-
-            try:
-                await self.db.commit()
-            except IntegrityError as error:
-                await self.db.rollback()
-
-                if self._is_unique_constraint_violation(
-                    error,
-                    "uq_user_linked_account_provider_provider_user_id_active"
-                ):
-                    linked_account = await get_linked_account()
-                    if linked_account_user_is_valid(linked_account):
-                        self._assert_account_active(linked_account.mobile_user)
-                        return MobileUserRead.model_validate(linked_account.mobile_user)
-
-                raise DuplicateValueException("Linked account creation failed. Please try again.")
-
-            await self.db.refresh(mobile_user)
-            return MobileUserRead.model_validate(mobile_user)
-
         free_tier_id = await self._get_tier_id_by_name(settings.FREE_TIER_NAME)
 
-        base_username = f"user{uuid.uuid4().hex[:10]}"
         new_user = MobileUser(
-            username=base_username,
+            username=f"user{uuid.uuid4().hex[:10]}",
             tier_id=free_tier_id,
             email=email,
+            is_email_verified=True,
         )
         self.db.add(new_user)
         await self.db.flush()
@@ -452,6 +414,7 @@ class MobileUserService:
 
         try:
             await self.db.commit()
+
         except IntegrityError as error:
             await self.db.rollback()
 
@@ -463,56 +426,15 @@ class MobileUserService:
                 if linked_account_user_is_valid(linked_account):
                     self._assert_account_active(linked_account.mobile_user)
                     return MobileUserRead.model_validate(linked_account.mobile_user)
-                raise UnauthorizedException("Authentication failed due to conflicting account.")
+                raise UnauthorizedError("Authentication failed due to conflicting account.")
 
-            if self._is_unique_constraint_violation(
-                error,
-                "uq_mobile_user_email_active"
-            ):
-                existing_user = (
-                    await self.db.execute(
-                        select(MobileUser)
-                        .where(
-                            MobileUser.email == email,
-                            MobileUser.is_deleted.is_(False)
-                        )
-                    )
-                ).scalar_one_or_none()
-                if existing_user:
-                    self._assert_account_active(existing_user)
-                    retry_linked = UserLinkedAccount(
-                        mobile_user_id=existing_user.id,
-                        provider=sign_in_provider,
-                        provider_user_id=provider_user_id,
-                        provider_email=email
-                    )
-                    self.db.add(retry_linked)
-                    try:
-                        await self.db.commit()
-                    except IntegrityError as inner_error:
-                        await self.db.rollback()
+            if self._is_unique_constraint_violation(error, "uq_mobile_user_email_active"):
+                raise DuplicateValueError("This email is already connected to an account.")
 
-                        if self._is_unique_constraint_violation(
-                            inner_error,
-                            "uq_user_linked_account_provider_provider_user_id_active"
-                        ):
-                            linked_account = await get_linked_account()
-                            if linked_account_user_is_valid(linked_account):
-                                self._assert_account_active(linked_account.mobile_user)
-                                return MobileUserRead.model_validate(linked_account.mobile_user)
+            if self._is_unique_constraint_violation(error, "uq_mobile_user_username_active"):
+                raise DuplicateValueError("Username conflict. Please try again.")
 
-                        raise DuplicateValueException("Unable to complete signup due to a conflict. Please try again.")
-
-                    await self.db.refresh(existing_user)
-                    return MobileUserRead.model_validate(existing_user)
-
-            if self._is_unique_constraint_violation(
-                error,
-                "uq_mobile_user_username_active"
-            ):
-                raise DuplicateValueException("Username conflict. Please try again.")
-
-            raise DuplicateValueException("Unable to complete signup due to a conflict. Please try again.")
+            raise DuplicateValueError("Unable to complete signup. Please try again.")
 
         await self.db.refresh(new_user)
         return MobileUserRead.model_validate(new_user)
@@ -548,17 +470,17 @@ class MobileUserService:
         except IntegrityError:
             await self.db.rollback()
 
-            raise UnauthorizedException("Failed to create guest session. Please try again.")
+            raise UnauthorizedError("Failed to create guest session. Please try again.")
 
         except OperationalError:
             await self.db.rollback()
 
-            raise UnauthorizedException("Failed to create guest session. Please try again later.")
+            raise UnauthorizedError("Failed to create guest session. Please try again later.")
 
         except SQLAlchemyError:
             await self.db.rollback()
 
-            raise UnauthorizedException("Failed to create guest session.")
+            raise UnauthorizedError("Failed to create guest session.")
 
         await self.db.refresh(new_user)
 
@@ -576,10 +498,9 @@ class MobileUserService:
     ) -> TokenResponse:
         result = await rotate_refresh_token(refresh_token, self.db)
         if result is None:
-            raise UnauthorizedException("Invalid or expired refresh token.")
+            raise UnauthorizedError("Invalid or expired refresh token.")
 
         new_access_token, new_refresh_token, user_id = result
-        await self.db.commit()
 
         mobile_user = (
             await self.db.execute(
@@ -591,9 +512,11 @@ class MobileUserService:
             )
         ).scalar_one_or_none()
         if mobile_user is None:
-            raise UnauthorizedException("User not found.")
+            raise UnauthorizedError("User not found.")
 
         self._assert_account_active(mobile_user)
+
+        await self.db.commit()
 
         return TokenResponse(
             access_token=new_access_token,
@@ -629,6 +552,19 @@ class MobileUserService:
         if db_user is None or not db_user.is_email_verified:
             return
 
+        linked_account = (
+            await self.db.execute(
+                select(UserLinkedAccount)
+                .where(
+                    UserLinkedAccount.mobile_user_id == db_user.id,
+                    UserLinkedAccount.provider == AuthProvider.EMAIL,
+                    UserLinkedAccount.is_deleted.is_(False),
+                )
+            )
+        ).scalar_one_or_none()
+        if linked_account is None:
+            return
+
         token_service = MobileUserTokenService(db=self.db)
         raw_token = await token_service.create_token(
             mobile_user_id=db_user.id,
@@ -644,6 +580,17 @@ class MobileUserService:
             to_email=db_user.email,
             subject="Reset your password",
             html=html,
+        )
+
+    async def validate_password_reset_token(
+        self,
+        *,
+        raw_token: str,
+    ) -> None:
+        token_service = MobileUserTokenService(db=self.db)
+        await token_service.verify_token(
+            raw_token=raw_token,
+            token_type=UserTokenType.PASSWORD_RESET,
         )
 
     async def reset_password(
@@ -853,6 +800,30 @@ class MobileUserService:
 
         return MobileUserRead.model_validate(db_user)
 
+    async def get_linked_providers(
+        self,
+        *,
+        actor: Actor,
+        user_id: int,
+    ) -> MobileUserLinkedProvidersRead:
+        if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
+            raise ForbiddenError("You do not have permission to perform this action.")
+
+        if actor.actor_type == ActorType.MOBILE_USER:
+            user_id = actor.id
+
+        linked_providers = (
+            await self.db.execute(
+                select(UserLinkedAccount.provider)
+                .where(
+                    UserLinkedAccount.mobile_user_id == user_id,
+                    UserLinkedAccount.is_deleted.is_(False),
+                )
+            )
+        ).scalars().all()
+
+        return MobileUserLinkedProvidersRead(auth_providers=list(linked_providers))
+
     async def update(
         self,
         *,
@@ -1002,15 +973,77 @@ class MobileUserService:
                 "Failed to verify email."
             ) from error
 
+    async def request_email_change_otp(
+        self,
+        *,
+        actor: Actor,
+        user_id: int,
+    ) -> None:
+        if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
+            raise ForbiddenError("You do not have permission to perform this action.")
+
+        db_user = await self._get_mobile_user(user_id, actor)
+        if db_user is None:
+            raise NotFoundError("User not found.")
+
+        if db_user.email is None:
+            raise InvalidInputError("No email address found for this user.")
+
+        otp_code = f"{secrets.randbelow(1_000_000):06d}"
+
+        token_service = MobileUserTokenService(db=self.db)
+        await token_service.create_token(
+            mobile_user_id=user_id,
+            token_type=UserTokenType.EMAIL_CHANGE_OTP,
+            raw_token=otp_code,
+        )
+
+        html = TEMPLATES.get_template("email_change_otp.html").render(
+            otp_code=otp_code,
+            expire_minutes=settings.EMAIL_CHANGE_OTP_EXPIRE_MINUTES,
+        )
+
+        await self._enqueue_email(
+            to_email=db_user.email,
+            subject=f"{otp_code} is your PawsPort verification code",
+            html=html,
+        )
+
+    async def verify_email_change_otp(
+        self,
+        *,
+        actor: Actor,
+        user_id: int,
+        otp: str,
+    ) -> None:
+        if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
+            raise ForbiddenError("You do not have permission to perform this action.")
+
+        db_user = await self._get_mobile_user(user_id, actor)
+        if db_user is None:
+            raise NotFoundError("User not found.")
+
+        token_service = MobileUserTokenService(db=self.db)
+        db_token = await token_service.verify_token(
+            raw_token=otp,
+            token_type=UserTokenType.EMAIL_CHANGE_OTP,
+        )
+        if db_token.mobile_user_id != user_id:
+            raise InvalidInputError("Invalid or expired token.")
+
+        await token_service.consume_token(token_id=db_token.id)
+        await self.db.commit()
+
     async def request_email_change(
         self,
         *,
         actor: Actor,
         user_id: int,
         new_email: str,
+        current_password: str | None = None,
     ) -> None:
         if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
-            raise ForbiddenError("You do not have permission to change this user's email.")
+            raise ForbiddenError("You do not have permission to perform this action.")
 
         db_user = await self._get_mobile_user(user_id, actor)
         if db_user is None:
@@ -1023,8 +1056,8 @@ class MobileUserService:
             await self.db.execute(
                 select(MobileUser)
                 .where(
-                    MobileUser.email == new_email,
                     MobileUser.id != user_id,
+                    MobileUser.email == new_email,
                     MobileUser.is_deleted.is_(False),
                 )
             )
@@ -1032,25 +1065,46 @@ class MobileUserService:
         if existing is not None:
             raise InvalidInputError("A user with this email already exists.")
 
+        linked_account = (
+            await self.db.execute(
+                select(UserLinkedAccount)
+                .where(
+                    UserLinkedAccount.mobile_user_id == user_id,
+                    UserLinkedAccount.provider == AuthProvider.EMAIL,
+                    UserLinkedAccount.is_deleted.is_(False),
+                )
+            )
+        ).scalar_one_or_none()
+
+        if linked_account is not None:
+            if current_password is None:
+                raise InvalidInputError("Password is required to change your email.")
+
+            is_valid, _ = await verify_password(current_password, linked_account.hashed_password)
+            if not is_valid:
+                raise InvalidInputError("Current password is incorrect.")
+
         token_service = MobileUserTokenService(db=self.db)
-        raw_token = await token_service.create_token(
+        raw_token = secrets.token_urlsafe(32)
+        await token_service.create_token(
             mobile_user_id=user_id,
             token_type=UserTokenType.EMAIL_CHANGE,
             payload={"new_email": new_email},
+            raw_token=raw_token,
         )
 
         html = TEMPLATES.get_template("email_change.html").render(
-            verification_url=f"{settings.APP_URL}/api/v1/mobile-users/verify-email-change?token={raw_token}",
+            verification_url=f"{settings.APP_URL}/api/v1/mobile-users/email/verify-new?token={raw_token}",
             expire_minutes=settings.EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES,
         )
 
         await self._enqueue_email(
             to_email=new_email,
-            subject="Confirm your new email address",
+            subject="Verify Email Address for PawsPort",
             html=html,
         )
 
-    async def verify_email_change(
+    async def verify_new_email(
         self,
         *,
         raw_token: str,
@@ -1062,12 +1116,11 @@ class MobileUserService:
         )
 
         user_id = db_token.mobile_user_id
+        new_email = db_token.payload_json["new_email"]
 
         db_user = await self._get_mobile_user(user_id)
         if db_user is None:
             raise NotFoundError("User not found.")
-
-        new_email = db_token.payload_json["new_email"]
 
         await token_service.consume_token(token_id=db_token.id)
 
@@ -1087,7 +1140,10 @@ class MobileUserService:
                 UserLinkedAccount.provider == AuthProvider.EMAIL,
                 UserLinkedAccount.is_deleted.is_(False),
             )
-            .values(provider_email=new_email)
+            .values(
+                provider_user_id=new_email,
+                provider_email=new_email,
+            )
         )
 
         try:
@@ -1097,6 +1153,9 @@ class MobileUserService:
             await self.db.rollback()
 
             if self._is_unique_constraint_violation(error, "uq_mobile_user_email_active"):
+                raise InvalidInputError("A user with this email already exists.")
+
+            if self._is_unique_constraint_violation(error, "uq_user_linked_account_provider_provider_user_id_active"):
                 raise InvalidInputError("A user with this email already exists.")
 
             raise InvalidInputError("Unable to update the email.")
@@ -1140,7 +1199,7 @@ class MobileUserService:
             )
         ).scalar_one_or_none()
         if linked_account is None:
-            raise NotFoundError("No email/password account found for this user.")
+            raise NotFoundError("No email/password linked account found for this user.")
 
         is_valid, _ = await verify_password(current_password, linked_account.hashed_password)
         if not is_valid:

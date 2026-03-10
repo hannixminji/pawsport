@@ -56,6 +56,13 @@ class UserLinkedAccount(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
             postgresql_where=text("is_deleted = false"),
         ),
         Index(
+            "uq_user_linked_account_mobile_user_provider_active",
+            "mobile_user_id",
+            "provider",
+            unique=True,
+            postgresql_where=text("is_deleted = false"),
+        ),
+        Index(
             "idx_user_linked_account_mobile_user_id_active",
             "mobile_user_id",
             postgresql_where=text("is_deleted = false"),
