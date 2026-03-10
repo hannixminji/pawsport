@@ -2,18 +2,24 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import HTMLResponse
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import ip_rate_limit_dependency, rate_limiter_dependency
 from app.core.db.database import async_get_db
+from app.core.enums import AuthProvider
 from app.core.schemas import Actor
+from app.core.security import security
 from app.core.utils.cache import cache
 from app.schemas.mobile_user import (
+    MobileUserAddEmailPassword,
     MobileUserEmailChangeOtpVerify,
+    MobileUserEmailChangeOtpVerifyRead,
     MobileUserEmailChangeRequest,
     MobileUserLinkedProvidersRead,
     MobileUserPasswordUpdate,
     MobileUserRead,
+    MobileUserRemoveLinkedProvider,
     MobileUserUpdate,
 )
 from app.services.mobile_user_service import MobileUserService
@@ -105,14 +111,18 @@ async def request_email_change_otp(
     )
 
 
-@router.post("/email/change/verify-otp", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/email/change/verify-otp",
+    response_model=MobileUserEmailChangeOtpVerifyRead,
+    status_code=status.HTTP_200_OK,
+)
 async def verify_email_change_otp(
     request: Request,
     payload: MobileUserEmailChangeOtpVerify,
     actor: ActorDependency,
     service: MobileUserServiceDependency,
-) -> None:
-    await service.verify_email_change_otp(
+) -> MobileUserEmailChangeOtpVerifyRead:
+    return await service.verify_email_change_otp(
         actor=actor,
         user_id=actor.id,
         otp=payload.otp,
@@ -129,6 +139,7 @@ async def request_email_change(
     await service.request_email_change(
         actor=actor,
         user_id=actor.id,
+        authorization_token=payload.authorization_token,
         new_email=payload.new_email,
         current_password=payload.current_password.get_secret_value() if payload.current_password else None,
     )
@@ -142,6 +153,51 @@ async def verify_new_email_from_link(
 ) -> HTMLResponse:
     await service.verify_new_email(raw_token=token)
     return _static_html_response(service.render_template("email_change_verified.html"))
+
+
+@router.post("/me/providers/email", status_code=status.HTTP_204_NO_CONTENT)
+async def add_email_password(
+    request: Request,
+    payload: MobileUserAddEmailPassword,
+    actor: ActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.add_email_password(
+        actor=actor,
+        user_id=actor.id,
+        email=payload.email,
+        password=payload.password.get_secret_value(),
+    )
+
+
+@router.post("/me/providers/google", status_code=status.HTTP_204_NO_CONTENT)
+async def add_google(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    actor: ActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.add_google(
+        actor=actor,
+        user_id=actor.id,
+        token=credentials.credentials,
+    )
+
+
+@router.post("/me/providers/{provider}/remove", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_linked_provider(
+    request: Request,
+    provider: AuthProvider,
+    payload: MobileUserRemoveLinkedProvider,
+    actor: ActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.remove_linked_provider(
+        actor=actor,
+        user_id=actor.id,
+        provider=provider,
+        current_password=payload.current_password.get_secret_value() if payload.current_password else None,
+    )
 
 
 @router.patch("/me", status_code=status.HTTP_204_NO_CONTENT)

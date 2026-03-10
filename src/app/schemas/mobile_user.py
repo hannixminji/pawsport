@@ -189,6 +189,7 @@ class MobileUserCreate(MobileUserBase):
     model_config = ConfigDict(extra="forbid")
 
     email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
+    password: Annotated[StrongPassword, Field(examples=["Str1ngst!"])]
 
     @field_validator("email", mode="before")
     @classmethod
@@ -349,11 +350,16 @@ class MobileUserEmailChangeOtpVerify(BaseModel):
     otp: Annotated[str, Field(min_length=6, max_length=6, pattern=r"^\d{6}$", examples=["123456"])]
 
 
+class MobileUserEmailChangeOtpVerifyRead(BaseModel):
+    authorization_token: str
+
+
 class MobileUserEmailChangeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    new_email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
-    current_password: Annotated[StrongPassword | None, Field(examples=["CurrentPass123!"], default=None)]
+    authorization_token: Annotated[str, Field(min_length=43, max_length=43)]
+    new_email: Annotated[EmailStr, Field(examples=["user@example.com"])]
+    current_password: Annotated[StrongPassword | None, Field(default=None)]
 
     @field_validator("new_email", mode="before")
     @classmethod
@@ -361,6 +367,26 @@ class MobileUserEmailChangeRequest(BaseModel):
         if isinstance(v, str):
             return v.strip()
         return v
+
+
+class MobileUserAddEmailPassword(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: Annotated[EmailStr, Field(examples=["user@example.com"])]
+    password: Annotated[StrongPassword, Field(examples=["Str1ngst!"])]
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+
+class MobileUserRemoveLinkedProvider(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: Annotated[StrongPassword | None, Field(default=None)]
 
 
 class MobileUserTierUpdate(BaseModel):

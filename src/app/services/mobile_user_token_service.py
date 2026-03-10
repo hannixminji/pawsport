@@ -30,6 +30,7 @@ class MobileUserTokenService:
         return {
             UserTokenType.EMAIL_VERIFICATION: settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES,
             UserTokenType.EMAIL_CHANGE_OTP: settings.EMAIL_CHANGE_OTP_EXPIRE_MINUTES,
+            UserTokenType.EMAIL_CHANGE_AUTHORIZATION: settings.EMAIL_CHANGE_AUTHORIZATION_TOKEN_EXPIRE_MINUTES,
             UserTokenType.EMAIL_CHANGE: settings.EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES,
             UserTokenType.PASSWORD_RESET: settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
         }[token_type]

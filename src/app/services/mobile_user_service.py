@@ -42,6 +42,7 @@ from ..models.user_linked_account import UserLinkedAccount
 from ..schemas.mobile_user import (
     MobileUserAccountStatusUpdate,
     MobileUserCreate,
+    MobileUserEmailChangeOtpVerifyRead,
     MobileUserEmailPasswordLogin,
     MobileUserEmailPasswordRegister,
     MobileUserLinkedProvidersRead,
@@ -654,9 +655,18 @@ class MobileUserService:
             if not is_object_exists(user_input.profile_image_object_key):
                 raise InvalidInputError("The profile image may not have been uploaded correctly.")
 
-        user_model = MobileUser(**user_input.model_dump())
-
+        user_model = MobileUser(**user_input.model_dump(exclude={"password"}))
         self.db.add(user_model)
+        await self.db.flush()
+
+        new_linked_account = UserLinkedAccount(
+            mobile_user_id=user_model.id,
+            provider=AuthProvider.EMAIL,
+            provider_user_id=user_input.email,
+            provider_email=user_input.email,
+            hashed_password=get_password_hash(user_input.password.get_secret_value()),
+        )
+        self.db.add(new_linked_account)
 
         try:
             await self.db.commit()
@@ -824,6 +834,247 @@ class MobileUserService:
 
         return MobileUserLinkedProvidersRead(auth_providers=list(linked_providers))
 
+    async def add_email_password(
+        self,
+        *,
+        actor: Actor,
+        user_id: int,
+        email: str,
+        password: str,
+    ) -> None:
+        if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
+            raise ForbiddenError("You do not have permission to perform this action.")
+
+        if actor.actor_type == ActorType.MOBILE_USER:
+            user_id = actor.id
+
+        db_user = await self._get_mobile_user(user_id, actor)
+        if db_user is None:
+            raise NotFoundError("User not found.")
+
+        existing_email_linked_account = (
+            await self.db.execute(
+                select(UserLinkedAccount)
+                .where(
+                    UserLinkedAccount.mobile_user_id == user_id,
+                    UserLinkedAccount.provider == AuthProvider.EMAIL,
+                    UserLinkedAccount.is_deleted.is_(False),
+                )
+            )
+        ).scalar_one_or_none()
+        if existing_email_linked_account is not None:
+            raise InvalidInputError("An email and password login method is already linked to this account.")
+
+        existing_user_with_email = (
+            await self.db.execute(
+                select(MobileUser)
+                .where(
+                    MobileUser.id != user_id,
+                    MobileUser.email == email,
+                    MobileUser.is_deleted.is_(False),
+                )
+            )
+        ).scalar_one_or_none()
+        if existing_user_with_email is not None:
+            raise InvalidInputError("A user with this email already exists.")
+
+        db_user.email = email
+        db_user.is_email_verified = False
+
+        new_linked_account = UserLinkedAccount(
+            mobile_user_id=user_id,
+            provider=AuthProvider.EMAIL,
+            provider_user_id=email,
+            provider_email=email,
+            hashed_password=get_password_hash(password),
+        )
+        self.db.add(new_linked_account)
+
+        try:
+            await self.db.commit()
+
+        except IntegrityError as error:
+            await self.db.rollback()
+
+            if self._is_unique_constraint_violation(error, "uq_mobile_user_email_active"):
+                raise InvalidInputError("A user with this email already exists.")
+
+            if self._is_unique_constraint_violation(error, "uq_user_linked_account_provider_provider_user_id_active"):
+                raise InvalidInputError("This email is already linked to another account.")
+
+            if self._is_unique_constraint_violation(error, "uq_user_linked_account_mobile_user_id_provider_active"):
+                raise InvalidInputError("An email and password login method is already linked to this account.")
+
+            raise InvalidInputError("Unable to add email and password login method. Please try again.")
+
+        except OperationalError as error:
+            await self.db.rollback()
+
+            raise TransientDatabaseError(
+                "Failed to add email and password login method. Please try again later."
+            ) from error
+
+        except SQLAlchemyError as error:
+            await self.db.rollback()
+
+            raise NonTransientDatabaseError(
+                "Failed to add email and password login method."
+            ) from error
+
+        await self.send_verification_email(actor=actor, user_id=user_id)
+
+    async def add_google(
+        self,
+        *,
+        actor: Actor,
+        user_id: int,
+        token: str,
+    ) -> None:
+        if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
+            raise ForbiddenError("You do not have permission to perform this action.")
+
+        if actor.actor_type == ActorType.MOBILE_USER:
+            user_id = actor.id
+
+        db_user = await self._get_mobile_user(user_id, actor)
+        if db_user is None:
+            raise NotFoundError("User not found.")
+
+        try:
+            token_data = verify_firebase_token(token)
+        except Exception as error:
+            raise UnauthorizedError(str(error))
+
+        sign_in_provider = token_data.get("firebase", {}).get("sign_in_provider")
+        identities = token_data.get("firebase", {}).get("identities", {})
+        provider_ids = identities.get(sign_in_provider)
+        if not provider_ids:
+            raise UnauthorizedError("Missing provider user ID in token.")
+        provider_user_id = provider_ids[0]
+
+        email = token_data.get("email")
+        if not email:
+            raise UnauthorizedError("Email not provided in token.")
+
+        existing_google_linked_account = (
+            await self.db.execute(
+                select(UserLinkedAccount)
+                .where(
+                    UserLinkedAccount.mobile_user_id == user_id,
+                    UserLinkedAccount.provider == sign_in_provider,
+                    UserLinkedAccount.is_deleted.is_(False),
+                )
+            )
+        ).scalar_one_or_none()
+        if existing_google_linked_account is not None:
+            raise InvalidInputError("A Google login method is already linked to this account.")
+
+        new_linked_account = UserLinkedAccount(
+            mobile_user_id=user_id,
+            provider=sign_in_provider,
+            provider_user_id=provider_user_id,
+            provider_email=email,
+        )
+        self.db.add(new_linked_account)
+
+        try:
+            await self.db.commit()
+
+        except IntegrityError as error:
+            await self.db.rollback()
+
+            if self._is_unique_constraint_violation(error, "uq_user_linked_account_provider_provider_user_id_active"):
+                raise InvalidInputError("This Google account is already linked to another account.")
+
+            if self._is_unique_constraint_violation(error, "uq_user_linked_account_mobile_user_id_provider_active"):
+                raise InvalidInputError("A Google login method is already linked to this account.")
+
+            raise InvalidInputError("Unable to add Google login method. Please try again.")
+
+        except OperationalError as error:
+            await self.db.rollback()
+
+            raise TransientDatabaseError(
+                "Failed to add Google login method. Please try again later."
+            ) from error
+
+        except SQLAlchemyError as error:
+            await self.db.rollback()
+
+            raise NonTransientDatabaseError(
+                "Failed to add Google login method."
+            ) from error
+
+    async def remove_linked_provider(
+        self,
+        *,
+        actor: Actor,
+        user_id: int,
+        provider: AuthProvider,
+        current_password: str | None = None,
+    ) -> None:
+        if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
+            raise ForbiddenError("You do not have permission to perform this action.")
+
+        if actor.actor_type == ActorType.MOBILE_USER:
+            user_id = actor.id
+
+        db_user = await self._get_mobile_user(user_id, actor)
+        if db_user is None:
+            raise NotFoundError("User not found.")
+
+        all_linked_accounts = (
+            await self.db.execute(
+                select(UserLinkedAccount)
+                .where(
+                    UserLinkedAccount.mobile_user_id == user_id,
+                    UserLinkedAccount.provider != AuthProvider.ANONYMOUS,
+                    UserLinkedAccount.is_deleted.is_(False),
+                )
+            )
+        ).scalars().all()
+
+        if len(all_linked_accounts) <= 1:
+            raise InvalidInputError("You must have at least one login method linked to your account.")
+
+        linked_account_to_remove = next(
+            (linked_account for linked_account in all_linked_accounts if linked_account.provider == provider),
+            None,
+        )
+        if linked_account_to_remove is None:
+            raise NotFoundError("This login method is not linked to your account.")
+
+        email_linked_account = next(
+            (linked_account for linked_account in all_linked_accounts if linked_account.provider == AuthProvider.EMAIL),
+            None,
+        )
+        if email_linked_account is not None:
+            if current_password is None:
+                raise InvalidInputError("Your password is required to confirm changes to linked login methods.")
+
+            is_valid, _ = await verify_password(current_password, email_linked_account.hashed_password)
+            if not is_valid:
+                raise InvalidInputError("Current password is incorrect.")
+
+        linked_account_to_remove.soft_delete()
+
+        try:
+            await self.db.commit()
+
+        except OperationalError as error:
+            await self.db.rollback()
+
+            raise TransientDatabaseError(
+                "Failed to remove login method. Please try again later."
+            ) from error
+
+        except SQLAlchemyError as error:
+            await self.db.rollback()
+
+            raise NonTransientDatabaseError(
+                "Failed to remove login method."
+            ) from error
+
     async def update(
         self,
         *,
@@ -982,6 +1233,9 @@ class MobileUserService:
         if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
             raise ForbiddenError("You do not have permission to perform this action.")
 
+        if actor.actor_type == ActorType.MOBILE_USER:
+            user_id = actor.id
+
         db_user = await self._get_mobile_user(user_id, actor)
         if db_user is None:
             raise NotFoundError("User not found.")
@@ -1015,9 +1269,12 @@ class MobileUserService:
         actor: Actor,
         user_id: int,
         otp: str,
-    ) -> None:
+    ) -> MobileUserEmailChangeOtpVerifyRead:
         if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
             raise ForbiddenError("You do not have permission to perform this action.")
+
+        if actor.actor_type == ActorType.MOBILE_USER:
+            user_id = actor.id
 
         db_user = await self._get_mobile_user(user_id, actor)
         if db_user is None:
@@ -1032,27 +1289,47 @@ class MobileUserService:
             raise InvalidInputError("Invalid or expired token.")
 
         await token_service.consume_token(token_id=db_token.id)
-        await self.db.commit()
+
+        authorization_token = await token_service.create_token(
+            mobile_user_id=user_id,
+            token_type=UserTokenType.EMAIL_CHANGE_AUTHORIZATION,
+        )
+
+        return MobileUserEmailChangeOtpVerifyRead(authorization_token=authorization_token)
 
     async def request_email_change(
         self,
         *,
         actor: Actor,
         user_id: int,
+        authorization_token: str,
         new_email: str,
         current_password: str | None = None,
     ) -> None:
         if actor.actor_type not in (ActorType.MOBILE_USER, ActorType.ADMIN_USER):
             raise ForbiddenError("You do not have permission to perform this action.")
 
+        if actor.actor_type == ActorType.MOBILE_USER:
+            user_id = actor.id
+
         db_user = await self._get_mobile_user(user_id, actor)
         if db_user is None:
             raise NotFoundError("User not found.")
 
+        token_service = MobileUserTokenService(db=self.db)
+        db_authorization_token = await token_service.verify_token(
+            raw_token=authorization_token,
+            token_type=UserTokenType.EMAIL_CHANGE_AUTHORIZATION,
+        )
+        if db_authorization_token.mobile_user_id != user_id:
+            raise InvalidInputError("Invalid or expired token.")
+
+        await token_service.consume_token(token_id=db_authorization_token.id)
+
         if db_user.email == new_email:
             raise InvalidInputError("New email must be different from your current email.")
 
-        existing = (
+        existing_user_with_email = (
             await self.db.execute(
                 select(MobileUser)
                 .where(
@@ -1062,7 +1339,7 @@ class MobileUserService:
                 )
             )
         ).scalar_one_or_none()
-        if existing is not None:
+        if existing_user_with_email is not None:
             raise InvalidInputError("A user with this email already exists.")
 
         linked_account = (
@@ -1084,17 +1361,16 @@ class MobileUserService:
             if not is_valid:
                 raise InvalidInputError("Current password is incorrect.")
 
-        token_service = MobileUserTokenService(db=self.db)
-        raw_token = secrets.token_urlsafe(32)
-        await token_service.create_token(
+        raw_verification_token = await token_service.create_token(
             mobile_user_id=user_id,
             token_type=UserTokenType.EMAIL_CHANGE,
             payload={"new_email": new_email},
-            raw_token=raw_token,
         )
 
+        await self.db.commit()
+
         html = TEMPLATES.get_template("email_change.html").render(
-            verification_url=f"{settings.APP_URL}/api/v1/mobile-users/email/verify-new?token={raw_token}",
+            verification_url=f"{settings.APP_URL}/api/v1/mobile-users/email/verify-new?token={raw_verification_token}",
             expire_minutes=settings.EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES,
         )
 

@@ -36,6 +36,7 @@ class AuthProvider(StrEnum):
 class UserTokenType(StrEnum):
     EMAIL_VERIFICATION = "email_verification"
     EMAIL_CHANGE_OTP = "email_change_otp"
+    EMAIL_CHANGE_AUTHORIZATION = "email_change_authorization"
     EMAIL_CHANGE = "email_change"
     PASSWORD_RESET = "password_reset"
 
