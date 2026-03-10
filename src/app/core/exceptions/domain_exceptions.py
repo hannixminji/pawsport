@@ -1,37 +1,18 @@
-from ..error_codes import ErrorCode
-from . import AppException
+class InvalidInputError(Exception):
+    """Raised when an operation receives invalid input or violates validation rules."""
 
 
-class InvalidInputError(AppException):
-    status_code = 422
-
-    def _default_code(self):
-        return ErrorCode.INVALID_INPUT
+class NotFoundError(Exception):
+    """Raised when a requested resource or entity is not found."""
 
 
-class NotFoundError(AppException):
-    status_code = 404
-
-    def _default_code(self):
-        return ErrorCode.INTERNAL_ERROR
+class DuplicateValueError(Exception):
+    """Raised when an operation attempts to create or update a resource with a value that already exists."""
 
 
-class DuplicateValueError(AppException):
-    status_code = 409
-
-    def _default_code(self):
-        return ErrorCode.INTERNAL_ERROR
+class UnauthorizedError(Exception):
+    """Raised when an operation is attempted without valid authentication credentials."""
 
 
-class UnauthorizedError(AppException):
-    status_code = 401
-
-    def _default_code(self):
-        return ErrorCode.USER_NOT_AUTHENTICATED
-
-
-class MLServiceError(AppException):
-    status_code = 503
-
-    def _default_code(self):
-        return ErrorCode.ML_GENERIC_ERROR
+class MLServiceError(Exception):
+    """Raised when the ML service is unavailable or returns an unexpected response."""
