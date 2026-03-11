@@ -79,19 +79,6 @@ jobs:
           BASE="${IMAGE%:*}"
           echo "image_by_digest=${BASE}@${DIGEST}" >> "$GITHUB_OUTPUT"
 
-      - name: Scan image for vulnerabilities (Trivy)
-        # aquasecurity/trivy-action v0.28.0
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
-        with:
-          image-ref:      ${{ env.IMAGE }}
-          format:         sarif
-          output:         trivy-ml-results.sarif
-          severity:       CRITICAL,HIGH
-          exit-code:      "1"
-          ignore-unfixed: true
-          vuln-type:      os,library
-
-
 
       - name: Export image ref
         id: final

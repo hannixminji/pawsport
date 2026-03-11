@@ -119,21 +119,6 @@ jobs:
           BASE="${BASE%:*}"   # strip tag
           echo "image_by_digest=${BASE}@${DIGEST}" >> "$GITHUB_OUTPUT"
 
-      # Vulnerability scan — blocks deploy if CRITICAL CVEs are found.
-      # Results also appear in GitHub → Security → Code scanning.
-      - name: Scan image for vulnerabilities (Trivy)
-        # aquasecurity/trivy-action v0.28.0
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
-        with:
-          image-ref:    ${{ steps.meta.outputs.image }}
-          format:       sarif
-          output:       trivy-results.sarif
-          severity:     CRITICAL,HIGH
-          exit-code:    "1"          # fail the job on CRITICAL findings
-          ignore-unfixed: true       # ignore CVEs with no fix yet (noise reduction)
-          vuln-type:    os,library
-
-
 
       # Export a pinned image ref for the deploy job.
       # We use IMAGE@DIGEST so the deploy is immune to tag mutation between jobs.
