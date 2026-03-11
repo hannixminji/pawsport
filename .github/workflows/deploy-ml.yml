@@ -68,6 +68,7 @@ jobs:
             --tag="${IMAGE}" \
             --timeout=1800s \
             --machine-type=e2-highcpu-32 \
+            --suppress-logs \
             ./ml
 
       - name: Get image digest

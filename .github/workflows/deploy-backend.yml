@@ -101,6 +101,7 @@ jobs:
             --tag="${{ steps.meta.outputs.image }}" \
             --timeout=1200s \
             --machine-type=e2-highcpu-8 \
+            --suppress-logs \
             .
 
       # Fetch the image digest (SHA256) so we can deploy by digest, not tag.
