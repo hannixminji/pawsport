@@ -24,7 +24,7 @@ from ..models.admin_permission import AdminPermission
 from ..models.admin_role import AdminRole
 from ..models.admin_user import AdminUser
 from ..schemas.admin_role import AdminRoleRead
-from ..schemas.admin_user import AdminUserCreate, AdminUserRead, AdminUserUpdate
+from ..schemas.admin_user import AdminUserCreate, AdminUserRead, AdminUserReadWithPermissions, AdminUserUpdate
 
 LOGGER = logging.getLogger(__name__)
 
@@ -294,6 +294,41 @@ class AdminUserService:
             raise NotFoundError("Admin user not found.")
 
         return AdminUserRead.model_validate(db_user)
+
+    async def get_admin_user_with_permissions(
+        self,
+        *,
+        user_id: int,
+    ) -> AdminUserReadWithPermissions:
+        db_user = (
+            await self.db.execute(
+                select(AdminUser)
+                .options(
+                    selectinload(AdminUser.direct_permissions),
+                    selectinload(AdminUser.roles).selectinload(AdminRole.permissions),
+                )
+                .where(
+                    AdminUser.id == user_id,
+                    AdminUser.is_deleted.is_(False),
+                )
+            )
+        ).scalar_one_or_none()
+        if db_user is None:
+            raise NotFoundError("Admin user not found.")
+
+        permissions: set[str] = set()
+
+        for role in db_user.roles:
+            for permission in role.permissions:
+                permissions.add(permission.key)
+
+        for permission in db_user.direct_permissions:
+            permissions.add(permission.key)
+
+        return AdminUserReadWithPermissions(
+            **AdminUserRead.model_validate(db_user).model_dump(),
+            permissions=sorted(permissions),
+        )
 
     async def update(
         self,

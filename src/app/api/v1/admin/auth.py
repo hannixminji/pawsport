@@ -20,6 +20,7 @@ from app.api.dependencies import (
 from app.core.config import settings
 from app.core.db.database import async_get_db
 from app.core.enums import AdminAccountStatus
+from app.core.exceptions.domain_exceptions import NotFoundError
 from app.core.exceptions.http_exceptions import (
     CustomException,
     ForbiddenException,
@@ -34,7 +35,8 @@ from app.core.utils.admin_sessions import (
     set_admin_cookies,
 )
 from app.models.admin_user import AdminUser
-from app.schemas.admin_user import AdminUserLogin, AdminUserLoginResponse, AdminUserRead
+from app.schemas.admin_user import AdminUserLogin, AdminUserLoginResponse, AdminUserReadWithPermissions
+from app.services.admin_user_service import AdminUserService
 
 LOGGER = logging.getLogger(__name__)
 
@@ -182,38 +184,33 @@ async def admin_logout(
     return {"ok": True}
 
 
-@router.get("/me", response_model=AdminUserRead)
+@router.get("/me", response_model=AdminUserReadWithPermissions)
 async def admin_me(
     response: Response,
     session: Annotated[SessionInfo, Depends(require_admin_session)],
     sm: Annotated[SessionManager, Depends(get_session_manager)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
-) -> AdminUserRead:
+) -> AdminUserReadWithPermissions:
     user_id = session["user_id"]
+
+    service = AdminUserService(db=db)
+
     try:
-        user = (
-            await db.execute(
-                select(AdminUser).where(
-                    AdminUser.id == user_id,
-                    AdminUser.is_deleted.is_(False),
-                )
-            )
-        ).scalar_one_or_none()
+        result = await service.get_admin_user_with_permissions(user_id=user_id)
+    except NotFoundError:
+        await sm.delete_session(session_id=session["session_id"], user_id=user_id)
+        clear_admin_cookies(response, cookie_secure=sm.cookie_secure)
+        raise UnauthorizedException("Not authenticated")
     except SQLAlchemyError:
         LOGGER.exception("Database error fetching admin user_id=%d in /me", user_id)
         raise CustomException(status_code=500, detail="An unexpected error occurred.")
 
-    if user is None:
-        await sm.delete_session(session_id=session["session_id"], user_id=user_id)
-        clear_admin_cookies(response, cookie_secure=sm.cookie_secure)
-        raise UnauthorizedException("Not authenticated")
-
-    if user.account_status in (AdminAccountStatus.SUSPENDED, AdminAccountStatus.INACTIVE):
+    if result.account_status in (AdminAccountStatus.SUSPENDED, AdminAccountStatus.INACTIVE):
         await sm.delete_session(session_id=session["session_id"], user_id=user_id)
         clear_admin_cookies(response, cookie_secure=sm.cookie_secure)
         raise ForbiddenException("Your account is not active.")
 
-    return AdminUserRead.model_validate(user)
+    return result
 
 
 @router.post("/logout_all")

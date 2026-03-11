@@ -119,6 +119,10 @@ class AdminUserRead(BaseModel):
         return v
 
 
+class AdminUserReadWithPermissions(AdminUserRead):
+    permissions: list[str] = []
+
+
 class AdminUserLoginResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
