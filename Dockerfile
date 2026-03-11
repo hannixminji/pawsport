@@ -45,4 +45,7 @@ USER app
 # Set the working directory
 WORKDIR /code
 
+# Copy the application source code
+COPY --chown=app:app ./src /code
+
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
