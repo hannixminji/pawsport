@@ -96,7 +96,7 @@ jobs:
       id-token: write
 
     env:
-      IMAGE: "asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/pawsport/ml:${{ github.sha }}"
+      IMAGE: ${{ needs.build.outputs.image }}
 
     steps:
       - name: Authenticate to GCP
@@ -125,6 +125,11 @@ jobs:
 
       - name: Deploy ML revision (0% traffic)
         run: |
+          SERVICE_EXISTS=$(gcloud run services describe "$SERVICE_NAME" \
+            --region="$REGION" --quiet 2>/dev/null && echo "yes" || echo "no")
+          NO_TRAFFIC_FLAG=""
+          [[ "$SERVICE_EXISTS" == "yes" ]] && NO_TRAFFIC_FLAG="--no-traffic"
+
           gcloud run deploy "$SERVICE_NAME" \
             --image="${IMAGE}" \
             --region="$REGION" \
@@ -137,7 +142,7 @@ jobs:
             --cpu=2 \
             --memory=4Gi \
             --timeout=300 \
-            --no-traffic \
+            $NO_TRAFFIC_FLAG \
             --labels="git-sha=${GITHUB_SHA::12},managed-by=github-actions"
 
       - name: Get new revision name
