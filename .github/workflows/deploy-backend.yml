@@ -148,7 +148,7 @@ jobs:
 
     env:
       ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
-      IMAGE: "${{ env.AR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/backend:${{ github.sha }}"
+      IMAGE:       "asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/pawsport/backend:${{ github.sha }}"
 
     steps:
       - name: Authenticate to GCP

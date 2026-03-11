@@ -96,7 +96,7 @@ jobs:
       id-token: write
 
     env:
-      IMAGE: "${{ env.AR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/ml:${{ github.sha }}"
+      IMAGE: "asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/pawsport/ml:${{ github.sha }}"
 
     steps:
       - name: Authenticate to GCP
