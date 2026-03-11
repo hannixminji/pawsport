@@ -303,7 +303,7 @@ class AdminUserService:
         user_input: AdminUserUpdate,
     ) -> None:
         if actor.actor_type == ActorType.ADMIN_USER and not actor.is_superuser and actor.id != user_id:
-            raise ForbiddenError("You do not have permission to view this admin user.")
+            raise ForbiddenError("You do not have permission to update this admin user.")
 
         db_user = await self._get_admin_user_by_id(user_id)
         if db_user is None:
