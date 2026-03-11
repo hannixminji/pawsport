@@ -113,6 +113,7 @@ class AdminPermissionService:
             ) from error
 
         await self.db.refresh(permission_model)
+        await on_permission_schema_changed(self.redis)
         return AdminPermissionRead.model_validate(permission_model)
 
     async def search(
@@ -238,6 +239,8 @@ class AdminPermissionService:
             raise NonTransientDatabaseError(
                 "Failed to update the admin permission."
             ) from error
+
+        await on_permission_schema_changed(self.redis)
 
     async def hard_delete(
         self,

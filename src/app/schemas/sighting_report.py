@@ -175,7 +175,7 @@ class SightingReportUpdate(BaseModel):
 
 
 class SightingReportUpdateWithImages(SightingReportUpdate):
-    images: Annotated[list[SightingReportImageUpdate], Field(..., min_length=1, max_length=10)]
+    images: Annotated[list[SightingReportImageUpdate] | None, Field(default=None, min_length=1, max_length=10)]
 
     @field_validator("images", mode="after")
     @classmethod

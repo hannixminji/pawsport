@@ -28,10 +28,9 @@ from .config import (
     RedisRateLimiterSettings,
     settings,
 )
-from .db.database import Base, local_session
+from .db.database import Base
 from .db.database import async_engine as engine
 from .utils import admin_session_store, cache, queue
-from .utils.rbac_bitmap import load_permission_index
 
 
 # -------------- database --------------
@@ -133,12 +132,8 @@ def lifespan_factory(
             if isinstance(settings, RedisRateLimiterSettings):
                 await create_redis_rate_limit_pool()
 
-            if create_tables_on_start:
-                await create_tables()
-
-            if not hasattr(app.state, "perm_index"):
-                async with local_session() as db:
-                    app.state.perm_index = await load_permission_index(db)
+            # if create_tables_on_start:
+            #     await create_tables()
 
             initialization_complete.set()
 
