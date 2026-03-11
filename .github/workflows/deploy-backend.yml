@@ -113,7 +113,8 @@ jobs:
             --format="value(image_summary.digest)")
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
           # Rebuild the full image ref as image@sha256:...
-          BASE="${{ steps.meta.outputs.image }%:*}"   # strip tag
+          BASE="${{ steps.meta.outputs.image }}"
+          BASE="${BASE%:*}"   # strip tag
           echo "image_by_digest=${BASE}@${DIGEST}" >> "$GITHUB_OUTPUT"
 
       # Vulnerability scan — blocks deploy if CRITICAL CVEs are found.
