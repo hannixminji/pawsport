@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Annotated
 
 from dateutil.rrule import rrulestr
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from ..core.enums import PetScheduleType
 from ..core.schemas import PersistentDeletion, TimestampSchema
@@ -344,6 +344,16 @@ class PetScheduleRead(BaseModel):
     created_at: datetime
     recurrence_rule: str | None
     description: str | None
+
+    @computed_field
+    @property
+    def next_scheduled_at(self) -> datetime | None:
+        if not self.is_recurring or not self.recurrence_rule:
+            return None
+
+        now = datetime.now(datetime.UTC)
+        rule = rrulestr(self.recurrence_rule, dtstart=self.scheduled_at)
+        return rule.after(now)
 
 
 class PetScheduleCreate(PetScheduleBase):
