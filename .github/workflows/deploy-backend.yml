@@ -54,7 +54,6 @@ jobs:
     permissions:
       contents: read       # checkout
       id-token: write      # Workload Identity Federation
-      security-events: write  # upload Trivy SARIF to GitHub Security tab
 
     outputs:
       image:    ${{ steps.meta.outputs.image }}
@@ -131,13 +130,7 @@ jobs:
           ignore-unfixed: true       # ignore CVEs with no fix yet (noise reduction)
           vuln-type:    os,library
 
-      - name: Upload Trivy results to GitHub Security
-        if: always()   # upload even if scan found issues (for visibility)
-        # github/codeql-action v3.27.9
-        uses: github/codeql-action/upload-sarif@dd746615b3a9bd9d1d2dada9408ec0b3b4fc41a0
-        with:
-          sarif_file: trivy-results.sarif
-          category:   trivy-backend
+
 
       # Export a pinned image ref for the deploy job.
       # We use IMAGE@DIGEST so the deploy is immune to tag mutation between jobs.

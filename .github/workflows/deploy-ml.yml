@@ -35,7 +35,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      security-events: write
 
     outputs:
       image: ${{ steps.final.outputs.image }}
@@ -91,13 +90,7 @@ jobs:
           ignore-unfixed: true
           vuln-type:      os,library
 
-      - name: Upload Trivy results
-        if: always()
-        # github/codeql-action v3.27.9
-        uses: github/codeql-action/upload-sarif@dd746615b3a9bd9d1d2dada9408ec0b3b4fc41a0
-        with:
-          sarif_file: trivy-ml-results.sarif
-          category:   trivy-ml
+
 
       - name: Export image ref
         id: final
