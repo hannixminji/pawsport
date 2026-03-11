@@ -10,11 +10,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class AppSettings(BaseSettings):
     APP_NAME: str = "PawsPort"
     APP_URL: str = "http://localhost:8000"
-    APP_DESCRIPTION: str | None = None
-    APP_VERSION: str | None = None
-    LICENSE_NAME: str | None = None
-    CONTACT_NAME: str | None = None
-    CONTACT_EMAIL: str | None = None
+    APP_DESCRIPTION: str = "Smart Digital Pet Passport"
+    APP_VERSION: str = "0.1"
+    LICENSE_NAME: str = "Proprietary"
+    CONTACT_NAME: str = "PawsPort"
+    CONTACT_EMAIL: str = "pawsport.thesis@gmail.com"
 
 
 class EnvironmentOption(StrEnum):
