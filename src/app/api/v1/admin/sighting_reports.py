@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.csrf_router import CSRFProtectedRouter, csrf_exempt
 from app.api.dependencies import get_current_superuser_actor, require_permission
 from app.core.db.database import async_get_db
+from app.core.enums import SightingReportStatus
 from app.core.schemas import Actor, MapViewport, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
 from app.core.utils.cache import cache, invalidate_namespace
@@ -88,7 +89,7 @@ async def list_sighting_reports(
 @router.get(
     "/{report_id}",
     response_model=Union[SightingReportRead, SightingReportWithMatches],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
 )
 @cache(
     key_prefix="admin:sighting-reports:detail",
@@ -103,6 +104,22 @@ async def get_sighting_report(
     with_matches: Annotated[bool, Query(alias="withMatches")] = False,
 ) -> Union[SightingReportRead, SightingReportWithMatches]:
     return await service.get_sighting_report(actor=actor, report_id=report_id, with_matches=with_matches)
+
+
+@router.patch("/{report_id}/status", status_code=status.HTTP_204_NO_CONTENT)
+@cache(
+    key_prefix="admin:sighting-reports:detail",
+    resource_id_name="report_id",
+    namespaces_to_invalidate=["sighting-reports"],
+)
+async def update_sighting_report_status(
+    request: Request,
+    report_id: int,
+    report_status: SightingReportStatus,
+    actor: Annotated[Actor, Depends(require_permission("sighting_report:update_status"))],
+    service: SightingReportServiceDependency,
+) -> None:
+    await service.update_status(actor=actor, report_id=report_id, status=report_status)
 
 
 @router.patch("/{report_id}/delete", status_code=status.HTTP_204_NO_CONTENT)

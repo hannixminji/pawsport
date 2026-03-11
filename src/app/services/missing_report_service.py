@@ -516,7 +516,6 @@ class MissingReportService:
         if db_missing_report.report_status in {
             MissingReportStatus.FOUND,
             MissingReportStatus.RETURNED,
-            MissingReportStatus.FOSTERED,
             MissingReportStatus.CASE_CLOSED,
         }:
             if actor.actor_type == ActorType.MOBILE_USER:

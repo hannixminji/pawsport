@@ -25,76 +25,77 @@ DEFAULT_ROLE_PERMISSION_KEYS: list[str] = [
     "article:read",
 
     # ── missing reports ──
-    "missing_report:search",
     "missing_report:create",
+    "missing_report:search",
     "missing_report:read",
-    "missing_report:soft_delete",
-    "missing_report:update_status",
     "missing_report:update",
+    "missing_report:update_status",
+    "missing_report:soft_delete",
 
     # ── mobile users ──
     "mobile_user:create",
     "mobile_user:search",
     "mobile_user:read",
+    "mobile_user:update",
     "mobile_user:update_password",
     "mobile_user:update_tier",
-    "mobile_user:update",
 
     # ── pet allergies ──
-    "pet_allergy:search",
     "pet_allergy:create",
+    "pet_allergy:search",
     "pet_allergy:read",
-    "pet_allergy:soft_delete",
     "pet_allergy:update",
+    "pet_allergy:soft_delete",
 
     # ── pet inventories ──
-    "pet_inventory:search",
     "pet_inventory:create",
+    "pet_inventory:search",
     "pet_inventory:read",
-    "pet_inventory:soft_delete",
     "pet_inventory:update",
+    "pet_inventory:soft_delete",
 
     # ── pet medical conditions ──
-    "pet_medical_condition:search",
     "pet_medical_condition:create",
+    "pet_medical_condition:search",
     "pet_medical_condition:read",
-    "pet_medical_condition:soft_delete",
     "pet_medical_condition:update",
+    "pet_medical_condition:soft_delete",
 
     # ── pet medications ──
-    "pet_medication:search",
     "pet_medication:create",
+    "pet_medication:search",
     "pet_medication:read",
-    "pet_medication:soft_delete",
     "pet_medication:update",
+    "pet_medication:soft_delete",
 
     # ── pet schedules ──
-    "pet_schedule:search",
     "pet_schedule:create",
+    "pet_schedule:search",
     "pet_schedule:read",
-    "pet_schedule:soft_delete",
     "pet_schedule:update",
+    "pet_schedule:soft_delete",
 
     # ── pet vaccination records ──
-    "pet_vaccination_record:search",
     "pet_vaccination_record:create",
+    "pet_vaccination_record:search",
     "pet_vaccination_record:read",
-    "pet_vaccination_record:soft_delete",
     "pet_vaccination_record:update",
+    "pet_vaccination_record:soft_delete",
 
     # ── pets ──
-    "pet:search",
     "pet:create",
+    "pet:search",
     "pet:read",
-    "pet:soft_delete",
     "pet:update",
+    "pet:soft_delete",
 
     # ── sighting reports ──
-    "sighting_report:search",
     "sighting_report:create",
+    "sighting_report:search",
     "sighting_report:read",
-    "sighting_report:soft_delete",
     "sighting_report:update",
+    "sighting_report:update_status",
+    "sighting_report:soft_delete",
 ]
 
 

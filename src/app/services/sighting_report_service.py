@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..core.config import settings
-from ..core.enums import ActorType, MimeType
+from ..core.enums import ActorType, MimeType, SightingReportStatus
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
 from ..core.exceptions.domain_exceptions import InvalidInputError, NotFoundError
@@ -86,6 +86,10 @@ class SightingReportService:
         "sighting_address": frozenset({
             FilterOp.EQ,
             FilterOp.ILIKE,
+            FilterOp.IN,
+        }),
+        "report_status": frozenset({
+            FilterOp.EQ,
             FilterOp.IN,
         }),
         "created_at": frozenset({
@@ -879,6 +883,47 @@ class SightingReportService:
 
             except Exception as error:
                 LOGGER.warning(f"Failed to enqueue feature extraction job: {error}")
+
+    async def update_status(
+        self,
+        *,
+        actor: Actor,
+        report_id: int,
+        status: SightingReportStatus,
+    ) -> None:
+        if actor.actor_type != ActorType.ADMIN_USER:
+            raise ForbiddenError("You do not have permission to update this sighting report's status.")
+
+        try:
+            result = await self.db.execute(
+                update(SightingReport)
+                .where(
+                    SightingReport.id == report_id,
+                    SightingReport.is_deleted.is_(False),
+                )
+                .values(report_status=status)
+            )
+            if result.rowcount == 0:
+                raise NotFoundError("Sighting report not found.")
+
+            await self.db.commit()
+
+        except NotFoundError:
+            raise
+
+        except OperationalError as error:
+            await self.db.rollback()
+
+            raise TransientDatabaseError(
+                "Failed to update the sighting report status. Please try again later."
+            ) from error
+
+        except SQLAlchemyError as error:
+            await self.db.rollback()
+
+            raise NonTransientDatabaseError(
+                "Failed to update the sighting report status."
+            ) from error
 
     async def soft_delete(
         self,

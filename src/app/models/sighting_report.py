@@ -13,7 +13,7 @@ from uuid6 import uuid7
 
 from ..core.db.database import Base
 from ..core.db.models import IntegerPKMixin, SoftDeleteMixin, TimestampMixin
-from ..core.enums import PetSpecies
+from ..core.enums import PetSpecies, SightingReportStatus
 
 if TYPE_CHECKING:
     from .mobile_user import MobileUser
@@ -60,6 +60,16 @@ class SightingReport(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
         server_default=text("NULL"),
     )
 
+    report_status: Mapped[SightingReportStatus] = mapped_column(
+        SQLEnum(
+            SightingReportStatus,
+            name="sighting_report_status_enum",
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
+        nullable=False,
+        default=SightingReportStatus.SIGHTED,
+        server_default=text(f"'{SightingReportStatus.SIGHTED.value}'::sighting_report_status_enum"),
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True, default=None, server_default=text("NULL"))
 
     mobile_user: Mapped["MobileUser | None"] = relationship(
@@ -100,4 +110,5 @@ class SightingReport(IntegerPKMixin, TimestampMixin, SoftDeleteMixin, Base):
             "mobile_user_id",
             postgresql_where=text("is_deleted = false"),
         ),
+        Index("idx_sighting_report_status_active", "report_status", postgresql_where=text("is_deleted = false")),
     )

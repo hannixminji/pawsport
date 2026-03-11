@@ -151,7 +151,6 @@ class MissingReportStatus(StrEnum):
     LOST = "lost"
     FOUND = "found"
     RETURNED = "returned"
-    FOSTERED = "fostered"
     CASE_CLOSED = "case_closed"
 
 
@@ -160,6 +159,11 @@ class MobileMissingReportStatus(StrEnum):
     FOUND = "found"
     RETURNED = "returned"
     CASE_CLOSED = "case_closed"
+
+
+class SightingReportStatus(StrEnum):
+    SIGHTED = "sighted"
+    FOSTERED = "fostered"
 
 
 # -------------- notifications --------------

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from ..core.enums import PetSpecies
+from ..core.enums import PetSpecies, SightingReportStatus
 from ..core.schemas import PersistentDeletion, TimestampSchema
 from .sighting_report_image import SightingReportImageCreate, SightingReportImageRead, SightingReportImageUpdate
 
@@ -90,6 +90,7 @@ class SightingReportRead(BaseModel):
     sighting_location: dict[str, float] = Field(alias="sighting_location_dict")
     sighting_address: str
     images: list[SightingReportImageRead]
+    report_status: SightingReportStatus
     created_at: datetime
     mobile_user_id: int | None
     reporter_name: str | None

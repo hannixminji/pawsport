@@ -8,7 +8,7 @@ from redis.asyncio import Redis
 from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.enums import MissingReportStatus
+from ..core.enums import MissingReportStatus, SightingReportStatus
 from ..core.health import check_database_health, check_redis_health
 from ..models._rbac_table import admin_user_role
 from ..models.admin_role import AdminRole
@@ -32,8 +32,12 @@ _ALL_REPORT_STATUSES: list[MissingReportStatus] = [
     MissingReportStatus.LOST,
     MissingReportStatus.FOUND,
     MissingReportStatus.RETURNED,
-    MissingReportStatus.FOSTERED,
     MissingReportStatus.CASE_CLOSED,
+]
+
+_ALL_SIGHTING_REPORT_STATUSES: list[SightingReportStatus] = [
+    SightingReportStatus.SIGHTED,
+    SightingReportStatus.FOSTERED,
 ]
 
 
@@ -422,8 +426,21 @@ class DashboardService:
             result[type_] = count
         return result
 
+    async def _sighting_reports_by_status(self) -> dict[str, int]:
+        rows = (
+            await self.db.execute(
+                select(SightingReport.status, func.count().label("count"))
+                .where(SightingReport.is_deleted.is_(False))
+                .group_by(SightingReport.status)
+            )
+        ).all()
+        result = {s.value: 0 for s in _ALL_SIGHTING_REPORT_STATUSES}
+        for status, count in rows:
+            result[status.value] = count
+        return result
+
     async def get_sighting_report_stats(self) -> dict[str, Any]:
-        total, by_species, auth_vs_guest = await asyncio.gather(
+        total, by_species, auth_vs_guest, by_status = await asyncio.gather(
             self.db.execute(
                 select(func.count())
                 .select_from(SightingReport)
@@ -431,10 +448,12 @@ class DashboardService:
             ),
             self._sighting_reports_by_species(),
             self._sighting_reports_auth_vs_guest(),
+            self._sighting_reports_by_status(),
         )
         return {
             "total": total.scalar_one(),
             "by_species": by_species,
+            "by_status": by_status,
             **auth_vs_guest,
         }
 
