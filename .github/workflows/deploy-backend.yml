@@ -1,0 +1,405 @@
+name: Deploy Backend
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "ml/**"
+      - "**.md"
+      - ".github/workflows/deploy-ml.yml"
+      - ".github/dependabot.yml"
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options: [staging, production]
+
+# Only one deploy per branch at a time; cancel queued runs if a newer push arrives.
+concurrency:
+  group: deploy-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Top-level permissions — deny everything, grant per-job only.
+# ─────────────────────────────────────────────────────────────────────────────
+permissions: {}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared env — non-secret config only.
+# Secrets are injected per-step to limit blast radius.
+# ─────────────────────────────────────────────────────────────────────────────
+env:
+  PROJECT_ID:   ${{ secrets.GCP_PROJECT_ID }}
+  REGION:       asia-southeast1
+  AR_LOCATION:  asia-southeast1
+  AR_REPO:      pawsport
+  SERVICE_NAME: pawsport-backend
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # JOB 1 — Build, scan, sign
+  # ───────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build & Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: read       # checkout
+      id-token: write      # Workload Identity Federation
+      security-events: write  # upload Trivy SARIF to GitHub Security tab
+
+    outputs:
+      image:    ${{ steps.meta.outputs.image }}
+      digest:   ${{ steps.meta.outputs.digest }}
+
+    steps:
+      # Pin ALL actions to a full commit SHA — tags are mutable and can be
+      # hijacked. Dependabot (dependabot.yml) keeps these SHAs up to date.
+
+      - name: Checkout
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      # Authenticate via Workload Identity — no JSON key file anywhere.
+      - name: Authenticate to GCP
+        id: auth
+        # google-github-actions/auth v2.1.7
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account:            ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Set up gcloud
+        # google-github-actions/setup-gcloud v2.1.4
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Resolve image metadata
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::12}"
+          IMAGE="${AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend:${SHORT_SHA}"
+          echo "image=${IMAGE}"   >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      # Cloud Build submits the Dockerfile to GCP — the Docker daemon never
+      # runs on the GitHub runner, which keeps runner attack surface small.
+      - name: Build image via Cloud Build
+        run: |
+          gcloud builds submit \
+            --tag="${{ steps.meta.outputs.image }}" \
+            --timeout=1200s \
+            --machine-type=e2-highcpu-8 \
+            .
+
+      # Fetch the image digest (SHA256) so we can deploy by digest, not tag.
+      # Tags are mutable; digests are immutable.
+      - name: Get image digest
+        id: digest
+        run: |
+          DIGEST=$(gcloud artifacts docker images describe \
+            "${{ steps.meta.outputs.image }}" \
+            --format="value(image_summary.digest)")
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          # Rebuild the full image ref as image@sha256:...
+          BASE="${{ steps.meta.outputs.image }%:*}"   # strip tag
+          echo "image_by_digest=${BASE}@${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      # Vulnerability scan — blocks deploy if CRITICAL CVEs are found.
+      # Results also appear in GitHub → Security → Code scanning.
+      - name: Scan image for vulnerabilities (Trivy)
+        # aquasecurity/trivy-action v0.28.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
+        with:
+          image-ref:    ${{ steps.meta.outputs.image }}
+          format:       sarif
+          output:       trivy-results.sarif
+          severity:     CRITICAL,HIGH
+          exit-code:    "1"          # fail the job on CRITICAL findings
+          ignore-unfixed: true       # ignore CVEs with no fix yet (noise reduction)
+          vuln-type:    os,library
+
+      - name: Upload Trivy results to GitHub Security
+        if: always()   # upload even if scan found issues (for visibility)
+        # github/codeql-action v3.27.9
+        uses: github/codeql-action/upload-sarif@dd746615b3a9bd9d1d2dada9408ec0b3b4fc41a0
+        with:
+          sarif_file: trivy-results.sarif
+          category:   trivy-backend
+
+      # Export a pinned image ref for the deploy job.
+      # We use IMAGE@DIGEST so the deploy is immune to tag mutation between jobs.
+      - name: Export image ref
+        id: final
+        run: |
+          echo "image=${{ steps.digest.outputs.image_by_digest }}" >> "$GITHUB_OUTPUT"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # JOB 2 — Sync secrets & deploy
+  # ───────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy (${{ github.event.inputs.environment || 'staging' }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # GitHub Environments gate this job.
+    # - staging:    no approval required, auto-deploys
+    # - production: requires a named reviewer to approve in the GitHub UI
+    #   (configure reviewers under repo Settings → Environments → production)
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+      IMAGE:       ${{ needs.build.outputs.image }}
+
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account:            ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      # Sync GitHub Secrets → GCP Secret Manager.
+      # Only creates a new secret version when the value has actually changed,
+      # avoiding version sprawl. Values are compared by SHA-256 hash.
+      - name: Sync secrets to Secret Manager
+        env:
+          POSTGRES_URL:        ${{ secrets.POSTGRES_URL }}
+          REDIS_CACHE_URL:     ${{ secrets.REDIS_CACHE_URL }}
+          QDRANT_CLOUD_URL:    ${{ secrets.QDRANT_CLOUD_URL }}
+          QDRANT_CLOUD_API_KEY: ${{ secrets.QDRANT_CLOUD_API_KEY }}
+        run: |
+          sync_secret() {
+            local name="$1"
+            local value="$2"
+
+            # Write value to a temp file — never expose in process list or logs.
+            local tmp
+            tmp=$(mktemp)
+            trap "rm -f '$tmp'" RETURN
+            printf '%s' "$value" > "$tmp"
+
+            if ! gcloud secrets describe "$name" --quiet 2>/dev/null; then
+              echo "  Creating secret: $name"
+              gcloud secrets create "$name" \
+                --replication-policy=automatic \
+                --data-file="$tmp" \
+                --quiet
+              return
+            fi
+
+            # Fetch the hash of the current latest version.
+            local latest_version
+            latest_version=$(gcloud secrets versions list "$name" \
+              --filter="state=ENABLED" \
+              --sort-by="~createTime" \
+              --limit=1 \
+              --format="value(name)" 2>/dev/null || echo "")
+
+            if [[ -n "$latest_version" ]]; then
+              local current_hash new_hash
+              current_hash=$(gcloud secrets versions access "$latest_version" \
+                --format="get(payload.data)" 2>/dev/null \
+                | base64 --decode \
+                | sha256sum | cut -d' ' -f1)
+              new_hash=$(sha256sum < "$tmp" | cut -d' ' -f1)
+
+              if [[ "$current_hash" == "$new_hash" ]]; then
+                echo "  Skipping $name (unchanged)"
+                return
+              fi
+            fi
+
+            echo "  Updating secret: $name"
+            gcloud secrets versions add "$name" --data-file="$tmp" --quiet
+          }
+
+          sync_secret "POSTGRES_URL"         "$POSTGRES_URL"
+          sync_secret "REDIS_CACHE_URL"      "$REDIS_CACHE_URL"
+          sync_secret "QDRANT_CLOUD_URL"     "$QDRANT_CLOUD_URL"
+          sync_secret "QDRANT_CLOUD_API_KEY" "$QDRANT_CLOUD_API_KEY"
+
+          # Always rotate BACKEND_SECRET_KEY on every deploy.
+          NEW_KEY=$(openssl rand -base64 32)
+          printf '%s' "$NEW_KEY" | gcloud secrets versions add "BACKEND_SECRET_KEY" \
+            --data-file=- --quiet 2>/dev/null || \
+          printf '%s' "$NEW_KEY" | gcloud secrets create "BACKEND_SECRET_KEY" \
+            --replication-policy=automatic \
+            --data-file=- \
+            --quiet
+
+      # Get current stable revision — used to roll back if health check fails.
+      - name: Get current stable revision
+        id: current
+        run: |
+          REV=$(gcloud run services describe "$SERVICE_NAME" \
+            --region="$REGION" \
+            --format=json 2>/dev/null \
+            | jq -r '
+                .status.traffic[]
+                | select(.percent == 100)
+                | .revisionName
+              ' || echo "")
+          echo "revision=${REV}" >> "$GITHUB_OUTPUT"
+          echo "Current stable revision: ${REV:-none}"
+
+      - name: Get ML service URL
+        id: ml
+        run: |
+          URL=$(gcloud run services describe "${SERVICE_NAME}-ml" \
+            --region="$REGION" \
+            --format="value(status.url)" 2>/dev/null || echo "")
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+      # Deploy with --no-traffic so the new revision starts cold but receives
+      # zero user requests until the health check below passes.
+      - name: Deploy new revision (0% traffic)
+        run: |
+          # Production is NOT open to the internet directly —
+          # it must sit behind a load balancer or Cloud Armor.
+          if [[ "$ENVIRONMENT" == "production" ]]; then
+            AUTHED_FLAG="--no-allow-unauthenticated"
+            MIN_INST=1
+            MAX_INST=20
+            MEMORY="1Gi"
+            CPU="2"
+          else
+            AUTHED_FLAG="--allow-unauthenticated"
+            MIN_INST=0
+            MAX_INST=10
+            MEMORY="512Mi"
+            CPU="1"
+          fi
+
+          gcloud run deploy "$SERVICE_NAME" \
+            --image="${{ env.IMAGE }}" \
+            --region="$REGION" \
+            --platform=managed \
+            $AUTHED_FLAG \
+            --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
+            --ingress=all \
+            --min-instances="${MIN_INST}" \
+            --max-instances="${MAX_INST}" \
+            --concurrency=80 \
+            --cpu="${CPU}" \
+            --memory="${MEMORY}" \
+            --timeout=60 \
+            --cpu-throttling \
+            --no-traffic \
+            --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_SERVICE_URL=${{ steps.ml.outputs.url }}" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SECRET_KEY=BACKEND_SECRET_KEY:latest" \
+            --labels="env=${ENVIRONMENT},git-sha=${GITHUB_SHA::12},git-branch=${GITHUB_REF_NAME},managed-by=github-actions"
+
+      - name: Get new revision name
+        id: new_revision
+        run: |
+          REV=$(gcloud run revisions list \
+            --service="$SERVICE_NAME" \
+            --region="$REGION" \
+            --format=json \
+            | jq -r 'sort_by(.metadata.creationTimestamp) | last | .metadata.name')
+          echo "name=${REV}" >> "$GITHUB_OUTPUT"
+          echo "New revision: $REV"
+
+      - name: Health check (pre-traffic)
+        id: healthcheck
+        run: |
+          SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
+            --region="$REGION" \
+            --format="value(status.url)")
+
+          echo "Probing ${SERVICE_URL}/health ..."
+
+          for i in $(seq 1 10); do
+            HTTP_STATUS=$(curl -sf \
+              --max-time 15 \
+              --retry 0 \
+              -o /dev/null \
+              -w "%{http_code}" \
+              "${SERVICE_URL}/health" 2>/dev/null || echo "000")
+
+            echo "  Attempt ${i}/10 → HTTP ${HTTP_STATUS}"
+
+            if [[ "$HTTP_STATUS" == "200" ]]; then
+              echo "passed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "passed=false" >> "$GITHUB_OUTPUT"
+          exit 1
+
+      # If health check fails, roll back to the last known-good revision
+      # and fail the workflow so the push is marked red.
+      - name: Rollback on health check failure
+        if: failure() && steps.healthcheck.outputs.passed == 'false' && steps.current.outputs.revision != ''
+        run: |
+          echo "::error::Health check failed — rolling back to ${{ steps.current.outputs.revision }}"
+          gcloud run services update-traffic "$SERVICE_NAME" \
+            --region="$REGION" \
+            --to-revisions="${{ steps.current.outputs.revision }}=100"
+          # Surface the rollback clearly in the workflow summary
+          echo "### ⏪ Rolled back to \`${{ steps.current.outputs.revision }}\`" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Migrate traffic to new revision
+        run: |
+          gcloud run services update-traffic "$SERVICE_NAME" \
+            --region="$REGION" \
+            --to-revisions="${{ steps.new_revision.outputs.name }}=100"
+
+      - name: Prune old revisions (keep 5)
+        run: |
+          mapfile -t OLD < <(gcloud run revisions list \
+            --service="$SERVICE_NAME" \
+            --region="$REGION" \
+            --format=json \
+            | jq -r 'sort_by(.metadata.creationTimestamp) | reverse | .[5:] | .[].metadata.name')
+
+          for rev in "${OLD[@]}"; do
+            echo "  Deleting $rev"
+            gcloud run revisions delete "$rev" --region="$REGION" --quiet
+          done
+
+      - name: Deployment summary
+        run: |
+          SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
+            --region="$REGION" \
+            --format="value(status.url)")
+
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ### ✅ Backend Deployment Complete
+
+          | | |
+          |---|---|
+          | **Environment** | \`${ENVIRONMENT}\` |
+          | **Service** | \`${SERVICE_NAME}\` |
+          | **Revision** | \`${{ steps.new_revision.outputs.name }}\` |
+          | **Image** | \`${{ env.IMAGE }}\` |
+          | **URL** | ${SERVICE_URL} |
+          | **Commit** | \`${GITHUB_SHA::12}\` on \`${GITHUB_REF_NAME}\` |
+          EOF

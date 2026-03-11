@@ -1,0 +1,32 @@
+# .github/dependabot.yml
+#
+# Keeps GitHub Actions pinned to full commit SHAs up to date automatically.
+# Dependabot will open a PR whenever a new version of a pinned action is released,
+# updating the SHA in the workflow files. You review and merge — no manual tracking.
+#
+# This is required when you pin actions to SHAs instead of tags, which is the
+# secure approach (tags are mutable; a compromised action maintainer can point
+# a tag to malicious code without changing the tag name).
+
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Manila"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(actions)"
+    # Group all action updates into a single PR per week
+    # so you're not flooded with individual PRs.
+    groups:
+      github-actions:
+        patterns:
+          - "*"

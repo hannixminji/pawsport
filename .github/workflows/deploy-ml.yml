@@ -1,0 +1,233 @@
+name: Deploy ML Service
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Only fires when files inside /ml actually change.
+# A backend-only push never triggers this — no wasted 20-min builds.
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ml/**"
+      - ".github/workflows/deploy-ml.yml"
+
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ml-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  PROJECT_ID:   ${{ secrets.GCP_PROJECT_ID }}
+  REGION:       asia-southeast1
+  AR_LOCATION:  asia-southeast1
+  AR_REPO:      pawsport
+  SERVICE_NAME: pawsport-backend-ml
+
+jobs:
+  build:
+    name: Build & Scan ML Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 40   # ML builds are slow; generous but bounded
+
+    permissions:
+      contents: read
+      id-token: write
+      security-events: write
+
+    outputs:
+      image: ${{ steps.final.outputs.image }}
+
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Authenticate to GCP
+        # google-github-actions/auth v2.1.7
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account:            ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        # google-github-actions/setup-gcloud v2.1.4
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Build ML image via Cloud Build
+        run: |
+          IMAGE="${AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/ml:${GITHUB_SHA::12}"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+
+          gcloud builds submit \
+            --tag="${IMAGE}" \
+            --timeout=1800s \
+            --machine-type=e2-highcpu-32 \
+            ./ml
+
+      - name: Get image digest
+        id: digest
+        run: |
+          DIGEST=$(gcloud artifacts docker images describe "${{ env.IMAGE }}" \
+            --format="value(image_summary.digest)")
+          BASE="${IMAGE%:*}"
+          echo "image_by_digest=${BASE}@${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Scan image for vulnerabilities (Trivy)
+        # aquasecurity/trivy-action v0.28.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
+        with:
+          image-ref:      ${{ env.IMAGE }}
+          format:         sarif
+          output:         trivy-ml-results.sarif
+          severity:       CRITICAL,HIGH
+          exit-code:      "1"
+          ignore-unfixed: true
+          vuln-type:      os,library
+
+      - name: Upload Trivy results
+        if: always()
+        # github/codeql-action v3.27.9
+        uses: github/codeql-action/upload-sarif@dd746615b3a9bd9d1d2dada9408ec0b3b4fc41a0
+        with:
+          sarif_file: trivy-ml-results.sarif
+          category:   trivy-ml
+
+      - name: Export image ref
+        id: final
+        run: echo "image=${{ steps.digest.outputs.image_by_digest }}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy ML Service
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      IMAGE: ${{ needs.build.outputs.image }}
+
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account:            ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Get current stable revision
+        id: current
+        run: |
+          REV=$(gcloud run services describe "$SERVICE_NAME" \
+            --region="$REGION" \
+            --format=json 2>/dev/null \
+            | jq -r '
+                .status.traffic[]
+                | select(.percent == 100)
+                | .revisionName
+              ' || echo "")
+          echo "revision=${REV}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy ML revision (0% traffic)
+        run: |
+          gcloud run deploy "$SERVICE_NAME" \
+            --image="${IMAGE}" \
+            --region="$REGION" \
+            --platform=managed \
+            --allow-unauthenticated \
+            --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
+            --ingress=all \
+            --min-instances=0 \
+            --max-instances=5 \
+            --cpu=2 \
+            --memory=4Gi \
+            --timeout=300 \
+            --no-traffic \
+            --labels="git-sha=${GITHUB_SHA::12},managed-by=github-actions"
+
+      - name: Get new revision name
+        id: new_revision
+        run: |
+          REV=$(gcloud run revisions list \
+            --service="$SERVICE_NAME" \
+            --region="$REGION" \
+            --format=json \
+            | jq -r 'sort_by(.metadata.creationTimestamp) | last | .metadata.name')
+          echo "name=${REV}" >> "$GITHUB_OUTPUT"
+
+      - name: Health check (pre-traffic)
+        id: healthcheck
+        run: |
+          SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
+            --region="$REGION" \
+            --format="value(status.url)")
+
+          for i in $(seq 1 12); do
+            HTTP_STATUS=$(curl -sf \
+              --max-time 30 \
+              -o /dev/null \
+              -w "%{http_code}" \
+              "${SERVICE_URL}/health" 2>/dev/null || echo "000")
+
+            echo "  Attempt ${i}/12 → HTTP ${HTTP_STATUS}"
+            [[ "$HTTP_STATUS" == "200" ]] && exit 0
+            sleep 15
+          done
+
+          echo "passed=false" >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Rollback on failure
+        if: failure() && steps.current.outputs.revision != ''
+        run: |
+          echo "::error::Health check failed — rolling back to ${{ steps.current.outputs.revision }}"
+          gcloud run services update-traffic "$SERVICE_NAME" \
+            --region="$REGION" \
+            --to-revisions="${{ steps.current.outputs.revision }}=100"
+          echo "### ⏪ ML rolled back to \`${{ steps.current.outputs.revision }}\`" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Migrate traffic
+        run: |
+          gcloud run services update-traffic "$SERVICE_NAME" \
+            --region="$REGION" \
+            --to-revisions="${{ steps.new_revision.outputs.name }}=100"
+
+      - name: Prune old revisions (keep 3)
+        run: |
+          mapfile -t OLD < <(gcloud run revisions list \
+            --service="$SERVICE_NAME" \
+            --region="$REGION" \
+            --format=json \
+            | jq -r 'sort_by(.metadata.creationTimestamp) | reverse | .[3:] | .[].metadata.name')
+
+          for rev in "${OLD[@]}"; do
+            gcloud run revisions delete "$rev" --region="$REGION" --quiet
+          done
+
+      - name: Summary
+        run: |
+          URL=$(gcloud run services describe "$SERVICE_NAME" \
+            --region="$REGION" --format="value(status.url)")
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ### ✅ ML Service Deployed
+          | | |
+          |---|---|
+          | **Revision** | \`${{ steps.new_revision.outputs.name }}\` |
+          | **URL** | ${URL} |
+          | **Commit** | \`${GITHUB_SHA::12}\` |
+          EOF

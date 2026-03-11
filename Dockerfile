@@ -17,14 +17,14 @@ RUN apt-get update \
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project
+    uv sync --locked --no-install-project --no-dev
 
 # Copy the project source code
 COPY . /app
 
 # Install the project in non-editable mode
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-editable
+    uv sync --locked --no-editable --no-dev
 
 # --------- Final Stage ---------
 FROM python:3.13.12-slim-trixie
@@ -32,8 +32,6 @@ FROM python:3.13.12-slim-trixie
 # Create a non-root user for security
 RUN groupadd --gid 1000 app \
     && useradd --uid 1000 --gid app --shell /bin/bash --create-home app
-
-RUN pip install --upgrade "pip>=26.0"
 
 # Copy the virtual environment from the builder stage
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
@@ -47,6 +45,4 @@ USER app
 # Set the working directory
 WORKDIR /code
 
-# -------- replace with comment to run with gunicorn --------
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-# CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
