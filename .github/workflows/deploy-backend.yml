@@ -36,7 +36,7 @@ permissions: {}
 # Secrets are injected per-step to limit blast radius.
 # ─────────────────────────────────────────────────────────────────────────────
 env:
-  PROJECT_ID:   ${{ secrets.GCP_PROJECT_ID }}
+  PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
   REGION:       asia-southeast1
   AR_LOCATION:  asia-southeast1
   AR_REPO:      pawsport
@@ -148,7 +148,7 @@ jobs:
 
     env:
       ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
-      IMAGE:       ${{ needs.build.outputs.image }}
+      IMAGE:       "asia-southeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pawsport/backend:${{ github.sha }}"
 
     steps:
       - name: Authenticate to GCP
