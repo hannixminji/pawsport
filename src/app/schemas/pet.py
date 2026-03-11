@@ -102,7 +102,7 @@ class PetRead(BaseModel):
     created_at: datetime
     color: str | None
     markings: str | None
-    weight_kg: Decimal | None
+    weight_kg: float | None
     qr_preference: PetQRPreferenceRead | None
     qr_code_url: str | None
 
@@ -118,7 +118,7 @@ class PetReadWithPrimaryProfile(BaseModel):
     sex: str
     date_of_birth: date
     created_at: datetime
-    weight_kg: Decimal | None
+    weight_kg: float | None
     color: str | None
     markings: str | None
     qr_preference: PetQRPreferenceRead | None
@@ -157,7 +157,7 @@ class PetReadByQR(BaseModel):
     allergies: list[PetAllergyRead]
     medical_conditions: list[PetMedicalConditionRead]
     vaccination_records: list[PetVaccinationRecordRead]
-    weight_kg: Decimal | None
+    weight_kg: float | None
     color: str | None
     markings: str | None
     qr_code_url: str | None
@@ -199,7 +199,7 @@ class PetReadByQR(BaseModel):
         allergies: list[PetAllergyRead],
         medical_conditions: list[PetMedicalConditionRead],
         vaccination_records: list[PetVaccinationRecordRead],
-        weight_kg: Decimal | None,
+        weight_kg: float | None,
         color: str | None,
         markings: str | None,
         qr_code_url: str | None,

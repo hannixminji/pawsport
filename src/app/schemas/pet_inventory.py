@@ -72,7 +72,7 @@ class PetInventoryRead(BaseModel):
     owner_id: int
     name: str
     inventory_type: InventoryType
-    quantity: Decimal
+    quantity: float
     unit: InventoryUnit
     images: list[PetInventoryImageRead]
     created_at: datetime
