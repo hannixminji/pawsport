@@ -148,7 +148,7 @@ jobs:
 
     env:
       ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
-      IMAGE:       ${{ needs.build.outputs.image }}
+      IMAGE: "${{ env.AR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/backend:${{ github.sha }}"
 
     steps:
       - name: Authenticate to GCP
@@ -274,12 +274,6 @@ jobs:
             CPU="1"
           fi
 
-          # --no-traffic is only valid on existing services, not on first deploy.
-          SERVICE_EXISTS=$(gcloud run services describe "$SERVICE_NAME" \
-            --region="$REGION" --quiet 2>/dev/null && echo "yes" || echo "no")
-          NO_TRAFFIC_FLAG=""
-          [[ "$SERVICE_EXISTS" == "yes" ]] && NO_TRAFFIC_FLAG="--no-traffic"
-
           gcloud run deploy "$SERVICE_NAME" \
             --image="${{ env.IMAGE }}" \
             --region="$REGION" \
@@ -294,7 +288,7 @@ jobs:
             --memory="${MEMORY}" \
             --timeout=60 \
             --cpu-throttling \
-            $NO_TRAFFIC_FLAG \
+            --no-traffic \
             --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_SERVICE_URL=${{ steps.ml.outputs.url }}" \
             --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SECRET_KEY=BACKEND_SECRET_KEY:latest" \
             --labels="env=${ENVIRONMENT},git-sha=${GITHUB_SHA::12},git-branch=${GITHUB_REF_NAME},managed-by=github-actions"
