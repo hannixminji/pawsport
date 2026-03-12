@@ -33,6 +33,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 app = create_application(router=router, settings=settings, lifespan=lifespan)
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
     request.state.request_id = str(uuid7())
