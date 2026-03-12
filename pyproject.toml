@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Smart Digital Pet Passport"
 authors = [{ name = "PawsPort", email = "pawsport.thesis@gmail.com" }]
 license = { text = "Proprietary" }
-readme = "README.md"
 requires-python = ">=3.13, <4"
 dependencies = [
     "python-dotenv>=1.0.0",
