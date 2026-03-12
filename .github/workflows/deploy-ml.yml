@@ -1,9 +1,5 @@
 name: Deploy ML Service
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Only fires when files inside /ml actually change.
-# A backend-only push never triggers this — no wasted 20-min builds.
-# ─────────────────────────────────────────────────────────────────────────────
 on:
   push:
     branches: [main]
@@ -20,24 +16,22 @@ concurrency:
 permissions: {}
 
 env:
-  PROJECT_ID:   ${{ secrets.GCP_PROJECT_ID }}
+  PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
   REGION:       asia-southeast1
   AR_LOCATION:  asia-southeast1
   AR_REPO:      pawsport
   SERVICE_NAME: pawsport-backend-ml
+  IMAGE:        asia-southeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pawsport/ml:${{ github.sha }}
 
 jobs:
   build:
-    name: Build & Scan ML Image
+    name: Build ML Image
     runs-on: ubuntu-latest
-    timeout-minutes: 40   # ML builds are slow; generous but bounded
+    timeout-minutes: 40
 
     permissions:
       contents: read
       id-token: write
-
-    outputs:
-      image: ${{ steps.final.outputs.image }}
 
     steps:
       - name: Checkout
@@ -61,28 +55,12 @@ jobs:
 
       - name: Build ML image via Cloud Build
         run: |
-          IMAGE="${AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/ml:${GITHUB_SHA}"
-          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
-
           gcloud builds submit \
-            --tag="${IMAGE}" \
+            --tag="${{ env.IMAGE }}" \
             --timeout=1800s \
             --machine-type=e2-highcpu-32 \
             --suppress-logs \
             ./ml
-
-      - name: Get image digest
-        id: digest
-        run: |
-          DIGEST=$(gcloud artifacts docker images describe "${{ env.IMAGE }}" \
-            --format="value(image_summary.digest)")
-          BASE="${IMAGE%:*}"
-          echo "image_by_digest=${BASE}@${DIGEST}" >> "$GITHUB_OUTPUT"
-
-
-      - name: Export image ref
-        id: final
-        run: echo "image=${{ steps.digest.outputs.image_by_digest }}" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy ML Service
@@ -94,9 +72,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-
-    env:
-      IMAGE: ${{ needs.build.outputs.image }}
 
     steps:
       - name: Authenticate to GCP
@@ -123,7 +98,7 @@ jobs:
               ' || echo "")
           echo "revision=${REV}" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy ML revision (0% traffic)
+      - name: Deploy ML revision
         run: |
           SERVICE_EXISTS=$(gcloud run services describe "$SERVICE_NAME" \
             --region="$REGION" --quiet 2>/dev/null && echo "yes" || echo "no")
@@ -131,7 +106,7 @@ jobs:
           [[ "$SERVICE_EXISTS" == "yes" ]] && NO_TRAFFIC_FLAG="--no-traffic"
 
           gcloud run deploy "$SERVICE_NAME" \
-            --image="${IMAGE}" \
+            --image="${{ env.IMAGE }}" \
             --region="$REGION" \
             --platform=managed \
             --allow-unauthenticated \
