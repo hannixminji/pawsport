@@ -20,7 +20,7 @@ concurrency:
 permissions: {}
 
 env:
-  PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
+  PROJECT_ID:   ${{ secrets.GCP_PROJECT_ID }}
   REGION:       asia-southeast1
   AR_LOCATION:  asia-southeast1
   AR_REPO:      pawsport
@@ -61,7 +61,7 @@ jobs:
 
       - name: Build ML image via Cloud Build
         run: |
-          IMAGE="${AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/ml:${GITHUB_SHA::12}"
+          IMAGE="${AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/ml:${GITHUB_SHA}"
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
 
           gcloud builds submit \
@@ -96,7 +96,7 @@ jobs:
       id-token: write
 
     env:
-      IMAGE: "asia-southeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pawsport/ml:${{ github.sha }}"
+      IMAGE: ${{ needs.build.outputs.image }}
 
     steps:
       - name: Authenticate to GCP

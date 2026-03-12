@@ -36,7 +36,7 @@ permissions: {}
 # Secrets are injected per-step to limit blast radius.
 # ─────────────────────────────────────────────────────────────────────────────
 env:
-  PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
+  PROJECT_ID:   ${{ secrets.GCP_PROJECT_ID }}
   REGION:       asia-southeast1
   AR_LOCATION:  asia-southeast1
   AR_REPO:      pawsport
@@ -88,10 +88,9 @@ jobs:
       - name: Resolve image metadata
         id: meta
         run: |
-          SHORT_SHA="${GITHUB_SHA::12}"
-          IMAGE="${AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend:${SHORT_SHA}"
+          
+          IMAGE="${AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/backend:${GITHUB_SHA}"
           echo "image=${IMAGE}"   >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
       # Cloud Build submits the Dockerfile to GCP — the Docker daemon never
       # runs on the GitHub runner, which keeps runner attack surface small.
@@ -148,7 +147,7 @@ jobs:
 
     env:
       ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
-      IMAGE:       "asia-southeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pawsport/backend:${{ github.sha }}"
+      IMAGE:       ${{ needs.build.outputs.image }}
 
     steps:
       - name: Authenticate to GCP
