@@ -346,6 +346,42 @@ else
   ok "Already has roles/storage.objectAdmin on gs://${GCS_BUCKET}"
 fi
 
+# Cloud Build SA needs objectViewer on the bucket to pull ML models during build
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
+CLOUDBUILD_SA="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+
+EXISTING_CB_GCS=$(gcloud storage buckets get-iam-policy "gs://${GCS_BUCKET}" \
+  --format=json 2>/dev/null \
+  | jq -r --arg member "$CLOUDBUILD_SA" \
+    '.bindings[] | select(.role == "roles/storage.objectViewer") | .members[] | select(. == $member)' \
+  || true)
+
+if [[ -z "$EXISTING_CB_GCS" ]]; then
+  gsutil iam ch "${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com:objectViewer" "gs://${GCS_BUCKET}"
+  ok "Granted roles/storage.objectViewer on gs://${GCS_BUCKET} to Cloud Build SA"
+else
+  ok "Cloud Build SA already has roles/storage.objectViewer on gs://${GCS_BUCKET}"
+fi
+
+# Cloud Build SA needs token creator on pawsport-run to impersonate it during builds
+EXISTING_CB_TOKEN=$(gcloud iam service-accounts get-iam-policy "$SERVICE_ACCOUNT" \
+  --project="$PROJECT_ID" \
+  --format=json 2>/dev/null \
+  | jq -r --arg member "$CLOUDBUILD_SA" \
+    '.bindings[] | select(.role == "roles/iam.serviceAccountTokenCreator") | .members[] | select(. == $member)' \
+  || true)
+
+if [[ -z "$EXISTING_CB_TOKEN" ]]; then
+  gcloud iam service-accounts add-iam-policy-binding "$SERVICE_ACCOUNT" \
+    --role="roles/iam.serviceAccountTokenCreator" \
+    --member="$CLOUDBUILD_SA" \
+    --project="$PROJECT_ID" \
+    --quiet > /dev/null
+  ok "Granted roles/iam.serviceAccountTokenCreator to Cloud Build SA on $SERVICE_ACCOUNT"
+else
+  ok "Cloud Build SA already has roles/iam.serviceAccountTokenCreator on $SERVICE_ACCOUNT"
+fi
+
 # ── Placeholder Secrets ───────────────────────────────────────────────────────
 step "Secret Manager — creating placeholder secrets"
 

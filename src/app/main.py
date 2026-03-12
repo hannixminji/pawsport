@@ -83,4 +83,3 @@ async def non_transient_db_error_handler(request: Request, error: NonTransientDa
 async def general_exception_handler(request: Request, error: Exception) -> JSONResponse:
     LOGGER.exception("Unhandled exception on request %s", request.state.request_id)
     return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred. Please try again later."})
-
