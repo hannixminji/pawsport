@@ -10,7 +10,7 @@
 #   5.  Grants roles/iam.serviceAccountTokenCreator on the SA itself
 #       (required for GCS signed URL generation via ADC)
 #   6.  Grants roles/storage.objectAdmin on the GCS bucket (bucket-scoped)
-#   7.  Grants Cloud Build SAs objectViewer on the GCS bucket (for ML model pull)
+#   7.  Grants Cloud Build SAs objectViewer on GCS bucket + serviceUsageConsumer
 #   8.  Cleans up overly broad roles if manually added
 #   9.  Creates a Workload Identity Pool + OIDC Provider scoped to YOUR repo
 #       and YOUR branch (main) — not all of GitHub
@@ -22,7 +22,6 @@
 #   - No JSON key file is created or downloaded at any point
 #   - Workload Identity attribute condition restricts auth to one repo + branch
 #   - All IAM bindings use --condition=None (explicit, auditable)
-#   - GCS access scoped to bucket level, not project-wide
 #   - Firebase Auth works via ADC — same project, no cross-project grants needed
 #   - Script is fully idempotent — safe to re-run
 #
@@ -183,7 +182,7 @@ else
   ok "Already exists: $SERVICE_ACCOUNT"
 fi
 
-# Project-level roles on pawsport-cfd33:
+# Project-level roles:
 #   run.admin                    → create/update Cloud Run services and revisions
 #   artifactregistry.writer      → push images from Cloud Build
 #   secretmanager.secretAccessor → read secrets at runtime (Cloud Run)
@@ -193,6 +192,7 @@ fi
 #   logging.logWriter            → emit structured logs
 #   monitoring.metricWriter      → emit custom metrics
 #   cloudtrace.agent             → emit distributed traces
+#   storage.admin                → full GCS access incl. Cloud Build staging bucket
 #   serviceusage.serviceUsageConsumer → required for Cloud Run to call GCP APIs
 #   firebaseauth.admin           → verify/manage Firebase Auth tokens (same project)
 SA_ROLES=(
@@ -205,6 +205,7 @@ SA_ROLES=(
   "roles/logging.logWriter"
   "roles/monitoring.metricWriter"
   "roles/cloudtrace.agent"
+  "roles/storage.admin"
   "roles/serviceusage.serviceUsageConsumer"
   "roles/firebaseauth.admin"
 )
@@ -216,8 +217,6 @@ done
 # ── Self-referential IAM (signed URL support) ─────────────────────────────────
 step "Self-referential IAM (signed URL support)"
 
-# serviceAccountTokenCreator on the SA itself — required for
-# blob.generate_signed_url() to work with Application Default Credentials.
 EXISTING_TOKEN_CREATOR=$(gcloud iam service-accounts get-iam-policy "$SERVICE_ACCOUNT" \
   --project="$PROJECT_ID" \
   --format=json 2>/dev/null \
@@ -236,10 +235,9 @@ else
   ok "Already has roles/iam.serviceAccountTokenCreator (self)"
 fi
 
-# ── GCS Bucket IAM (bucket-scoped) ───────────────────────────────────────────
+# ── GCS Bucket IAM ────────────────────────────────────────────────────────────
 step "GCS Bucket IAM"
 
-# objectAdmin on the bucket for the runtime SA — read, write, delete objects
 EXISTING_GCS=$(gcloud storage buckets get-iam-policy "gs://${GCS_BUCKET}" \
   --format=json 2>/dev/null \
   | jq -r --arg member "$SA_MEMBER" \
@@ -278,12 +276,38 @@ for BUILD_SA in "$CLOUDBUILD_SA" "$COMPUTE_SA"; do
   fi
 done
 
+# serviceusage.serviceUsageConsumer for Cloud Build SAs — required to access the
+# Cloud Build staging bucket (PROJECT_cloudbuild) during builds
+for BUILD_SA in "$CLOUDBUILD_SA" "$COMPUTE_SA"; do
+  grant_project_role "$PROJECT_ID" "roles/serviceusage.serviceUsageConsumer" "$BUILD_SA"
+done
+
+# serviceAccountTokenCreator on the runtime SA for Cloud Build SAs
+for BUILD_SA in "$CLOUDBUILD_SA" "$COMPUTE_SA"; do
+  EXISTING_TC=$(gcloud iam service-accounts get-iam-policy "$SERVICE_ACCOUNT" \
+    --project="$PROJECT_ID" \
+    --format=json 2>/dev/null \
+    | jq -r --arg member "$BUILD_SA" \
+      '.bindings[] | select(.role == "roles/iam.serviceAccountTokenCreator") | .members[] | select(. == $member)' \
+    || true)
+
+  if [[ -z "$EXISTING_TC" ]]; then
+    gcloud iam service-accounts add-iam-policy-binding "$SERVICE_ACCOUNT" \
+      --role="roles/iam.serviceAccountTokenCreator" \
+      --member="$BUILD_SA" \
+      --project="$PROJECT_ID" \
+      --quiet > /dev/null
+    ok "Granted roles/iam.serviceAccountTokenCreator to ${BUILD_SA}"
+  else
+    ok "Already has roles/iam.serviceAccountTokenCreator: ${BUILD_SA}"
+  fi
+done
+
 # ── Clean up overly broad roles ───────────────────────────────────────────────
 step "Cleaning up overly broad project-level roles"
 
 STALE_ROLES=(
   "roles/viewer"
-  "roles/storage.admin"
   "roles/storage.objectAdmin"
   "roles/logging.viewer"
   "roles/cloudbuild.builds.viewer"
