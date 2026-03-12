@@ -208,6 +208,7 @@ SA_ROLES=(
   "roles/logging.logWriter"
   "roles/monitoring.metricWriter"
   "roles/cloudtrace.agent"
+  "roles/storage.admin"
   "roles/serviceusage.serviceUsageConsumer"
 )
 
@@ -242,7 +243,6 @@ step "Cleaning up overly broad project-level roles (${PROJECT_ID})"
 
 STALE_ROLES=(
   "roles/viewer"
-  "roles/storage.admin"
   "roles/storage.objectAdmin"
   "roles/logging.viewer"
   "roles/cloudbuild.builds.viewer"
