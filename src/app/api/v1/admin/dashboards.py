@@ -2,22 +2,17 @@ from typing import Annotated, Any
 
 from fastapi import Depends, Request, status
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.csrf_router import CSRFProtectedRouter
 from app.api.dependencies import require_permission
-from app.core.db.database import async_get_db
 from app.core.utils.cache import async_get_redis, cache
 from app.services.dashboard_service import DashboardService
 
 router = CSRFProtectedRouter(prefix="/dashboards", tags=["Dashboards"])
 
 
-def get_service(
-    db: Annotated[AsyncSession, Depends(async_get_db)],
-    redis: Annotated[Redis | None, Depends(async_get_redis)],
-) -> DashboardService:
-    return DashboardService(db=db, redis=redis)
+def get_service(redis: Annotated[Redis | None, Depends(async_get_redis)]) -> DashboardService:
+    return DashboardService(redis=redis)
 
 
 DashboardServiceDependency = Annotated[DashboardService, Depends(get_service)]
