@@ -85,31 +85,6 @@ async def get_rate_limit(
     return await service.get_rate_limit(actor=actor, rate_limit_id=rate_limit_id)
 
 
-@router.patch("/bulk/delete", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_soft_delete_rate_limits(
-    payload: RateLimitBulkDelete,
-    actor: Annotated[Actor, Depends(require_permission("rate_limit:bulk_soft_delete"))],
-    service: RateLimitServiceDependency,
-) -> None:
-    await service.bulk_soft_delete(actor=actor, rate_limit_ids=payload.ids)
-    await invalidate_namespace("admin:rate-limits")
-
-
-@router.patch("/{rate_limit_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
-@cache(
-    key_prefix="admin:rate-limits:detail",
-    resource_id_name="rate_limit_id",
-    namespaces_to_invalidate=["admin:rate-limits"],
-)
-async def soft_delete_rate_limit(
-    request: Request,
-    rate_limit_id: int,
-    actor: Annotated[Actor, Depends(require_permission("rate_limit:soft_delete"))],
-    service: RateLimitServiceDependency,
-) -> None:
-    await service.soft_delete(actor=actor, rate_limit_id=rate_limit_id)
-
-
 @router.patch("/{rate_limit_id}", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:rate-limits:detail",

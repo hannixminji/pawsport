@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import ClassVar
 
-from sqlalchemy import any_, delete, func, select, update
+from sqlalchemy import any_, delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,9 +32,7 @@ class RateLimitService:
         "tier_id",
         "limit",
         "period",
-        "is_deleted",
         "updated_at",
-        "deleted_at",
     })
     ALLOWED_FILTER_OPERATORS_BY_COLUMN: ClassVar[dict] = {
         "tier_id": frozenset({
@@ -76,7 +74,6 @@ class RateLimitService:
                 .where(
                     RateLimit.id == rate_limit_id,
                     RateLimit.tier_id == tier_id,
-                    RateLimit.is_deleted.is_(False),
                 )
             )
         ).scalar_one_or_none()
@@ -85,10 +82,7 @@ class RateLimitService:
         return (
             await self.db.execute(
                 select(RateLimit)
-                .where(
-                    RateLimit.id == rate_limit_id,
-                    RateLimit.is_deleted.is_(False),
-                )
+                .where(RateLimit.id == rate_limit_id)
             )
         ).scalar_one_or_none()
 
@@ -169,10 +163,7 @@ class RateLimitService:
             max_depth=1,
         )
 
-        base_query = (
-            select(RateLimit)
-            .where(RateLimit.is_deleted.is_(False))
-        )
+        base_query = select(RateLimit)
 
         if tier_name is not None:
             tier_id = await self._get_tier_id_by_name(tier_name)
@@ -206,10 +197,7 @@ class RateLimitService:
         if actor.actor_type != ActorType.ADMIN_USER:
             raise ForbiddenError("Admin privileges are required to view rate limits.")
 
-        base_query = (
-            select(RateLimit)
-            .where(RateLimit.is_deleted.is_(False))
-        )
+        base_query = select(RateLimit)
 
         if tier_name is not None:
             tier_id = await self._get_tier_id_by_name(tier_name)
@@ -267,7 +255,7 @@ class RateLimitService:
         if actor.actor_type != ActorType.ADMIN_USER:
             raise ForbiddenError("Admin privileges are required to update a rate limit.")
 
-        db_rate_limit = await self._get_rate_limit(rate_limit_id)
+        db_rate_limit = await self._get_rate_limit_by_id(rate_limit_id)
         if db_rate_limit is None:
             raise NotFoundError("Rate limit not found.")
 
@@ -301,7 +289,7 @@ class RateLimitService:
                 "Failed to update the rate limit."
             ) from error
 
-    async def soft_delete(
+    async def hard_delete(
         self,
         *,
         actor: Actor,
@@ -311,15 +299,8 @@ class RateLimitService:
             raise ForbiddenError("Admin privileges are required to delete a rate limit.")
 
         statement = (
-            update(RateLimit)
-            .where(
-                RateLimit.id == rate_limit_id,
-                RateLimit.is_deleted.is_(False),
-            )
-            .values(
-                deleted_at=func.now(),
-                is_deleted=True,
-            )
+            delete(RateLimit)
+            .where(RateLimit.id == rate_limit_id)
         )
 
         try:
@@ -340,28 +321,21 @@ class RateLimitService:
                 "Failed to delete the rate limit."
             ) from error
 
-    async def bulk_soft_delete(
+    async def bulk_hard_delete(
         self,
         *,
         actor: Actor,
         rate_limit_ids: set[int],
     ) -> None:
         if actor.actor_type != ActorType.ADMIN_USER:
-            raise ForbiddenError("Admin privileges are required to delete rate limits in bulk.")
+            raise ForbiddenError("Admin privileges are required to delete rate limits.")
 
         if not rate_limit_ids:
             return
 
         statement = (
-            update(RateLimit)
-            .where(
-                RateLimit.id == any_(list(rate_limit_ids)),
-                RateLimit.is_deleted.is_(False),
-            )
-            .values(
-                deleted_at=func.now(),
-                is_deleted=True,
-            )
+            delete(RateLimit)
+            .where(RateLimit.id == any_(list(rate_limit_ids)))
         )
 
         try:
@@ -380,71 +354,4 @@ class RateLimitService:
 
             raise NonTransientDatabaseError(
                 "Failed to delete rate limits."
-            ) from error
-
-    async def hard_delete(
-        self,
-        *,
-        actor: Actor,
-        rate_limit_id: int,
-    ) -> None:
-        if actor.actor_type != ActorType.ADMIN_USER:
-            raise ForbiddenError("Admin privileges are required to permanently delete a rate limit.")
-
-        statement = (
-            delete(RateLimit)
-            .where(RateLimit.id == rate_limit_id)
-        )
-
-        try:
-            await self.db.execute(statement)
-            await self.db.commit()
-
-        except OperationalError as error:
-            await self.db.rollback()
-
-            raise TransientDatabaseError(
-                "Failed to permanently delete the rate limit. Please try again later."
-            ) from error
-
-        except SQLAlchemyError as error:
-            await self.db.rollback()
-
-            raise NonTransientDatabaseError(
-                "Failed to permanently delete the rate limit."
-            ) from error
-
-    async def bulk_hard_delete(
-        self,
-        *,
-        actor: Actor,
-        rate_limit_ids: set[int],
-    ) -> None:
-        if actor.actor_type != ActorType.ADMIN_USER:
-            raise ForbiddenError("Admin privileges are required to permanently delete rate limits.")
-
-        if not rate_limit_ids:
-            return
-
-        statement = (
-            delete(RateLimit)
-            .where(RateLimit.id == any_(list(rate_limit_ids)))
-        )
-
-        try:
-            await self.db.execute(statement)
-            await self.db.commit()
-
-        except OperationalError as error:
-            await self.db.rollback()
-
-            raise TransientDatabaseError(
-                "Failed to permanently delete rate limits. Please try again later."
-            ) from error
-
-        except SQLAlchemyError as error:
-            await self.db.rollback()
-
-            raise NonTransientDatabaseError(
-                "Failed to permanently delete rate limits."
             ) from error
