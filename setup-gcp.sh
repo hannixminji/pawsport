@@ -9,41 +9,37 @@
 #   4.  Grants only the IAM roles the SA actually needs (project-level)
 #   5.  Grants roles/iam.serviceAccountTokenCreator on the SA itself
 #       (required for GCS signed URL generation via ADC)
-#   6.  Cleans up overly broad roles if manually added
-#   7.  Creates a Workload Identity Pool + OIDC Provider scoped to YOUR repo
+#   6.  Grants roles/storage.objectAdmin on the GCS bucket (bucket-scoped)
+#   7.  Grants Cloud Build SAs objectViewer on the GCS bucket (for ML model pull)
+#   8.  Cleans up overly broad roles if manually added
+#   9.  Creates a Workload Identity Pool + OIDC Provider scoped to YOUR repo
 #       and YOUR branch (main) — not all of GitHub
-#   8.  Binds the pool provider → SA so GitHub Actions can impersonate it
-#   9.  Cross-project grants on FIREBASE_PROJECT_ID:
-#       - roles/firebaseauth.admin              → verify Firebase tokens
-#       - roles/firebase.sdkAdminServiceAgent   → Firebase Admin SDK
-#       - roles/iam.serviceAccountTokenCreator  → signed URLs / token creation
-#       - roles/storage.admin                   → full GCS access
-#       - roles/storage.objectAdmin             → read/write GCS bucket (bucket-scoped)
-#   10. Enables Secret Manager and creates placeholder secrets
-#   11. Prints the exact values to paste into GitHub Secrets
+#   10. Binds the pool provider → SA so GitHub Actions can impersonate it
+#   11. Enables Secret Manager and creates placeholder secrets
+#   12. Prints the exact values to paste into GitHub Secrets
 #
 # Security properties:
 #   - No JSON key file is created or downloaded at any point
 #   - Workload Identity attribute condition restricts auth to one repo + branch
 #   - All IAM bindings use --condition=None (explicit, auditable)
+#   - GCS access scoped to bucket level, not project-wide
+#   - Firebase Auth works via ADC — same project, no cross-project grants needed
 #   - Script is fully idempotent — safe to re-run
 #
 # Prerequisites:
 #   - gcloud CLI installed and authenticated (gcloud auth login)
 #   - A GCP project set: gcloud config set project YOUR_PROJECT
 #   - jq installed (brew install jq / apt install jq)
-#   - Your account must have Owner/Editor on both PROJECT_ID and FIREBASE_PROJECT_ID
 #
 # Usage:
 #   chmod +x setup-gcp.sh
-#   GITHUB_ORG=your-org GITHUB_REPO=your-repo ./setup-gcp.sh
+#   GITHUB_ORG=your-org GITHUB_REPO=your-repo PROJECT_ID=your-project ./setup-gcp.sh
 # =============================================================================
 
 set -euo pipefail
 
 # ── Configurable ─────────────────────────────────────────────────────────────
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"
-FIREBASE_PROJECT_ID="${FIREBASE_PROJECT_ID:-pawsport-cfd33}"
 GITHUB_ORG="${GITHUB_ORG:-}"
 GITHUB_REPO="${GITHUB_REPO:-}"
 REGION="${REGION:-asia-southeast1}"
@@ -67,7 +63,6 @@ fatal() { echo -e "\n${RED}✗  ${1}${RESET}"; exit 1; }
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-# Check if a project-level IAM binding exists
 has_project_role() {
   local project="$1" role="$2" member="$3"
   gcloud projects get-iam-policy "$project" \
@@ -77,7 +72,6 @@ has_project_role() {
     2>/dev/null || true
 }
 
-# Grant a project-level IAM role (idempotent)
 grant_project_role() {
   local project="$1" role="$2" member="$3"
   local existing
@@ -88,13 +82,12 @@ grant_project_role() {
       --role="$role" \
       --condition=None \
       --quiet > /dev/null
-    ok "Granted $role on $project"
+    ok "Granted $role"
   else
-    ok "Already has $role on $project"
+    ok "Already has $role"
   fi
 }
 
-# Remove a project-level IAM role if present (idempotent)
 remove_project_role() {
   local project="$1" role="$2" member="$3"
   local existing
@@ -105,7 +98,7 @@ remove_project_role() {
       --role="$role" \
       --condition=None \
       --quiet > /dev/null
-    ok "Removed $role from $project"
+    ok "Removed $role"
   else
     ok "Already clean: $role"
   fi
@@ -125,17 +118,16 @@ done
 ACTIVE_ACCOUNT=$(gcloud auth list --filter="status:ACTIVE" --format="value(account)" 2>/dev/null || true)
 [[ -z "$ACTIVE_ACCOUNT" ]] && fatal "No active gcloud account. Run: gcloud auth login"
 
-ok "Authenticated as:    $ACTIVE_ACCOUNT"
-ok "Cloud Run project:   $PROJECT_ID"
-ok "Firebase project:    $FIREBASE_PROJECT_ID"
-ok "GitHub repo:         $GITHUB_ORG/$GITHUB_REPO (branch: $DEPLOY_BRANCH)"
-ok "GCS bucket:          gs://${GCS_BUCKET} (in $FIREBASE_PROJECT_ID)"
+ok "Authenticated as: $ACTIVE_ACCOUNT"
+ok "Project:          $PROJECT_ID"
+ok "GitHub repo:      $GITHUB_ORG/$GITHUB_REPO (branch: $DEPLOY_BRANCH)"
+ok "GCS bucket:       gs://${GCS_BUCKET}"
 
 SERVICE_ACCOUNT="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 SA_MEMBER="serviceAccount:${SERVICE_ACCOUNT}"
 
 # ── Enable APIs ───────────────────────────────────────────────────────────────
-step "Enabling GCP APIs (${PROJECT_ID})"
+step "Enabling GCP APIs"
 gcloud services enable \
   run.googleapis.com \
   secretmanager.googleapis.com \
@@ -145,6 +137,8 @@ gcloud services enable \
   iamcredentials.googleapis.com \
   sts.googleapis.com \
   storage.googleapis.com \
+  firebase.googleapis.com \
+  identitytoolkit.googleapis.com \
   cloudtrace.googleapis.com \
   monitoring.googleapis.com \
   logging.googleapis.com \
@@ -189,17 +183,18 @@ else
   ok "Already exists: $SERVICE_ACCOUNT"
 fi
 
-# Project-level roles in pawsport-api:
-#   run.admin                  → create/update Cloud Run services and revisions
-#   artifactregistry.writer    → push images from Cloud Build
+# Project-level roles on pawsport-cfd33:
+#   run.admin                    → create/update Cloud Run services and revisions
+#   artifactregistry.writer      → push images from Cloud Build
 #   secretmanager.secretAccessor → read secrets at runtime (Cloud Run)
-#   secretmanager.admin        → create/update secrets during CI deploy step
-#   cloudbuild.builds.editor   → submit builds
-#   iam.serviceAccountUser     → allow Cloud Run to act as this SA
-#   logging.logWriter          → emit structured logs
-#   monitoring.metricWriter    → emit custom metrics
-#   cloudtrace.agent           → emit distributed traces
-#   serviceusage.serviceUsageConsumer → required for Cloud Run to call APIs
+#   secretmanager.admin          → create/update secrets during CI deploy step
+#   cloudbuild.builds.editor     → submit builds
+#   iam.serviceAccountUser       → allow Cloud Run to act as this SA
+#   logging.logWriter            → emit structured logs
+#   monitoring.metricWriter      → emit custom metrics
+#   cloudtrace.agent             → emit distributed traces
+#   serviceusage.serviceUsageConsumer → required for Cloud Run to call GCP APIs
+#   firebaseauth.admin           → verify/manage Firebase Auth tokens (same project)
 SA_ROLES=(
   "roles/run.admin"
   "roles/artifactregistry.writer"
@@ -210,18 +205,19 @@ SA_ROLES=(
   "roles/logging.logWriter"
   "roles/monitoring.metricWriter"
   "roles/cloudtrace.agent"
-  "roles/storage.admin"
   "roles/serviceusage.serviceUsageConsumer"
+  "roles/firebaseauth.admin"
 )
 
 for role in "${SA_ROLES[@]}"; do
   grant_project_role "$PROJECT_ID" "$role" "$SA_MEMBER"
 done
 
-# Grant serviceAccountTokenCreator on the SA itself — required for
-# blob.generate_signed_url() to work with Application Default Credentials.
-# Without this, signed URL generation fails with a signing error at runtime.
+# ── Self-referential IAM (signed URL support) ─────────────────────────────────
 step "Self-referential IAM (signed URL support)"
+
+# serviceAccountTokenCreator on the SA itself — required for
+# blob.generate_signed_url() to work with Application Default Credentials.
 EXISTING_TOKEN_CREATOR=$(gcloud iam service-accounts get-iam-policy "$SERVICE_ACCOUNT" \
   --project="$PROJECT_ID" \
   --format=json 2>/dev/null \
@@ -240,11 +236,54 @@ else
   ok "Already has roles/iam.serviceAccountTokenCreator (self)"
 fi
 
+# ── GCS Bucket IAM (bucket-scoped) ───────────────────────────────────────────
+step "GCS Bucket IAM"
+
+# objectAdmin on the bucket for the runtime SA — read, write, delete objects
+EXISTING_GCS=$(gcloud storage buckets get-iam-policy "gs://${GCS_BUCKET}" \
+  --format=json 2>/dev/null \
+  | jq -r --arg member "$SA_MEMBER" \
+    '.bindings[] | select(.role == "roles/storage.objectAdmin") | .members[] | select(. == $member)' \
+  || true)
+
+if [[ -z "$EXISTING_GCS" ]]; then
+  gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
+    --member="$SA_MEMBER" \
+    --role="roles/storage.objectAdmin"
+  ok "Granted roles/storage.objectAdmin on gs://${GCS_BUCKET}"
+else
+  ok "Already has roles/storage.objectAdmin on gs://${GCS_BUCKET}"
+fi
+
+# objectViewer on the bucket for Cloud Build SAs — needed to pull ML models during build
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
+CLOUDBUILD_SA="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+COMPUTE_SA="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+for BUILD_SA in "$CLOUDBUILD_SA" "$COMPUTE_SA"; do
+  EXISTING_BUILD_GCS=$(gcloud storage buckets get-iam-policy "gs://${GCS_BUCKET}" \
+    --format=json 2>/dev/null \
+    | jq -r --arg member "$BUILD_SA" \
+      '.bindings[] | select(.role == "roles/storage.objectViewer") | .members[] | select(. == $member)' \
+    || true)
+
+  if [[ -z "$EXISTING_BUILD_GCS" ]]; then
+    gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
+      --member="$BUILD_SA" \
+      --role="roles/storage.objectViewer" \
+      --quiet
+    ok "Granted roles/storage.objectViewer on gs://${GCS_BUCKET} to ${BUILD_SA}"
+  else
+    ok "Already has roles/storage.objectViewer: ${BUILD_SA}"
+  fi
+done
+
 # ── Clean up overly broad roles ───────────────────────────────────────────────
-step "Cleaning up overly broad project-level roles (${PROJECT_ID})"
+step "Cleaning up overly broad project-level roles"
 
 STALE_ROLES=(
   "roles/viewer"
+  "roles/storage.admin"
   "roles/storage.objectAdmin"
   "roles/logging.viewer"
   "roles/cloudbuild.builds.viewer"
@@ -325,81 +364,6 @@ else
   ok "Workload Identity binding already exists"
 fi
 
-# ── Cross-project: Firebase + GCS (pawsport-cfd33) ───────────────────────────
-step "Cross-project grants on ${FIREBASE_PROJECT_ID}"
-
-# firebaseauth.admin → verify/manage Firebase Auth tokens at runtime
-grant_project_role "$FIREBASE_PROJECT_ID" "roles/firebaseauth.admin" "$SA_MEMBER"
-
-# firebase.sdkAdminServiceAgent → Firebase Admin SDK access
-grant_project_role "$FIREBASE_PROJECT_ID" "roles/firebase.sdkAdminServiceAgent" "$SA_MEMBER"
-
-# iam.serviceAccountTokenCreator → required for signed URLs and token creation
-grant_project_role "$FIREBASE_PROJECT_ID" "roles/iam.serviceAccountTokenCreator" "$SA_MEMBER"
-
-# storage.admin → full GCS access (matches firebase-adminsdk permissions)
-grant_project_role "$FIREBASE_PROJECT_ID" "roles/storage.admin" "$SA_MEMBER"
-
-# GCS bucket-scoped objectAdmin — bucket lives in the Firebase project
-# objectAdmin = read, write, delete objects (no bucket config changes)
-EXISTING_GCS=$(gcloud storage buckets get-iam-policy "gs://${GCS_BUCKET}" \
-  --format=json 2>/dev/null \
-  | jq -r --arg member "$SA_MEMBER" \
-    '.bindings[] | select(.role == "roles/storage.objectAdmin") | .members[] | select(. == $member)' \
-  || true)
-
-if [[ -z "$EXISTING_GCS" ]]; then
-  gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
-    --member="$SA_MEMBER" \
-    --role="roles/storage.objectAdmin"
-  ok "Granted roles/storage.objectAdmin on gs://${GCS_BUCKET}"
-else
-  ok "Already has roles/storage.objectAdmin on gs://${GCS_BUCKET}"
-fi
-
-
-# Cloud Build SAs need objectViewer on the bucket to pull ML models during build
-PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
-CLOUDBUILD_SA="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
-COMPUTE_SA="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-
-for BUILD_SA in "$CLOUDBUILD_SA" "$COMPUTE_SA"; do
-  EXISTING_BUILD_GCS=$(gcloud storage buckets get-iam-policy "gs://${GCS_BUCKET}" \
-    --format=json 2>/dev/null \
-    | jq -r --arg member "$BUILD_SA" \
-      '.bindings[] | select(.role == "roles/storage.objectViewer") | .members[] | select(. == $member)' \
-    || true)
-
-  if [[ -z "$EXISTING_BUILD_GCS" ]]; then
-    gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
-      --member="$BUILD_SA" \
-      --role="roles/storage.objectViewer" \
-      --quiet
-    ok "Granted roles/storage.objectViewer on gs://${GCS_BUCKET} to ${BUILD_SA}"
-  else
-    ok "Already has roles/storage.objectViewer: ${BUILD_SA}"
-  fi
-done
-
-for BUILD_SA in "$CLOUDBUILD_SA" "$COMPUTE_SA"; do
-  EXISTING_TC=$(gcloud iam service-accounts get-iam-policy "$SERVICE_ACCOUNT" \
-    --project="$PROJECT_ID" \
-    --format=json 2>/dev/null \
-    | jq -r --arg member "$BUILD_SA" \
-      '.bindings[] | select(.role == "roles/iam.serviceAccountTokenCreator") | .members[] | select(. == $member)' \
-    || true)
-
-  if [[ -z "$EXISTING_TC" ]]; then
-    gcloud iam service-accounts add-iam-policy-binding "$SERVICE_ACCOUNT" \
-      --role="roles/iam.serviceAccountTokenCreator" \
-      --member="$BUILD_SA" \
-      --project="$PROJECT_ID" \
-      --quiet > /dev/null
-    ok "Granted roles/iam.serviceAccountTokenCreator to ${BUILD_SA}"
-  else
-    ok "Already has roles/iam.serviceAccountTokenCreator: ${BUILD_SA}"
-  fi
-done
 # ── Placeholder Secrets ───────────────────────────────────────────────────────
 step "Secret Manager — creating placeholder secrets"
 
@@ -436,7 +400,6 @@ echo -e "${BOLD}═════════════════════�
 echo -e "${BOLD}  Add these to GitHub → Settings → Secrets → Actions:${RESET}"
 echo -e "${BOLD}══════════════════════════════════════════════════════════════${RESET}"
 echo ""
-printf "  ${CYAN}%-40s${RESET} %s\n" "GCP_PROJECT_ID"                    "$PROJECT_ID"
 printf "  ${CYAN}%-40s${RESET} %s\n" "GCP_SERVICE_ACCOUNT"               "$SERVICE_ACCOUNT"
 printf "  ${CYAN}%-40s${RESET} %s\n" "GCP_WORKLOAD_IDENTITY_PROVIDER"    "$PROVIDER_RESOURCE"
 printf "  ${CYAN}%-40s${RESET} %s\n" "POSTGRES_URL"                      "(your Neon connection string)"
@@ -448,7 +411,7 @@ printf "  ${CYAN}%-40s${RESET} %s\n" "ADMIN_SESSION_SIGNING_SECRET"      "(your 
 printf "  ${CYAN}%-40s${RESET} %s\n" "RESEND_API_KEY"                    "(your Resend API key)"
 printf "  ${CYAN}%-40s${RESET} %s\n" "ADMIN_PASSWORD"                    "(your admin password)"
 echo ""
-echo -e "  ${YELLOW}Note: RESEND_FROM_EMAIL and GCS_BUCKET_NAME are GitHub Variables (not secrets).${RESET}"
+echo -e "  ${YELLOW}Note: GCP_PROJECT_ID, RESEND_FROM_EMAIL and GCS_BUCKET_NAME are GitHub Variables (not secrets).${RESET}"
 echo -e "  ${YELLOW}Add them under Settings → Secrets → Actions → Variables.${RESET}"
 echo ""
 echo -e "${BOLD}══════════════════════════════════════════════════════════════${RESET}"
@@ -456,12 +419,13 @@ echo -e "${GREEN}  Setup complete. Push to ${DEPLOY_BRANCH} to trigger your firs
 echo -e "${BOLD}══════════════════════════════════════════════════════════════${RESET}"
 echo ""
 echo -e "  ${YELLOW}Recommended next steps:${RESET}"
-echo "  1. Set real secret values in GitHub → Settings → Secrets → Actions"
-echo "  2. In GitHub → Settings → Environments:"
+echo "  1. Update GitHub Secrets: GCP_SERVICE_ACCOUNT and GCP_WORKLOAD_IDENTITY_PROVIDER"
+echo "  2. Update GitHub Variable: GCP_PROJECT_ID = $PROJECT_ID"
+echo "  3. In GitHub → Settings → Environments:"
 echo "     - Create 'staging' (no approval gate)"
 echo "     - Create 'production' (add required reviewer — yourself)"
-echo "  3. Enable branch protection on 'main': require PR + passing checks"
-echo "  4. Commit .github/workflows/ and .github/dependabot.yml to your repo"
-echo "  5. Delete secrets/google-service-account.json — no longer needed"
+echo "  4. Enable branch protection on 'main': require PR + passing checks"
+echo "  5. Commit .github/workflows/ and setup-gcp.sh to your repo"
+echo "  6. Delete secrets/google-service-account.json — no longer needed"
 echo "     Cloud Run uses Application Default Credentials via the attached SA"
 echo ""

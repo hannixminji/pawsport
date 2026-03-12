@@ -38,10 +38,10 @@ def include_object(object, name, type_, reflected, compare_to):
 config = context.config
 
 uri = settings.POSTGRES_URI
-uri = re.sub(r'[?&](sslmode|channel_binding)=[^&]*', '', uri)
-uri = uri.rstrip('?&')
 
 if settings.POSTGRES_URL:
+    uri = re.sub(r'[?&](sslmode|channel_binding)=[^&]*', '', uri)
+    uri = uri.rstrip('?&')
     uri += ('&' if '?' in uri else '?') + 'ssl=require'
 
 config.set_main_option(
