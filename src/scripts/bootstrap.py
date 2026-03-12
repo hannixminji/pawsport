@@ -1,5 +1,6 @@
 import asyncio
 
+from app.core.config import settings
 from app.core.db.database import local_session
 from scripts.create_default_role import create_default_role
 from scripts.create_first_superuser import create_first_superuser
@@ -12,7 +13,8 @@ async def main():
         await seed_permissions(session)
         await create_default_role(session)
         await create_first_superuser(session)
-        await create_tier(session)
+        await create_tier(session, settings.FREE_TIER_NAME)
+        await create_tier(session, settings.GUEST_TIER_NAME)
         print("Bootstrap completed successfully.")
 
 

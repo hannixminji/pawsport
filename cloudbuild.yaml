@@ -5,7 +5,18 @@ steps:
     args:
       - build
       - --tag=$_IMAGE
+      - --tag=$_CACHE_IMAGE
+      - --cache-from=$_CACHE_IMAGE
+      - --build-arg=BUILDKIT_INLINE_CACHE=1
       - .
 
 images:
   - $_IMAGE
+  - $_CACHE_IMAGE
+
+substitutions:
+  _IMAGE: asia-southeast1-docker.pkg.dev/$PROJECT_ID/pawsport/backend:$COMMIT_SHA
+  _CACHE_IMAGE: asia-southeast1-docker.pkg.dev/$PROJECT_ID/pawsport/backend:cache
+
+options:
+  logging: CLOUD_LOGGING_ONLY

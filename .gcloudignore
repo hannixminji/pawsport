@@ -1,0 +1,38 @@
+# Pulls in all rules from .dockerignore automatically.
+#!include:.dockerignore
+
+# Secrets — must never be uploaded to Cloud Build
+secrets/
+
+# ML service — backend Cloud Build doesn't need these large ONNX models.
+# (The ML workflow runs `gcloud builds submit ./ml` separately.)
+ml/
+
+# Git metadata
+.git
+.gitignore
+.gitattributes
+
+# GitHub Actions
+.github
+
+# Local dev tooling
+.venv
+venv
+.idea
+.vscode
+docker-compose.yml
+*.sh
+.pre-commit-config.yaml
+
+# Tests
+tests/
+test/
+
+# Docs
+*.md
+README*
+
+# OS artifacts
+.DS_Store
+Thumbs.db

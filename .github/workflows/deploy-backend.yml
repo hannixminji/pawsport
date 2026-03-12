@@ -27,10 +27,9 @@ permissions: {}
 env:
   PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
   REGION:       asia-southeast1
-  AR_LOCATION:  asia-southeast1
-  AR_REPO:      pawsport
   SERVICE_NAME: pawsport-backend
   IMAGE:        asia-southeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pawsport/backend:${{ github.sha }}
+  CACHE_IMAGE:  asia-southeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pawsport/backend:cache
 
 jobs:
   build:
@@ -67,7 +66,7 @@ jobs:
         run: |
           gcloud builds submit \
             --config=cloudbuild.yaml \
-            --substitutions="_IMAGE=${{ env.IMAGE }}" \
+            --substitutions="_IMAGE=${{ env.IMAGE }},_CACHE_IMAGE=${{ env.CACHE_IMAGE }}" \
             --timeout=1200s \
             --machine-type=e2-highcpu-8 \
             --suppress-logs \
@@ -101,11 +100,13 @@ jobs:
 
       - name: Sync secrets to Secret Manager
         env:
-          POSTGRES_URL:         ${{ secrets.POSTGRES_URL }}
-          REDIS_CACHE_URL:      ${{ secrets.REDIS_CACHE_URL }}
-          QDRANT_CLOUD_URL:     ${{ secrets.QDRANT_CLOUD_URL }}
-          QDRANT_CLOUD_API_KEY: ${{ secrets.QDRANT_CLOUD_API_KEY }}
-          RESEND_API_KEY:       ${{ secrets.RESEND_API_KEY }}
+          POSTGRES_URL:                  ${{ secrets.POSTGRES_URL }}
+          REDIS_CACHE_URL:               ${{ secrets.REDIS_CACHE_URL }}
+          QDRANT_CLOUD_URL:              ${{ secrets.QDRANT_CLOUD_URL }}
+          QDRANT_CLOUD_API_KEY:          ${{ secrets.QDRANT_CLOUD_API_KEY }}
+          RESEND_API_KEY:                ${{ secrets.RESEND_API_KEY }}
+          ADMIN_SESSION_SIGNING_SECRET:  ${{ secrets.ADMIN_SESSION_SIGNING_SECRET }}
+          SECRET_KEY:                    ${{ secrets.SECRET_KEY }}
         run: |
           sync_secret() {
             local name="$1"
@@ -148,19 +149,13 @@ jobs:
             gcloud secrets versions add "$name" --data-file="$tmp" --quiet
           }
 
-          sync_secret "POSTGRES_URL"         "$POSTGRES_URL"
-          sync_secret "REDIS_CACHE_URL"      "$REDIS_CACHE_URL"
-          sync_secret "QDRANT_CLOUD_URL"     "$QDRANT_CLOUD_URL"
-          sync_secret "QDRANT_CLOUD_API_KEY" "$QDRANT_CLOUD_API_KEY"
-          sync_secret "RESEND_API_KEY"       "$RESEND_API_KEY"
-
-          NEW_KEY=$(openssl rand -base64 32)
-          printf '%s' "$NEW_KEY" | gcloud secrets versions add "BACKEND_SECRET_KEY" \
-            --data-file=- --quiet 2>/dev/null || \
-          printf '%s' "$NEW_KEY" | gcloud secrets create "BACKEND_SECRET_KEY" \
-            --replication-policy=automatic \
-            --data-file=- \
-            --quiet
+          sync_secret "POSTGRES_URL"                 "$POSTGRES_URL"
+          sync_secret "REDIS_CACHE_URL"              "$REDIS_CACHE_URL"
+          sync_secret "QDRANT_CLOUD_URL"             "$QDRANT_CLOUD_URL"
+          sync_secret "QDRANT_CLOUD_API_KEY"         "$QDRANT_CLOUD_API_KEY"
+          sync_secret "RESEND_API_KEY"               "$RESEND_API_KEY"
+          sync_secret "ADMIN_SESSION_SIGNING_SECRET" "$ADMIN_SESSION_SIGNING_SECRET"
+          sync_secret "SECRET_KEY"                   "$SECRET_KEY"
 
       - name: Get current stable revision
         id: current
@@ -216,6 +211,8 @@ jobs:
           SERVICE_URL="${{ steps.service.outputs.url }}"
           APP_URL="${SERVICE_URL:-https://pawsport-backend-zwfk6vsyea-as.a.run.app}"
           QR_BASE_URL="${APP_URL}/api/v1/pets/qr"
+          COOKIE_SECURE="false"
+          [[ "$ENVIRONMENT" == "production" ]] && COOKIE_SECURE="true"
 
           gcloud run deploy "$SERVICE_NAME" \
             --image="${{ env.IMAGE }}" \
@@ -230,11 +227,10 @@ jobs:
             --cpu="${CPU}" \
             --memory="${MEMORY}" \
             --timeout=60 \
-            --cpu-throttling \
             $NO_TRAFFIC_FLAG \
             --tag="candidate" \
-            --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_BASE_URL=${{ steps.ml.outputs.url }},APP_URL=${APP_URL},QR_BASE_URL=${QR_BASE_URL},RESEND_FROM_EMAIL=${{ vars.RESEND_FROM_EMAIL }}" \
-            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SECRET_KEY=BACKEND_SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
+            --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_BASE_URL=${{ steps.ml.outputs.url }},APP_URL=${APP_URL},QR_BASE_URL=${QR_BASE_URL},RESEND_FROM_EMAIL=${{ vars.RESEND_FROM_EMAIL }},GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},ADMIN_SESSION_COOKIE_SECURE=${COOKIE_SECURE}" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
             --labels="env=${ENVIRONMENT},git-sha=${GITHUB_SHA::12},git-branch=${GITHUB_REF_NAME},managed-by=github-actions"
 
       - name: Get new revision name
@@ -333,3 +329,60 @@ jobs:
           | **URL** | ${SERVICE_URL} |
           | **Commit** | \`${GITHUB_SHA::12}\` on \`${GITHUB_REF_NAME}\` |
           EOF
+
+  migrate:
+    name: Run Migrations
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account:            ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Run Alembic migrations
+        run: |
+          JOB_NAME="${SERVICE_NAME}-migrate"
+
+          gcloud run jobs create "$JOB_NAME" \
+            --image="${{ env.IMAGE }}" \
+            --region="$REGION" \
+            --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest" \
+            --command="alembic" \
+            --args="upgrade,head" \
+            --max-retries=1 \
+            --task-timeout=120s \
+            --quiet 2>/dev/null || \
+          gcloud run jobs update "$JOB_NAME" \
+            --image="${{ env.IMAGE }}" \
+            --region="$REGION" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest" \
+            --command="alembic" \
+            --args="upgrade,head" \
+            --max-retries=1 \
+            --task-timeout=120s \
+            --quiet
+
+          gcloud run jobs execute "$JOB_NAME" \
+            --region="$REGION" \
+            --wait \
+            --quiet
+
+          echo "✅ Migrations complete" >> "$GITHUB_STEP_SUMMARY"

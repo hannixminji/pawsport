@@ -1,0 +1,60 @@
+# Secrets — never bake credentials into the image
+secrets/
+
+# ML service — not part of the backend image
+ml/
+
+# Version control
+.git
+.github
+
+# Python cache
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Environment & secrets
+.env
+.env.*
+*.env
+src/.env
+
+# Virtual environments
+.venv
+venv
+
+# Test & lint caches
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Build artifacts
+*.egg-info
+dist
+build
+
+# Logs
+*.log
+src/app/logs/
+
+# Local dev tooling
+docker-compose.yml
+*.sh
+.editorconfig
+.pre-commit-config.yaml
+.idea
+.vscode
+
+# Tests & seed scripts (not part of the running app)
+tests/
+test/
+
+# Docs — keep README.md for hatchling build
+*.md
+!README.md
+
+# OS artifacts
+.DS_Store
+Thumbs.db

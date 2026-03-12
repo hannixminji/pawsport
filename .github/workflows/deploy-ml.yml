@@ -18,8 +18,6 @@ permissions: {}
 env:
   PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
   REGION:       asia-southeast1
-  AR_LOCATION:  asia-southeast1
-  AR_REPO:      pawsport
   SERVICE_NAME: pawsport-backend-ml
   IMAGE:        asia-southeast1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/pawsport/ml:${{ github.sha }}
 
@@ -157,7 +155,12 @@ jobs:
               "${REVISION_URL}/health" 2>/dev/null || echo "000")
 
             echo "  Attempt ${i}/12 → HTTP ${HTTP_STATUS}"
-            [[ "$HTTP_STATUS" == "200" ]] && exit 0
+
+            if [[ "$HTTP_STATUS" == "200" ]]; then
+              echo "passed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
             sleep 15
           done
 

@@ -54,3 +54,18 @@ def downgrade() -> None:
 docker-compose run --rm bootstrap alembic -c alembic.ini revision --autogenerate -m "add age column to users"
 
 docker-compose run --rm bootstrap alembic -c alembic.ini upgrade head
+
+gcloud run jobs create pawsport-backend-bootstrap \
+  --image=asia-southeast1-docker.pkg.dev/pawsport-api/pawsport/backend:latest \
+  --region=asia-southeast1 \
+  --service-account=pawsport-run@pawsport-api.iam.gserviceaccount.com \
+  --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest" \
+  --command="python" \
+  --args="-m,scripts.bootstrap" \
+  --max-retries=0 \
+  --task-timeout=120s \
+  --quiet
+
+gcloud run jobs execute pawsport-backend-bootstrap \
+  --region=asia-southeast1 \
+  --wait
