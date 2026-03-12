@@ -2,6 +2,13 @@ name: Deploy ML Service
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options: [staging, production]
 
 concurrency:
   group: deploy-ml-${{ github.ref }}
@@ -57,15 +64,18 @@ jobs:
             ./ml
 
   deploy:
-    name: Deploy ML Service
+    name: Deploy ML Service (${{ github.event.inputs.environment || 'staging' }})
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: staging
+    environment: ${{ github.event.inputs.environment || 'staging' }}
 
     permissions:
       contents: read
       id-token: write
+
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
 
     steps:
       - name: Authenticate to GCP
@@ -113,7 +123,7 @@ jobs:
             --timeout=300 \
             $NO_TRAFFIC_FLAG \
             --tag="candidate" \
-            --labels="git-sha=${GITHUB_SHA::12},managed-by=github-actions"
+            --labels="env=${ENVIRONMENT},git-sha=${GITHUB_SHA::12},managed-by=github-actions"
 
       - name: Get new revision name
         id: new_revision
