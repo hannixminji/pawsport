@@ -40,7 +40,9 @@ config = context.config
 uri = settings.POSTGRES_URI
 uri = re.sub(r'[?&](sslmode|channel_binding)=[^&]*', '', uri)
 uri = uri.rstrip('?&')
-uri += ('&' if '?' in uri else '?') + 'ssl=require'
+
+if settings.POSTGRES_URL:
+    uri += ('&' if '?' in uri else '?') + 'ssl=require'
 
 config.set_main_option(
     "sqlalchemy.url",
