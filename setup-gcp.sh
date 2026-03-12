@@ -208,6 +208,7 @@ SA_ROLES=(
   "roles/storage.admin"
   "roles/serviceusage.serviceUsageConsumer"
   "roles/firebaseauth.admin"
+  "roles/firebasecloudmessaging.admin"
 )
 
 for role in "${SA_ROLES[@]}"; do

@@ -118,6 +118,7 @@ class MobileUserBase(BaseModel):
 class MobileUser(TimestampSchema, MobileUserBase, PersistentDeletion):
     is_anonymous: bool
     is_email_verified: bool
+    account_status: MobileUserAccountStatus
     email: EmailStr | None
     tier_id: int | None = None
     hashed_password: str | None = None
@@ -131,6 +132,7 @@ class MobileUserRead(BaseModel):
     id: int
     uuid: UUID
     is_email_verified: bool
+    account_status: MobileUserAccountStatus
     created_at: datetime
     username: str | None
     email: EmailStr | None

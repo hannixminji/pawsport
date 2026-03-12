@@ -9,8 +9,7 @@
       Security headers are also enforced at the HTTP layer in the FastAPI route.
       These meta-equiv tags are a defence-in-depth fallback only.
     -->
-    <meta http-equiv="Content-Security-Policy"
-          content="
+    <meta http-equiv="Content-Security-Policy" content="
             default-src   'none';
             style-src     'self' https://fonts.googleapis.com 'unsafe-inline';
             font-src      https://fonts.gstatic.com;
@@ -20,240 +19,61 @@
             form-action   'none';
             frame-ancestors 'none';
           " />
-    <meta http-equiv="X-Frame-Options"        content="DENY" />
+    <meta http-equiv="X-Frame-Options" content="DENY" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta name="referrer"                     content="no-referrer" />
-    <meta http-equiv="Permissions-Policy"     content="interest-cohort=()" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Permissions-Policy" content="interest-cohort=()" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary:       #FF6B35;
-            --primary-dark:  #E85A28;
-            --text-primary:  #1E293B;
-            --text-secondary:#64748B;
-            --border:        #E2E8F0;
-            --radius-lg:     24px;
-            --green:         #10B981;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
-        }
-
-        body {
-            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1.5rem;
-            overflow-x: hidden;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: -50%; right: -50%;
-            width: 200%; height: 200%;
-            background: radial-gradient(circle, rgba(255,107,53,.08) 0%, transparent 70%);
-            animation: pulse 15s ease-in-out infinite;
-            pointer-events: none;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: .3; transform: scale(1); }
-            50%       { opacity: .6; transform: scale(1.1); }
-        }
-
-        .card {
-            background: #fff;
-            border-radius: var(--radius-lg);
-            box-shadow: 0 25px 60px -15px rgba(0,0,0,.4);
-            overflow: hidden;
-            width: 100%;
-            max-width: 440px;
-            animation: fadeIn .6s ease-out;
-            transition: transform .3s ease, box-shadow .3s ease;
-        }
-        .card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 30px 70px -20px rgba(0,0,0,.45);
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        .card-header {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-            padding: 28px 32px;
-            color: white;
-            position: relative;
-            overflow: hidden;
-        }
-        .card-header::before {
-            content: '';
-            position: absolute;
-            top: -50%; left: -50%;
-            width: 200%; height: 200%;
-            background: repeating-linear-gradient(
-                45deg,
-                transparent,
-                transparent 10px,
-                rgba(255,255,255,.03) 10px,
-                rgba(255,255,255,.03) 20px
-            );
-            animation: slide 3s linear infinite;
-            z-index: 0;
-        }
-        .card-header::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(circle at 85% 20%, rgba(255,255,255,.18), transparent 55%);
-            z-index: 0;
-        }
-        @keyframes slide {
-            0%   { transform: translate(0, 0); }
-            100% { transform: translate(20px, 20px); }
-        }
-
-        .header-logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            position: relative;
-            z-index: 1;
-            margin-bottom: 12px;
-        }
-        .header-logo img  { width: 28px; height: 28px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.2)); }
-        .header-logo span { font-weight: 800; font-size: 1.1rem; letter-spacing: .06em; text-transform: uppercase; text-shadow: 0 2px 8px rgba(0,0,0,.2); }
-
-        .card-header h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -.02em; position: relative; z-index: 1; text-shadow: 0 2px 10px rgba(0,0,0,.15); }
-        .card-header p  { font-size: .92rem; opacity: .85; margin-top: 4px; position: relative; z-index: 1; }
-
-        .card-body { padding: 2rem; text-align: center; }
-
-        .success-icon {
-            width: 64px; height: 64px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #D1FAE5, #A7F3D0);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 1.25rem;
-            box-shadow: 0 4px 14px rgba(16,185,129,.2);
-            animation: popIn .5s cubic-bezier(.175,.885,.32,1.275) .3s both;
-        }
-        .success-icon img { width: 30px; height: 30px; color: var(--green); }
-
-        @keyframes popIn {
-            from { opacity: 0; transform: scale(.5); }
-            to   { opacity: 1; transform: scale(1); }
-        }
-
-        .card-body h2 { font-size: 1.2rem; font-weight: 700; color: var(--text-primary); margin-bottom: .5rem; }
-        .card-body > p { font-size: .9rem; color: var(--text-secondary); line-height: 1.65; }
-
-        .steps {
-            background: #FFF8F5;
-            border: 1.5px solid #FFD5BB;
-            border-radius: 12px;
-            padding: 1.1rem 1.25rem;
-            margin: 1.5rem 0;
-            text-align: left;
-        }
-        .steps-title { font-size: .82rem; font-weight: 700; color: #C0541C; margin-bottom: .75rem; }
-        .step { display: flex; align-items: center; gap: .65rem; margin-bottom: .5rem; }
-        .step:last-child { margin-bottom: 0; }
-        .step-num {
-            width: 22px; height: 22px;
-            background: var(--primary);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: .7rem;
-            font-weight: 700;
-            color: #fff;
-            flex-shrink: 0;
-        }
-        .step span { font-size: .85rem; color: var(--text-primary); }
-
-        .divider { height: 1px; background: var(--border); margin: 1.5rem 0; }
-
-        .close-hint {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: .4rem;
-            font-size: .8rem;
-            color: var(--text-secondary);
-        }
-        .close-hint img { width: 14px; height: 14px; opacity: .5; }
-
-        .card-footer {
-            background: #FAFAFA;
-            border-top: 1px solid var(--border);
-            padding: 1.25rem 2rem;
-            text-align: center;
-        }
-        .card-footer p { font-size: .75rem; color: var(--text-secondary); opacity: .6; line-height: 1.6; }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body>
-<div class="card">
+<body style="font-family:'Outfit', -apple-system, BlinkMacSystemFont, sans-serif; background:linear-gradient(135deg, #0F172A 0%, #1E293B 100%); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:1.5rem; overflow-x:hidden">
+<div class="card" style="background:#fff; border-radius:24px; box-shadow:0 25px 60px -15px rgba(0,0,0,.4); overflow:hidden; width:100%; max-width:440px">
 
-    <div class="card-header">
-        <div class="header-logo">
-            <img src="https://storage.googleapis.com/pawsport-static/images/logo.png" width="28" height="28" alt="PawsPort">
-            <span>PawsPort</span>
+    <div class="card-header" style="background:linear-gradient(135deg, #FF6B35 0%, #E85A28 100%); padding:28px 32px; color:white; position:relative; overflow:hidden"><span aria-hidden="true" style="display:block;position:absolute;top:0;left:0;width:100%;height:100%;background:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(255,255,255,.04) 10px,rgba(255,255,255,.04) 20px);pointer-events:none;z-index:0;"></span><span aria-hidden="true" style="display:block;position:absolute;inset:0;background:radial-gradient(circle at 85% 20%,rgba(255,255,255,.18),transparent 55%);pointer-events:none;z-index:0;"></span>
+        <div class="header-logo" style="display:flex; align-items:center; gap:10px; position:relative; z-index:1; margin-bottom:12px">
+            <img src="https://storage.googleapis.com/pawsport-static/images/logo.png" width="28" height="28" alt="PawsPort" style="width:28px; height:28px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.2))" />
+            <span style="font-weight:800; font-size:1.1rem; letter-spacing:.06em; text-transform:uppercase; text-shadow:0 2px 8px rgba(0,0,0,.2)">PawsPort</span>
         </div>
-        <h1>Email Verified!</h1>
-        <p>Your account is now fully activated.</p>
+        <h1 style="font-size:1.6rem; font-weight:800; letter-spacing:-.02em; position:relative; z-index:1; text-shadow:0 2px 10px rgba(0,0,0,.15)">Email Verified!</h1>
+        <p style="font-size:.92rem; opacity:.85; margin-top:4px; position:relative; z-index:1">Your account is now fully activated.</p>
     </div>
 
-    <div class="card-body">
-        <div class="success-icon" role="img" aria-label="Success">
-            <img src="https://storage.googleapis.com/pawsport-static/images/checkmark.png" width="30" height="30" alt="Success">
+    <div class="card-body" style="padding:2rem; text-align:center">
+        <div class="success-icon" role="img" aria-label="Success" style="width:64px; height:64px; border-radius:50%; background:linear-gradient(135deg, #D1FAE5, #A7F3D0); display:flex; align-items:center; justify-content:center; margin:0 auto 1.25rem; box-shadow:0 4px 14px rgba(16,185,129,.2)">
+            <img src="https://storage.googleapis.com/pawsport-static/images/checkmark.png" width="30" height="30" alt="Success" style="width:30px; height:30px; color:#10B981" />
         </div>
 
-        <h2>Congratulations!</h2>
-        <p>Your email address has been successfully verified. You now have full access to PawsPort.</p>
+        <h2 style="font-size:1.2rem; font-weight:700; color:#1E293B; margin-bottom:.5rem">Congratulations!</h2>
+        <p style="font-size:.9rem; color:#64748B; line-height:1.65">Your email address has been successfully verified. You now have full access to PawsPort.</p>
 
-        <div class="steps" role="list" aria-label="What you can do now">
-            <div class="steps-title">🚀 What you can do now:</div>
-            <div class="step" role="listitem">
-                <div class="step-num" aria-hidden="true">1</div>
-                <span>Create and manage your pet's digital passport</span>
+        <div class="steps" role="list" aria-label="What you can do now" style="background:#FFF8F5; border:1.5px solid #FFD5BB; border-radius:12px; padding:1.1rem 1.25rem; margin:1.5rem 0; text-align:left">
+            <div class="steps-title" style="font-size:.82rem; font-weight:700; color:#C0541C; margin-bottom:.75rem">🚀 What you can do now:</div>
+            <div class="step" role="listitem" style="display:flex; align-items:center; gap:.65rem; margin-bottom:.5rem">
+                <div class="step-num" aria-hidden="true" style="width:22px; height:22px; background:#FF6B35; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; color:#fff; flex-shrink:0">1</div>
+                <span style="font-size:.85rem; color:#1E293B">Create and manage your pet's digital passport</span>
             </div>
-            <div class="step" role="listitem">
-                <div class="step-num" aria-hidden="true">2</div>
-                <span>Report lost pets and browse sighting reports</span>
+            <div class="step" role="listitem" style="display:flex; align-items:center; gap:.65rem; margin-bottom:.5rem">
+                <div class="step-num" aria-hidden="true" style="width:22px; height:22px; background:#FF6B35; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; color:#fff; flex-shrink:0">2</div>
+                <span style="font-size:.85rem; color:#1E293B">Report lost pets and browse sighting reports</span>
             </div>
-            <div class="step" role="listitem">
-                <div class="step-num" aria-hidden="true">3</div>
-                <span>Connect with the pet lover community</span>
+            <div class="step" role="listitem" style="display:flex; align-items:center; gap:.65rem; margin-bottom:.5rem">
+                <div class="step-num" aria-hidden="true" style="width:22px; height:22px; background:#FF6B35; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; color:#fff; flex-shrink:0">3</div>
+                <span style="font-size:.85rem; color:#1E293B">Connect with the pet lover community</span>
             </div>
         </div>
 
-        <div class="divider" role="separator"></div>
+        <div class="divider" role="separator" style="height:1px; background:#E2E8F0; margin:1.5rem 0"></div>
 
-        <div class="close-hint">
-            <img src="https://storage.googleapis.com/pawsport-static/images/x_box.png" width="14" height="14" aria-hidden="true" alt="">
+        <div class="close-hint" style="display:flex; align-items:center; justify-content:center; gap:.4rem; font-size:.8rem; color:#64748B">
+            <img src="https://storage.googleapis.com/pawsport-static/images/x_box.png" width="14" height="14" aria-hidden="true" alt="" style="width:14px; height:14px; opacity:.5" />
             You can now close this tab and return to the app.
         </div>
     </div>
 
-    <div class="card-footer">
-        <p>© 2026 PawsPort. All rights reserved.<br>Made with 🐾 for pet lovers.</p>
+    <div class="card-footer" style="background:#FAFAFA; border-top:1px solid #E2E8F0; padding:1.25rem 2rem; text-align:center">
+        <p style="font-size:.75rem; color:#64748B; opacity:.6; line-height:1.6">© 2026 PawsPort. All rights reserved.<br />Made with 🐾 for pet lovers.</p>
     </div>
 
 </div>

@@ -202,6 +202,7 @@ class PetVaccinationRecordService:
     ) -> PetVaccinationRecordAttachment:
         metadata = attachment_object_metadata_map.get(attachment.object_key, {})
         mime_type_raw = metadata.get("mime_type")
+        original_filename = metadata.get("original_filename", "")
 
         if not mime_type_raw:
             raise InvalidInputError("Attachment metadata missing mime_type. Please re-upload the file.")
@@ -215,7 +216,7 @@ class PetVaccinationRecordService:
             vaccination_record_id=vaccination_record_id,
             object_key=attachment.object_key,
             sort_order=attachment.sort_order,
-            original_filename=attachment.original_filename,
+            original_filename=original_filename,
             mime_type=mime_type_enum,
         )
 
@@ -327,6 +328,12 @@ class PetVaccinationRecordService:
         )
         self.db.add(vaccination_record_model)
         await self.db.flush()
+
+        vaccination_record_model = await self.db.scalar(
+            select(PetVaccinationRecord)
+            .options(selectinload(PetVaccinationRecord.attachments))
+            .where(PetVaccinationRecord.id == vaccination_record_model.id)
+        )
 
         if vaccination_record_input.attachments:
             await self._apply_attachment_updates(vaccination_record_model, vaccination_record_input.attachments)

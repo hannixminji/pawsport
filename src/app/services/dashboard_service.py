@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.db.database import async_engine
 from ..core.enums import MissingReportStatus, SightingReportStatus
 from ..models._rbac_table import admin_user_role
 from ..models.admin_role import AdminRole
@@ -718,7 +719,8 @@ class DashboardService:
         redis_health: bool | None = None
 
         try:
-            await self.db.execute(text("SELECT 1"))
+            async with async_engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
             db_health = True
         except Exception as e:
             LOGGER.exception(f"Database health check failed with error: {e}")
