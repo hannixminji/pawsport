@@ -133,16 +133,24 @@ jobs:
       - name: Health check (pre-traffic)
         id: healthcheck
         run: |
-          SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
+          REVISION_URL=$(gcloud run revisions describe "${{ steps.new_revision.outputs.name }}" \
             --region="$REGION" \
-            --format="value(status.url)")
+            --format="value(status.url)" 2>/dev/null || echo "")
+
+          if [[ -z "$REVISION_URL" ]]; then
+            REVISION_URL=$(gcloud run services describe "$SERVICE_NAME" \
+              --region="$REGION" \
+              --format="value(status.url)")
+          fi
+
+          echo "Probing ${REVISION_URL}/health ..."
 
           for i in $(seq 1 12); do
             HTTP_STATUS=$(curl -sf \
               --max-time 30 \
               -o /dev/null \
               -w "%{http_code}" \
-              "${SERVICE_URL}/health" 2>/dev/null || echo "000")
+              "${REVISION_URL}/health" 2>/dev/null || echo "000")
 
             echo "  Attempt ${i}/12 → HTTP ${HTTP_STATUS}"
             [[ "$HTTP_STATUS" == "200" ]] && exit 0
