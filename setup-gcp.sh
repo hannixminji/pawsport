@@ -14,8 +14,11 @@
 #       and YOUR branch (main) — not all of GitHub
 #   8.  Binds the pool provider → SA so GitHub Actions can impersonate it
 #   9.  Cross-project grants on FIREBASE_PROJECT_ID:
-#       - roles/firebaseauth.admin   → verify Firebase tokens
-#       - roles/storage.objectAdmin  → read/write GCS bucket (bucket-scoped)
+#       - roles/firebaseauth.admin              → verify Firebase tokens
+#       - roles/firebase.sdkAdminServiceAgent   → Firebase Admin SDK
+#       - roles/iam.serviceAccountTokenCreator  → signed URLs / token creation
+#       - roles/storage.admin                   → full GCS access
+#       - roles/storage.objectAdmin             → read/write GCS bucket (bucket-scoped)
 #   10. Enables Secret Manager and creates placeholder secrets
 #   11. Prints the exact values to paste into GitHub Secrets
 #
@@ -23,7 +26,6 @@
 #   - No JSON key file is created or downloaded at any point
 #   - Workload Identity attribute condition restricts auth to one repo + branch
 #   - All IAM bindings use --condition=None (explicit, auditable)
-#   - GCS access scoped to bucket level in the Firebase project, not project-wide
 #   - Script is fully idempotent — safe to re-run
 #
 # Prerequisites:
@@ -328,6 +330,15 @@ step "Cross-project grants on ${FIREBASE_PROJECT_ID}"
 
 # firebaseauth.admin → verify/manage Firebase Auth tokens at runtime
 grant_project_role "$FIREBASE_PROJECT_ID" "roles/firebaseauth.admin" "$SA_MEMBER"
+
+# firebase.sdkAdminServiceAgent → Firebase Admin SDK access
+grant_project_role "$FIREBASE_PROJECT_ID" "roles/firebase.sdkAdminServiceAgent" "$SA_MEMBER"
+
+# iam.serviceAccountTokenCreator → required for signed URLs and token creation
+grant_project_role "$FIREBASE_PROJECT_ID" "roles/iam.serviceAccountTokenCreator" "$SA_MEMBER"
+
+# storage.admin → full GCS access (matches firebase-adminsdk permissions)
+grant_project_role "$FIREBASE_PROJECT_ID" "roles/storage.admin" "$SA_MEMBER"
 
 # GCS bucket-scoped objectAdmin — bucket lives in the Firebase project
 # objectAdmin = read, write, delete objects (no bucket config changes)
