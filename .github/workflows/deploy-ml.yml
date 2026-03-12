@@ -118,6 +118,7 @@ jobs:
             --memory=4Gi \
             --timeout=300 \
             $NO_TRAFFIC_FLAG \
+            --tag="candidate" \
             --labels="git-sha=${GITHUB_SHA::12},managed-by=github-actions"
 
       - name: Get new revision name
@@ -133,11 +134,13 @@ jobs:
       - name: Health check (pre-traffic)
         id: healthcheck
         run: |
-          REVISION_URL=$(gcloud run revisions describe "${{ steps.new_revision.outputs.name }}" \
+          REVISION_URL=$(gcloud run services describe "$SERVICE_NAME" \
             --region="$REGION" \
-            --format="value(status.url)" 2>/dev/null || echo "")
+            --format=json \
+            | jq -r '.status.traffic[] | select(.tag == "candidate") | .url' 2>/dev/null || echo "")
 
           if [[ -z "$REVISION_URL" ]]; then
+            echo "Warning: could not get candidate tag URL, falling back to service URL"
             REVISION_URL=$(gcloud run services describe "$SERVICE_NAME" \
               --region="$REGION" \
               --format="value(status.url)")

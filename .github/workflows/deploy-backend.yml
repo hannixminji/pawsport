@@ -218,6 +218,7 @@ jobs:
             --timeout=60 \
             --cpu-throttling \
             $NO_TRAFFIC_FLAG \
+            --tag="candidate" \
             --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_SERVICE_URL=${{ steps.ml.outputs.url }}" \
             --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SECRET_KEY=BACKEND_SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest" \
             --labels="env=${ENVIRONMENT},git-sha=${GITHUB_SHA::12},git-branch=${GITHUB_REF_NAME},managed-by=github-actions"
@@ -236,11 +237,13 @@ jobs:
       - name: Health check (pre-traffic)
         id: healthcheck
         run: |
-          REVISION_URL=$(gcloud run revisions describe "${{ steps.new_revision.outputs.name }}" \
+          REVISION_URL=$(gcloud run services describe "$SERVICE_NAME" \
             --region="$REGION" \
-            --format="value(status.url)" 2>/dev/null || echo "")
+            --format=json \
+            | jq -r '.status.traffic[] | select(.tag == "candidate") | .url' 2>/dev/null || echo "")
 
           if [[ -z "$REVISION_URL" ]]; then
+            echo "Warning: could not get candidate tag URL, falling back to service URL"
             REVISION_URL=$(gcloud run services describe "$SERVICE_NAME" \
               --region="$REGION" \
               --format="value(status.url)")
