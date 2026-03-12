@@ -22,7 +22,30 @@ def get_storage_client() -> storage.Client:
         info = json.loads(settings.GOOGLE_APPLICATION_CREDENTIALS_JSON.get_secret_value())
         return storage.Client(credentials=service_account.Credentials.from_service_account_info(info))
 
-    return storage.Client()
+    import google.auth
+    import google.auth.transport.requests
+    from google.auth import iam
+    from google.oauth2 import service_account
+
+    http_request = google.auth.transport.requests.Request()
+    credentials, project = google.auth.default(
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+    credentials.refresh(http_request)
+
+    signer = iam.Signer(
+        request=http_request,
+        credentials=credentials,
+        service_account_email=credentials.service_account_email,
+    )
+    signing_credentials = service_account.Credentials(
+        signer=signer,
+        service_account_email=credentials.service_account_email,
+        token_uri="https://oauth2.googleapis.com/token",
+        scopes=["https://www.googleapis.com/auth/devstorage.full_control"],
+    )
+
+    return storage.Client(credentials=signing_credentials, project=project)
 
 
 def generate_signed_url(
