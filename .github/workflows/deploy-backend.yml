@@ -364,7 +364,7 @@ jobs:
             --image="${{ env.IMAGE }}" \
             --region="$REGION" \
             --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
-            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
             --command="alembic" \
             --args="upgrade,head" \
             --max-retries=1 \
@@ -373,7 +373,7 @@ jobs:
           gcloud run jobs update "$JOB_NAME" \
             --image="${{ env.IMAGE }}" \
             --region="$REGION" \
-            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
             --command="alembic" \
             --args="upgrade,head" \
             --max-retries=1 \
