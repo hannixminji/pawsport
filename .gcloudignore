@@ -22,6 +22,7 @@ venv
 .idea
 .vscode
 docker-compose.yml
+Dockerfile.dev
 *.sh
 .pre-commit-config.yaml
 

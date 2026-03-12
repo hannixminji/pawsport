@@ -41,6 +41,7 @@ src/app/logs/
 
 # Local dev tooling
 docker-compose.yml
+Dockerfile.dev
 *.sh
 .editorconfig
 .pre-commit-config.yaml

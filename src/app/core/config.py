@@ -224,8 +224,10 @@ class GCSSettings(BaseSettings):
 
 
 class EmailSettings(BaseSettings):
-    RESEND_API_KEY: SecretStr = SecretStr("")
-    RESEND_FROM_EMAIL: str = "onboarding@resend.dev"
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = "pawsport.thesis@gmail.com"
+    SMTP_PASSWORD: SecretStr = SecretStr("")
 
 
 class QdrantCloudSettings(BaseSettings):

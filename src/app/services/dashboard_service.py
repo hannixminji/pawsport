@@ -9,7 +9,6 @@ from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.enums import MissingReportStatus, SightingReportStatus
-from ..core.health import check_database_health, check_redis_health
 from ..models._rbac_table import admin_user_role
 from ..models.admin_role import AdminRole
 from ..models.admin_user import AdminUser
@@ -715,10 +714,24 @@ class DashboardService:
         return [{"tier": name, "users": count} for name, count in rows]
 
     async def get_health(self) -> dict[str, Any]:
-        db_health, redis_health = await asyncio.gather(
-            check_database_health(self.db),
-            check_redis_health(self.redis) if self.redis else asyncio.sleep(0, result=None),
-        )
+        db_health: bool
+        redis_health: bool | None = None
+
+        try:
+            await self.db.execute(text("SELECT 1"))
+            db_health = True
+        except Exception as e:
+            LOGGER.exception(f"Database health check failed with error: {e}")
+            db_health = False
+
+        if self.redis:
+            try:
+                await self.redis.ping()
+                redis_health = True
+            except Exception as e:
+                LOGGER.exception(f"Redis health check failed with error: {e}")
+                redis_health = False
+
         return {"database": db_health, "redis": redis_health}
 
     async def get_user_stats(self, user_id: int) -> dict[str, Any]:

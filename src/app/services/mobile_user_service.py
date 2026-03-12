@@ -396,24 +396,23 @@ class MobileUserService:
 
         free_tier_id = await self._get_tier_id_by_name(settings.FREE_TIER_NAME)
 
-        new_user = MobileUser(
-            username=f"user{uuid.uuid4().hex[:10]}",
-            tier_id=free_tier_id,
-            email=email,
-            is_email_verified=True,
-        )
-        self.db.add(new_user)
-        await self.db.flush()
-
-        new_linked_account = UserLinkedAccount(
-            mobile_user_id=new_user.id,
-            provider=sign_in_provider,
-            provider_user_id=provider_user_id,
-            provider_email=email,
-        )
-        self.db.add(new_linked_account)
-
         try:
+            new_user = MobileUser(
+                username=f"user{uuid.uuid4().hex[:10]}",
+                tier_id=free_tier_id,
+                email=email,
+                is_email_verified=True,
+            )
+            self.db.add(new_user)
+            await self.db.flush()
+
+            new_linked_account = UserLinkedAccount(
+                mobile_user_id=new_user.id,
+                provider=sign_in_provider,
+                provider_user_id=provider_user_id,
+                provider_email=email,
+            )
+            self.db.add(new_linked_account)
             await self.db.commit()
 
         except IntegrityError as error:

@@ -96,7 +96,7 @@ jobs:
           REDIS_CACHE_URL:               ${{ secrets.REDIS_CACHE_URL }}
           QDRANT_CLOUD_URL:              ${{ secrets.QDRANT_CLOUD_URL }}
           QDRANT_CLOUD_API_KEY:          ${{ secrets.QDRANT_CLOUD_API_KEY }}
-          RESEND_API_KEY:                ${{ secrets.RESEND_API_KEY }}
+          SMTP_PASSWORD:                 ${{ secrets.SMTP_PASSWORD }}
           ADMIN_SESSION_SIGNING_SECRET:  ${{ secrets.ADMIN_SESSION_SIGNING_SECRET }}
           SECRET_KEY:                    ${{ secrets.SECRET_KEY }}
         run: |
@@ -145,7 +145,7 @@ jobs:
           sync_secret "REDIS_CACHE_URL"              "$REDIS_CACHE_URL"
           sync_secret "QDRANT_CLOUD_URL"             "$QDRANT_CLOUD_URL"
           sync_secret "QDRANT_CLOUD_API_KEY"         "$QDRANT_CLOUD_API_KEY"
-          sync_secret "RESEND_API_KEY"               "$RESEND_API_KEY"
+          sync_secret "SMTP_PASSWORD"              "$SMTP_PASSWORD"
           sync_secret "ADMIN_SESSION_SIGNING_SECRET" "$ADMIN_SESSION_SIGNING_SECRET"
           sync_secret "SECRET_KEY"                   "$SECRET_KEY"
 
@@ -221,8 +221,8 @@ jobs:
             --timeout=60 \
             $NO_TRAFFIC_FLAG \
             --tag="candidate" \
-            --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_BASE_URL=${{ steps.ml.outputs.url }},APP_URL=${APP_URL},QR_BASE_URL=${QR_BASE_URL},RESEND_FROM_EMAIL=${{ vars.RESEND_FROM_EMAIL }},GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},ADMIN_SESSION_COOKIE_SECURE=${COOKIE_SECURE}" \
-            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
+            --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_BASE_URL=${{ steps.ml.outputs.url }},APP_URL=${APP_URL},QR_BASE_URL=${QR_BASE_URL},SMTP_USER=${{ vars.SMTP_USER }},GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},ADMIN_SESSION_COOKIE_SECURE=${COOKIE_SECURE}" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,SMTP_PASSWORD=SMTP_PASSWORD:latest" \
             --labels="env=${ENVIRONMENT},git-sha=${GITHUB_SHA::12},git-branch=${GITHUB_REF_NAME},managed-by=github-actions"
 
       - name: Get new revision name
@@ -356,7 +356,7 @@ jobs:
             --image="${{ env.IMAGE }}" \
             --region="$REGION" \
             --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
-            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SMTP_PASSWORD=SMTP_PASSWORD:latest" \
             --command="alembic" \
             --args="upgrade,head" \
             --max-retries=1 \
@@ -365,7 +365,7 @@ jobs:
           gcloud run jobs update "$JOB_NAME" \
             --image="${{ env.IMAGE }}" \
             --region="$REGION" \
-            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SMTP_PASSWORD=SMTP_PASSWORD:latest" \
             --command="alembic" \
             --args="upgrade,head" \
             --max-retries=1 \

@@ -40,6 +40,16 @@ async def search_mobile_users(
     return await service.search(actor=actor, search_request=search_request, user_id=user_id)
 
 
+@router.post("/{user_id}/email/verification", status_code=status.HTTP_204_NO_CONTENT)
+async def send_verification_email(
+    request: Request,
+    user_id: int,
+    actor: Annotated[Actor, Depends(require_permission("mobile_user:send_verification_email"))],
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.send_verification_email(actor=actor, user_id=user_id)
+
+
 @router.post("", response_model=MobileUserRead, status_code=status.HTTP_201_CREATED)
 async def create_mobile_user(
     request: Request,

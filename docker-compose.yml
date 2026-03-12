@@ -3,7 +3,7 @@ services:
     container_name: api-service
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
       - ./src/.env
@@ -41,7 +41,7 @@ services:
     container_name: worker-service
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     command: python -m app.core.worker.entry
     working_dir: /code
     env_file:
@@ -88,7 +88,7 @@ services:
     container_name: api-bootstrap
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     command: >
       sh -c "
         alembic -c alembic.ini upgrade head &&
