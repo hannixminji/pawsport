@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import pkgutil
+import re
 from logging.config import fileConfig
 
 import geoalchemy2  # noqa: F401
@@ -36,9 +37,14 @@ def include_object(object, name, type_, reflected, compare_to):
 
 config = context.config
 
+uri = settings.POSTGRES_URI
+uri = re.sub(r'[?&](sslmode|channel_binding)=[^&]*', '', uri)
+uri = uri.rstrip('?&')
+uri += ('&' if '?' in uri else '?') + 'ssl=require'
+
 config.set_main_option(
     "sqlalchemy.url",
-    f"{settings.POSTGRES_ASYNC_PREFIX}{settings.POSTGRES_URI}",
+    f"{settings.POSTGRES_ASYNC_PREFIX}{uri}",
 )
 
 if config.config_file_name is not None:
