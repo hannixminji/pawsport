@@ -105,6 +105,7 @@ jobs:
           REDIS_CACHE_URL:      ${{ secrets.REDIS_CACHE_URL }}
           QDRANT_CLOUD_URL:     ${{ secrets.QDRANT_CLOUD_URL }}
           QDRANT_CLOUD_API_KEY: ${{ secrets.QDRANT_CLOUD_API_KEY }}
+          RESEND_API_KEY:       ${{ secrets.RESEND_API_KEY }}
         run: |
           sync_secret() {
             local name="$1"
@@ -151,6 +152,7 @@ jobs:
           sync_secret "REDIS_CACHE_URL"      "$REDIS_CACHE_URL"
           sync_secret "QDRANT_CLOUD_URL"     "$QDRANT_CLOUD_URL"
           sync_secret "QDRANT_CLOUD_API_KEY" "$QDRANT_CLOUD_API_KEY"
+          sync_secret "RESEND_API_KEY"       "$RESEND_API_KEY"
 
           NEW_KEY=$(openssl rand -base64 32)
           printf '%s' "$NEW_KEY" | gcloud secrets versions add "BACKEND_SECRET_KEY" \
@@ -173,6 +175,14 @@ jobs:
               ' || echo "")
           echo "revision=${REV}" >> "$GITHUB_OUTPUT"
           echo "Current stable revision: ${REV:-none}"
+
+      - name: Get service URL
+        id: service
+        run: |
+          URL=$(gcloud run services describe "$SERVICE_NAME" \
+            --region="$REGION" \
+            --format="value(status.url)" 2>/dev/null || echo "")
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
 
       - name: Get ML service URL
         id: ml
@@ -203,6 +213,10 @@ jobs:
           NO_TRAFFIC_FLAG=""
           [[ "$SERVICE_EXISTS" == "yes" ]] && NO_TRAFFIC_FLAG="--no-traffic"
 
+          SERVICE_URL="${{ steps.service.outputs.url }}"
+          APP_URL="${SERVICE_URL:-https://pawsport-backend-zwfk6vsyea-as.a.run.app}"
+          QR_BASE_URL="${APP_URL}/api/v1/pets/qr"
+
           gcloud run deploy "$SERVICE_NAME" \
             --image="${{ env.IMAGE }}" \
             --region="$REGION" \
@@ -219,8 +233,8 @@ jobs:
             --cpu-throttling \
             $NO_TRAFFIC_FLAG \
             --tag="candidate" \
-            --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_SERVICE_URL=${{ steps.ml.outputs.url }}" \
-            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SECRET_KEY=BACKEND_SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest" \
+            --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_BASE_URL=${{ steps.ml.outputs.url }},APP_URL=${APP_URL},QR_BASE_URL=${QR_BASE_URL},RESEND_FROM_EMAIL=${{ vars.RESEND_FROM_EMAIL }}" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,SECRET_KEY=BACKEND_SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
             --labels="env=${ENVIRONMENT},git-sha=${GITHUB_SHA::12},git-branch=${GITHUB_REF_NAME},managed-by=github-actions"
 
       - name: Get new revision name

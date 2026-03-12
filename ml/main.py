@@ -12,6 +12,11 @@ from google_cloud_storage import load_images
 app = FastAPI()
 
 
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.post("/extract_features")
 async def create_embedding(
     species: str = Form(...),
