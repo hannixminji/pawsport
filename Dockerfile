@@ -33,8 +33,10 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-USER app
-
 WORKDIR /code
+
+COPY --chown=app:app ./src /code
+
+USER app
 
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
