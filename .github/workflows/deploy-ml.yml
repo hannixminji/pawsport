@@ -1,12 +1,6 @@
 name: Deploy ML Service
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "ml/**"
-      - ".github/workflows/deploy-ml.yml"
-
   workflow_dispatch:
 
 concurrency:

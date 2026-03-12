@@ -1,14 +1,6 @@
 name: Deploy Backend
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "ml/**"
-      - "**.md"
-      - ".github/workflows/deploy-ml.yml"
-      - ".github/dependabot.yml"
-
   workflow_dispatch:
     inputs:
       environment:
@@ -190,7 +182,7 @@ jobs:
       - name: Deploy new revision
         run: |
           if [[ "$ENVIRONMENT" == "production" ]]; then
-            AUTHED_FLAG="--no-allow-unauthenticated"
+            AUTHED_FLAG="--allow-unauthenticated"
             MIN_INST=1
             MAX_INST=20
             MEMORY="1Gi"
