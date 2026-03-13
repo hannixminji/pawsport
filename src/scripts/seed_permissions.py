@@ -432,6 +432,89 @@ PERMISSIONS: list[dict[str, str]] = [
         "name": "Bulk Soft Delete Rate Limits",
         "description": "Soft-delete multiple rate limits",
     },
+
+    # ── community posts ──
+    {
+        "key": "community_post:read",
+        "name": "Read Community Post",
+        "description": "View community posts",
+    },
+    {
+        "key": "community_post:create",
+        "name": "Create Community Post",
+        "description": "Create a community post",
+    },
+    {
+        "key": "community_post:update",
+        "name": "Update Community Post",
+        "description": "Update a community post",
+    },
+    {
+        "key": "community_post:soft_delete",
+        "name": "Soft Delete Community Post",
+        "description": "Soft-delete a community post",
+    },
+    {
+        "key": "community_post:bulk_soft_delete",
+        "name": "Bulk Soft Delete Community Posts",
+        "description": "Soft-delete multiple community posts",
+    },
+
+    # ── community comments ──
+    {
+        "key": "community_comment:read",
+        "name": "Read Community Comment",
+        "description": "View community comments",
+    },
+    {
+        "key": "community_comment:create",
+        "name": "Create Community Comment",
+        "description": "Create a community comment",
+    },
+    {
+        "key": "community_comment:update",
+        "name": "Update Community Comment",
+        "description": "Update a community comment",
+    },
+    {
+        "key": "community_comment:soft_delete",
+        "name": "Soft Delete Community Comment",
+        "description": "Soft-delete a community comment",
+    },
+    {
+        "key": "community_comment:bulk_soft_delete",
+        "name": "Bulk Soft Delete Community Comments",
+        "description": "Soft-delete multiple community comments",
+    },
+
+    # ── community chats ──
+    {
+        "key": "community_chat:read",
+        "name": "Read Community Chat",
+        "description": "View community chats and messages",
+    },
+
+    # ── community users ──
+    {
+        "key": "community_user:read",
+        "name": "Read Community User",
+        "description": "View community users",
+    },
+    {
+        "key": "community_user:update",
+        "name": "Update Community User",
+        "description": "Update a community user",
+    },
+    {
+        "key": "community_user:moderate",
+        "name": "Moderate Community User",
+        "description": "Ban, mute, restrict, shadow ban, warn, or reset warnings for a community user",
+    },
+    {
+        "key": "community_user:soft_delete",
+        "name": "Soft Delete Community User",
+        "description": "Soft-delete a community user",
+    },
 ]
 
 

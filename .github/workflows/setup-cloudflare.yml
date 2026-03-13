@@ -1,0 +1,309 @@
+name: Setup Cloudflare
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_mapping:
+        description: "Skip Cloud Run domain mapping creation"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      skip_armor:
+        description: "Skip Cloud Armor IP sync (requires load balancer to take effect)"
+        required: false
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+
+  # Runs automatically after a successful backend deploy.
+  # NOTE: if the Deploy Backend workflow is ever renamed, this trigger
+  # will silently stop firing — update the name below to match.
+  workflow_run:
+    workflows: ["Deploy Backend"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: setup-cloudflare
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  PROJECT_ID:         ${{ vars.GCP_PROJECT_ID }}
+  REGION:             asia-southeast1
+  DOMAIN:             ${{ vars.DOMAIN }}
+  BACKEND_SUBDOMAIN:  api
+  ML_SUBDOMAIN:       ml
+  BACKEND_SERVICE:    pawsport-backend
+  ML_SERVICE:         pawsport-backend-ml
+  ARMOR_POLICY_NAME:  cloudflare-only
+  CF_MAX_RANGES:      128
+
+jobs:
+  setup:
+    name: Configure Cloudflare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Skips silently if DOMAIN is not set (e.g. no custom domain yet).
+    # Once vars.DOMAIN is configured in GitHub, this will run automatically
+    # after every successful backend deploy.
+    if: >
+      vars.DOMAIN != '' &&
+      (github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success')
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      SKIP_MAPPING: ${{ github.event.inputs.skip_mapping || 'false' }}
+      SKIP_ARMOR:   ${{ github.event.inputs.skip_armor   || 'true' }}
+
+    steps:
+      - name: Authenticate to GCP
+        # google-github-actions/auth v2.1.7
+        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account:            ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        # google-github-actions/setup-gcloud v2.1.4
+        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Install gcloud beta component
+        if: env.SKIP_MAPPING != 'true'
+        run: gcloud components install beta --quiet
+
+      - name: Fetch Cloud Run URLs
+        id: urls
+        run: |
+          BACKEND_URL=$(gcloud run services describe "$BACKEND_SERVICE" \
+            --region="$REGION" --project="$PROJECT_ID" \
+            --format="value(status.url)" 2>/dev/null || echo "")
+          ML_URL=$(gcloud run services describe "$ML_SERVICE" \
+            --region="$REGION" --project="$PROJECT_ID" \
+            --format="value(status.url)" 2>/dev/null || echo "")
+
+          echo "backend_host=${BACKEND_URL#https://}" >> "$GITHUB_OUTPUT"
+          echo "ml_host=${ML_URL#https://}"           >> "$GITHUB_OUTPUT"
+
+          [[ -z "$BACKEND_URL" ]] && echo "::warning::${BACKEND_SERVICE} not found"
+          [[ -z "$ML_URL"      ]] && echo "::warning::${ML_SERVICE} not found"
+
+          if [[ -z "$BACKEND_URL" && -z "$ML_URL" ]]; then
+            echo "::error::No Cloud Run services found. Deploy first."
+            exit 1
+          fi
+
+      - name: Create Cloud Run domain mappings
+        if: env.SKIP_MAPPING != 'true'
+        run: |
+          upsert_mapping() {
+            local service="$1"
+            local hostname="$2"
+
+            local existing
+            existing=$(gcloud beta run domain-mappings describe \
+              --domain="$hostname" \
+              --region="$REGION" \
+              --project="$PROJECT_ID" \
+              --format="value(metadata.name)" 2>/dev/null || echo "")
+
+            if [[ -n "$existing" ]]; then
+              echo "  Already exists: ${hostname}"
+              return
+            fi
+
+            gcloud beta run domain-mappings create \
+              --service="$service" \
+              --domain="$hostname" \
+              --region="$REGION" \
+              --project="$PROJECT_ID" \
+              --quiet
+            echo "  Created: ${hostname} → ${service}"
+          }
+
+          [[ -n "${{ steps.urls.outputs.backend_host }}" ]] \
+            && upsert_mapping "$BACKEND_SERVICE" "${BACKEND_SUBDOMAIN}.${DOMAIN}"
+          [[ -n "${{ steps.urls.outputs.ml_host }}" ]] \
+            && upsert_mapping "$ML_SERVICE" "${ML_SUBDOMAIN}.${DOMAIN}"
+
+          echo "::notice::Domain mapping certs can take ~15 min to provision on first run."
+          echo "::notice::Check status: gcloud beta run domain-mappings list --region=${REGION}"
+
+      # DNS upsert and zone hardening are combined in one step so cf_api
+      # is defined once — no risk of the two copies drifting apart.
+      - name: Upsert DNS records and harden zone settings
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ZONE_ID:   ${{ secrets.CF_ZONE_ID }}
+        run: |
+          cf_api() {
+            local method="$1" path="$2" data="${3:-}"
+            local args=(-s -f --max-time 15 -X "$method"
+              -H "Authorization: Bearer ${CF_API_TOKEN}"
+              -H "Content-Type: application/json")
+            [[ -n "$data" ]] && args+=(-d "$data")
+            curl "${args[@]}" "https://api.cloudflare.com/client/v4${path}"
+          }
+
+          # ── DNS records ────────────────────────────────────────────────────
+
+          upsert_cname() {
+            local subdomain="$1" target="$2"
+            local fqdn="${subdomain}.${DOMAIN}"
+            [[ -z "$target" ]] && { echo "  No target for ${fqdn} — skipping"; return; }
+
+            local existing_id payload
+            existing_id=$(cf_api GET "/zones/${CF_ZONE_ID}/dns_records?type=CNAME&name=${fqdn}" \
+              | jq -r '.result[0].id // empty')
+            payload=$(jq -n \
+              --arg name "$fqdn" --arg content "$target" \
+              '{type:"CNAME",name:$name,content:$content,proxied:true,ttl:1}')
+
+            if [[ -n "$existing_id" ]]; then
+              cf_api PUT "/zones/${CF_ZONE_ID}/dns_records/${existing_id}" "$payload" > /dev/null
+              echo "  Updated CNAME: ${fqdn} → ${target}"
+            else
+              cf_api POST "/zones/${CF_ZONE_ID}/dns_records" "$payload" > /dev/null
+              echo "  Created CNAME: ${fqdn} → ${target}"
+            fi
+          }
+
+          echo "--- DNS records ---"
+          upsert_cname "$BACKEND_SUBDOMAIN" "${{ steps.urls.outputs.backend_host }}"
+          upsert_cname "$ML_SUBDOMAIN"      "${{ steps.urls.outputs.ml_host }}"
+
+          # ── Zone hardening ─────────────────────────────────────────────────
+
+          set_setting() {
+            local setting="$1" value="$2" label="$3"
+            local result
+            result=$(cf_api PATCH "/zones/${CF_ZONE_ID}/settings/${setting}" \
+              "{\"value\":\"${value}\"}" 2>&1 || true)
+            if echo "$result" | jq -e '.success == true' > /dev/null 2>&1; then
+              echo "  ✓ ${label}"
+            else
+              local err
+              err=$(echo "$result" | jq -r '.errors[0].message // "unknown"' 2>/dev/null)
+              echo "::warning::${label} failed — ${err}"
+            fi
+          }
+
+          echo "--- Zone settings ---"
+          set_setting "ssl"                      "strict" "SSL → Full Strict"
+          set_setting "always_use_https"         "on"     "Always HTTPS"
+          set_setting "min_tls_version"          "1.2"    "Min TLS 1.2"
+          set_setting "automatic_https_rewrites" "on"     "Automatic HTTPS rewrites"
+          set_setting "opportunistic_encryption" "on"     "Opportunistic encryption"
+
+          HSTS='{"value":{"enabled":true,"max_age":31536000,"include_subdomains":"on","preload":"on","no_sniff":"on"}}'
+          HSTS_RESULT=$(cf_api PATCH "/zones/${CF_ZONE_ID}/settings/security_header" "$HSTS" 2>&1 || true)
+          if echo "$HSTS_RESULT" | jq -e '.success == true' > /dev/null 2>&1; then
+            echo "  ✓ HSTS (1yr, includeSubDomains, preload)"
+          else
+            ERR=$(echo "$HSTS_RESULT" | jq -r '.errors[0].message // "check plan limits"' 2>/dev/null)
+            echo "::warning::HSTS failed — ${ERR}"
+          fi
+
+      - name: Sync Cloudflare IPs to Cloud Armor
+        if: env.SKIP_ARMOR != 'true'
+        run: |
+          echo "::notice::Cloud Armor requires a Global HTTP(S) Load Balancer — policy is created but inactive until attached."
+
+          CF_IPV4=$(curl -sf --max-time 10 https://www.cloudflare.com/ips-v4 | tr '\n' ' ' || true)
+          CF_IPV6=$(curl -sf --max-time 10 https://www.cloudflare.com/ips-v6 | tr '\n' ' ' || true)
+
+          if [[ -z "$CF_IPV4" || -z "$CF_IPV6" ]]; then
+            echo "::error::Failed to fetch Cloudflare IP ranges — aborting to avoid partial sync"
+            exit 1
+          fi
+
+          IPV4_COUNT=$(echo "$CF_IPV4" | wc -w | xargs)
+          IPV6_COUNT=$(echo "$CF_IPV6" | wc -w | xargs)
+          TOTAL=$((IPV4_COUNT + IPV6_COUNT))
+
+          if (( TOTAL > CF_MAX_RANGES )); then
+            echo "::error::Cloudflare returned ${TOTAL} ranges — exceeds CF_MAX_RANGES (${CF_MAX_RANGES}). Update the env var."
+            exit 1
+          fi
+
+          gcloud services enable compute.googleapis.com --project="$PROJECT_ID" --quiet 2>/dev/null
+
+          POLICY_EXISTS=$(gcloud compute security-policies describe "$ARMOR_POLICY_NAME" \
+            --project="$PROJECT_ID" --format="value(name)" 2>/dev/null || echo "")
+
+          if [[ -z "$POLICY_EXISTS" ]]; then
+            gcloud compute security-policies create "$ARMOR_POLICY_NAME" \
+              --description="Allow traffic only from Cloudflare egress IPs" \
+              --project="$PROJECT_ID" --quiet
+          fi
+
+          gcloud compute security-policies rules update 2147483647 \
+            --security-policy="$ARMOR_POLICY_NAME" \
+            --action=deny-403 --project="$PROJECT_ID" --quiet 2>/dev/null || true
+
+          armor_upsert() {
+            local priority="$1" cidr="$2"
+            gcloud compute security-policies rules create "$priority" \
+              --security-policy="$ARMOR_POLICY_NAME" \
+              --src-ip-ranges="$cidr" --action=allow \
+              --project="$PROJECT_ID" --quiet 2>/dev/null && return 0
+            gcloud compute security-policies rules update "$priority" \
+              --security-policy="$ARMOR_POLICY_NAME" \
+              --src-ip-ranges="$cidr" --action=allow \
+              --project="$PROJECT_ID" --quiet 2>/dev/null && return 0
+            echo "::warning::Cloud Armor rule failed: priority=${priority} cidr=${cidr}"
+            return 1
+          }
+
+          PRIORITY=1000
+          for cidr in $CF_IPV4; do armor_upsert "$PRIORITY" "$cidr"; PRIORITY=$((PRIORITY+1)); done
+
+          PRIORITY=2000
+          for cidr in $CF_IPV6; do armor_upsert "$PRIORITY" "$cidr"; PRIORITY=$((PRIORITY+1)); done
+
+          echo "  Synced ${IPV4_COUNT} IPv4 + ${IPV6_COUNT} IPv6 ranges"
+
+      - name: Summary
+        if: success()
+        run: |
+          MAPPING_NOTE=""
+          ARMOR_NOTE=""
+          [[ "$SKIP_MAPPING" != "true" ]] && MAPPING_NOTE="⏳ Domain mapping certs may still be provisioning — check \`gcloud beta run domain-mappings list --region=${REGION}\`"
+          [[ "$SKIP_ARMOR"   != "true" ]] && ARMOR_NOTE="🛡️ Cloud Armor policy synced — attach to a load balancer to activate"
+
+          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
+          ### ✅ Cloudflare Setup Complete
+          EOF
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          | | |
+          |---|---|
+          | **Backend** | https://${BACKEND_SUBDOMAIN}.${DOMAIN} |
+          | **ML** | https://${ML_SUBDOMAIN}.${DOMAIN} |
+          | **SSL** | Full Strict |
+          | **HSTS** | 1yr, includeSubDomains, preload |
+          | **Min TLS** | 1.2 |
+
+          ${MAPPING_NOTE}
+          ${ARMOR_NOTE}
+          EOF
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Cloudflare setup failed. DNS or zone settings may be in a partial state. Re-run this workflow to retry."
+          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
+          ### ❌ Cloudflare Setup Failed
+
+          DNS or zone settings may be in a partial state.
+          **Re-run this workflow** — all steps are idempotent.
+          Check the failed step above for details.
+          EOF

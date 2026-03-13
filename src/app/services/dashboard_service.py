@@ -742,12 +742,11 @@ class DashboardService:
         return [{"tier": name, "users": count} for name, count in rows]
 
     async def get_health(self) -> dict[str, Any]:
-        db_health: bool
         redis_health: bool | None = None
 
         try:
-            async with async_engine.connect() as conn:
-                await conn.execute(text("SELECT 1"))
+            async with _new_session() as db:
+                await db.execute(text("SELECT 1"))
             db_health = True
         except Exception as e:
             LOGGER.exception(f"Database health check failed with error: {e}")
