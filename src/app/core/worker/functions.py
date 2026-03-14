@@ -2,10 +2,7 @@ import asyncio
 import hashlib
 import json
 import logging
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
-import aiosmtplib
 import firebase_admin
 import httpx
 import uvloop
@@ -34,20 +31,7 @@ async def send_email_task(
     try:
         logging.info(f"Sending email to {to_email} (subject={subject})")
 
-        message = MIMEMultipart("alternative")
-        message["From"] = settings.SMTP_USER
-        message["To"] = to_email
-        message["Subject"] = subject
-        message.attach(MIMEText(html, "html"))
-
-        await aiosmtplib.send(
-            message,
-            hostname=settings.SMTP_HOST,
-            port=settings.SMTP_PORT,
-            username=settings.SMTP_USER,
-            password=settings.SMTP_PASSWORD.get_secret_value(),
-            start_tls=True,
-        )
+        # TODO: implement Brevo email sending
 
         logging.info(f"Email sent successfully to {to_email}")
 

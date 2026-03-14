@@ -176,6 +176,9 @@ class DefaultRateLimitSettings(BaseSettings):
     DEFAULT_GUEST_RATE_LIMIT_LIMIT: int = 20
     DEFAULT_GUEST_RATE_LIMIT_PERIOD: int = 60
 
+    DEFAULT_IP_RATE_LIMIT_LIMIT: int = 10
+    DEFAULT_IP_RATE_LIMIT_PERIOD: int = 60
+
 
 class AdminSessionSettings(BaseSettings):
     ADMIN_SESSION_TTL_SECONDS: int = 1800
@@ -224,10 +227,9 @@ class GCSSettings(BaseSettings):
 
 
 class EmailSettings(BaseSettings):
-    SMTP_HOST: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
-    SMTP_USER: str = "pawsport.thesis@gmail.com"
-    SMTP_PASSWORD: SecretStr = SecretStr("")
+    BREVO_API_KEY: SecretStr = SecretStr("")
+    BREVO_SENDER_EMAIL: str = "no-reply@pawsport.cc"
+    BREVO_SENDER_NAME: str = "Pawsport"
 
 
 class QdrantCloudSettings(BaseSettings):

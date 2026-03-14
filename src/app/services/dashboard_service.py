@@ -826,8 +826,9 @@ class DashboardService:
             self.get_article_stats(),
             self.get_admin_user_stats(),
             self.get_tier_stats(),
-            self.get_health(),
         )
+        health = await self.get_health()
+
         return {
             "mobile_users": mobile_users,
             "pets": pets,

@@ -75,6 +75,12 @@ def _assert_mobile_account_active(user: MobileUser) -> None:
         raise UnauthorizedException(message)
 
 
+def _get_route_path(request: Request) -> str:
+    route = request.scope.get("route")
+    raw_path = route.path if route else request.url.path
+    return sanitize_path(f"{request.method.lower()}{raw_path}")
+
+
 async def get_redis_client() -> AsyncGenerator[Redis]:
     if cache_store.client is None:
         raise RuntimeError("Redis client not initialized")
@@ -415,7 +421,7 @@ async def _rate_limit_user(
     if hasattr(request.app.state, "initialization_complete"):
         await request.app.state.initialization_complete.wait()
 
-    path = sanitize_path(request.url.path)
+    path = _get_route_path(request)
     user_id = str(user.id)
 
     if use_default_guest_limit:
@@ -491,12 +497,14 @@ async def ip_rate_limit_dependency(
         or (request.client.host if request.client else "unknown")
     )
 
+    path = _get_route_path(request)
+
     is_limited = await rate_limiter.is_rate_limited(
         db=db,
         user_id=f"ip:{client_ip}",
-        path=request.url.path,
-        limit=settings.DEFAULT_RATE_LIMIT_LIMIT,
-        period=settings.DEFAULT_RATE_LIMIT_PERIOD,
+        path=path,
+        limit=settings.DEFAULT_IP_RATE_LIMIT_LIMIT,
+        period=settings.DEFAULT_IP_RATE_LIMIT_PERIOD,
     )
 
     if is_limited:

@@ -29,7 +29,6 @@ dependencies = [
     "psycopg2-binary>=2.9.9",
     "gunicorn>=23.0.0",
 
-    "aiosmtplib>=5.1.0",
     "argon2-cffi>=25.1.0",
     "firebase-admin>=7.1.0",
     "geoalchemy2>=0.18.1",
