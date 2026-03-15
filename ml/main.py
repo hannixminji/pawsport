@@ -37,7 +37,7 @@ async def create_embedding(
 
     if image_object_keys is not None:
         items = {str(item["id"]): item["image_object_key"] for item in json.loads(image_object_keys)}
-        images.update(load_images("pawsport", items))
+        images.update(load_images("pawsport-thesis", items))
     else:
         for index, file in enumerate(files or []):
             content = await file.read()
@@ -111,7 +111,7 @@ async def validate_detection(
                 detail="image_object_keys must be JSON list of {id, image_object_key}",
             )
 
-        images.update(load_images("pawsport", items))
+        images.update(load_images("pawsport-thesis", items))
     else:
         for index, file in enumerate(files or []):
             content = await file.read()
