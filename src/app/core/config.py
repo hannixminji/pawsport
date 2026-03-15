@@ -228,7 +228,7 @@ class GCSSettings(BaseSettings):
 
 class EmailSettings(BaseSettings):
     BREVO_API_KEY: SecretStr = SecretStr("")
-    BREVO_SENDER_EMAIL: str = "no-reply@pawsport.cc"
+    BREVO_SENDER_EMAIL: str = "pawsport.thesis@gmail.com"
     BREVO_SENDER_NAME: str = "Pawsport"
 
 

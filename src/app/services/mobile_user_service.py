@@ -4,6 +4,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
+from urllib.parse import urlencode
 
 from fastapi.templating import Jinja2Templates
 from geoalchemy2.shape import from_shape
@@ -572,7 +573,7 @@ class MobileUserService:
         )
 
         html = TEMPLATES.get_template("password_reset.html").render(
-            reset_url=f"{settings.APP_URL}/api/v1/auth/reset-password?token={raw_token}",
+            reset_url=f"{settings.APP_URL}/api/v1/auth/reset-password?{urlencode({'token': raw_token})}",
             expire_minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
         )
 
@@ -1165,7 +1166,7 @@ class MobileUserService:
         )
 
         html = TEMPLATES.get_template("email_verification.html").render(
-            verification_url=f"{settings.APP_URL}/api/v1/mobile-users/verify-email?token={raw_token}",
+            verification_url=f"{settings.APP_URL}/api/v1/mobile-users/verify-email?{urlencode({'token': raw_token})}",
             expire_minutes=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES,
         )
 
@@ -1369,7 +1370,10 @@ class MobileUserService:
         await self.db.commit()
 
         html = TEMPLATES.get_template("email_change.html").render(
-            verification_url=f"{settings.APP_URL}/api/v1/mobile-users/email/verify-new?token={raw_verification_token}",
+            verification_url=(
+                f"{settings.APP_URL}/api/v1/mobile-users/email/verify-new"
+                f"?{urlencode({'token': raw_verification_token})}"
+            ),
             expire_minutes=settings.EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES,
         )
 

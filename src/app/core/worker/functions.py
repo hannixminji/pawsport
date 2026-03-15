@@ -31,7 +31,24 @@ async def send_email_task(
     try:
         logging.info(f"Sending email to {to_email} (subject={subject})")
 
-        # TODO: implement Brevo email sending
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={
+                    "api-key": settings.BREVO_API_KEY.get_secret_value(),
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "sender": {
+                        "name": settings.BREVO_SENDER_NAME,
+                        "email": settings.BREVO_SENDER_EMAIL,
+                    },
+                    "to": [{"email": to_email}],
+                    "subject": subject,
+                    "htmlContent": html,
+                },
+            )
+            response.raise_for_status()
 
         logging.info(f"Email sent successfully to {to_email}")
 
