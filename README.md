@@ -69,3 +69,17 @@ gcloud run jobs create pawsport-backend-bootstrap \
 gcloud run jobs execute pawsport-backend-bootstrap \
   --region=asia-southeast1 \
   --wait
+
+
+
+# Tuesday: keep worker warm
+gcloud run services update pawsport-backend-worker \
+  --region=asia-southeast1 \
+  --min-instances=1 \
+  --no-cpu-throttling
+
+# After defense: back to zero
+gcloud run services update pawsport-backend-worker \
+  --region=asia-southeast1 \
+  --min-instances=0 \
+  --cpu-throttling

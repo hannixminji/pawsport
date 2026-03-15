@@ -303,6 +303,29 @@ jobs:
             gcloud run revisions delete "$rev" --region="$REGION" --quiet
           done
 
+      - name: Prune old images from Artifact Registry (keep 5)
+        run: |
+          REPO="asia-southeast1-docker.pkg.dev/${{ env.PROJECT_ID }}/pawsport"
+
+          mapfile -t OLD_DIGESTS < <(
+            gcloud artifacts docker images list "${REPO}/backend" \
+              --include-tags \
+              --sort-by="~UPDATE_TIME" \
+              --format="value(version)" \
+              --project="$PROJECT_ID" 2>/dev/null \
+            | tail -n +6
+          )
+
+          for digest in "${OLD_DIGESTS[@]}"; do
+            [[ -z "$digest" ]] && continue
+            echo "  Deleting backend@${digest}"
+            gcloud artifacts docker images delete \
+              "${REPO}/backend@${digest}" \
+              --delete-tags \
+              --quiet \
+              --project="$PROJECT_ID" 2>/dev/null || true
+          done
+
       - name: Deployment summary
         run: |
           SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
@@ -431,12 +454,12 @@ jobs:
             --no-allow-unauthenticated \
             --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
             --ingress=internal \
-            --min-instances=1 \
-            --max-instances=1 \
+            --min-instances=0 \
+            --max-instances=3 \
             --cpu="${CPU}" \
             --memory="${MEMORY}" \
             --timeout=3600 \
-            --no-cpu-throttling \
+            --cpu-throttling \
             --command="python" \
             --args="-m,app.core.worker.entry" \
             --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_BASE_URL=${{ steps.ml.outputs.url }},BREVO_SENDER_EMAIL=${{ vars.BREVO_SENDER_EMAIL }},BREVO_SENDER_NAME=${{ vars.BREVO_SENDER_NAME }},GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }}" \

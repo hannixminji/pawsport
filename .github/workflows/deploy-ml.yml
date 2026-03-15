@@ -59,7 +59,7 @@ jobs:
             --config=ml/cloudbuild.yaml \
             --substitutions="_IMAGE=${{ env.IMAGE }}" \
             --timeout=1800s \
-            --machine-type=e2-highcpu-32 \
+            --machine-type=e2-highcpu-8 \
             --suppress-logs \
             ./ml
 
@@ -198,6 +198,29 @@ jobs:
 
           for rev in "${OLD[@]}"; do
             gcloud run revisions delete "$rev" --region="$REGION" --quiet
+          done
+
+      - name: Prune old images from Artifact Registry (keep 5)
+        run: |
+          REPO="asia-southeast1-docker.pkg.dev/${{ env.PROJECT_ID }}/pawsport"
+
+          mapfile -t OLD_DIGESTS < <(
+            gcloud artifacts docker images list "${REPO}/ml" \
+              --include-tags \
+              --sort-by="~UPDATE_TIME" \
+              --format="value(version)" \
+              --project="$PROJECT_ID" 2>/dev/null \
+            | tail -n +6
+          )
+
+          for digest in "${OLD_DIGESTS[@]}"; do
+            [[ -z "$digest" ]] && continue
+            echo "  Deleting ml@${digest}"
+            gcloud artifacts docker images delete \
+              "${REPO}/ml@${digest}" \
+              --delete-tags \
+              --quiet \
+              --project="$PROJECT_ID" 2>/dev/null || true
           done
 
       - name: Summary
