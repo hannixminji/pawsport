@@ -83,3 +83,11 @@ gcloud run services update pawsport-backend-worker \
   --region=asia-southeast1 \
   --min-instances=0 \
   --cpu-throttling
+
+
+Create new GCP project + enable billing
+Go to Firebase Console → Add project → link the new GCP project
+Firestore → Create database → choose region asia-southeast1
+Then run the two deploy commands
+  firebase deploy --only firestore:indexes --project=new-project-id
+  firebase deploy --only firestore:rules --project=new-project-id

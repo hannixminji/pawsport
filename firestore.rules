@@ -1,0 +1,129 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isParticipant(participants) {
+      return signedIn() && request.auth.uid in participants;
+    }
+
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isBanned() {
+      return currentUser().get('isBanned', false) == true;
+    }
+
+    function isMuted() {
+      return currentUser().get('isMuted', false) == true;
+    }
+
+    function isPostRestricted() {
+      return currentUser().get('isPostRestricted', false) == true;
+    }
+
+    // =========================
+    // USERS
+    // =========================
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid);
+
+      allow update: if isOwner(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'isBanned', 'isMuted', 'isPostRestricted', 'isShadowBanned', 'warningCount'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // =========================
+    // CHATS
+    // =========================
+    match /chats/{chatId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.participants;
+      allow create: if signedIn()
+        && !isBanned()
+        && request.auth.uid in request.resource.data.participants;
+
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.participants
+        && !('participants' in request.resource.data.diff(resource.data).affectedKeys());
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isParticipant(
+          get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        );
+
+        allow create: if isParticipant(
+          get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        )
+          && !isBanned()
+          && request.resource.data.sender_id == request.auth.uid;
+
+        allow update, delete: if false;
+      }
+    }
+
+    // =========================
+    // POSTS
+    // =========================
+    match /posts/{postId} {
+      allow read: if !resource.data.get('is_hidden', false)
+        || resource.data.user_id == request.auth.uid;
+
+      allow create: if signedIn()
+        && !isBanned()
+        && !isPostRestricted()
+        && request.resource.data.user_id == request.auth.uid;
+
+      allow update: if signedIn()
+        && !isBanned()
+        && resource.data.user_id == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'is_pinned', 'is_announcement', 'is_locked', 'is_hidden',
+          'is_deleted', 'likes_count', 'comments_count'
+        ]);
+
+      allow delete: if signedIn()
+        && !isBanned()
+        && resource.data.user_id == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow read: if true;
+
+        allow create: if signedIn()
+          && !isBanned()
+          && !isMuted()
+          && !get(/databases/$(database)/documents/posts/$(postId)).data.get('is_locked', false)
+          && request.resource.data.user_id == request.auth.uid;
+
+        allow update: if signedIn()
+          && !isBanned()
+          && resource.data.user_id == request.auth.uid;
+
+        allow delete: if signedIn() && (
+          resource.data.user_id == request.auth.uid ||
+          get(/databases/$(database)/documents/posts/$(postId)).data.user_id == request.auth.uid
+        );
+      }
+    }
+
+    // =========================
+    // DENY EVERYTHING ELSE
+    // =========================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
