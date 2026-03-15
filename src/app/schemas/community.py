@@ -70,6 +70,8 @@ class CommentRead(BaseModel):
     username: str
     user_profile_image: str
     text: str
+    likes_count: int = 0
+    reply_count: int = 0
     is_deleted: bool = False
     created_at: datetime
     updated_at: datetime | None = None

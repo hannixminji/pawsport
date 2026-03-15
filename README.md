@@ -103,3 +103,10 @@ Then restrict it:
 Click the key → Application restrictions → Android apps
 Add your app's package name and SHA-1 fingerprint
 Click Save
+
+
+# Turn on
+gcloud run services update pawsport-backend-worker --region=asia-southeast1 --min-instances=1 --no-cpu-throttling
+
+# Turn off
+gcloud run services update pawsport-backend-worker --region=asia-southeast1 --min-instances=0 --cpu-throttling

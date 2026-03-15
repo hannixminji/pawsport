@@ -86,6 +86,8 @@ def _serialize_comment(doc_id: str, post_id: str, data: dict) -> CommentRead:
         username=data.get("username", ""),
         user_profile_image=data.get("user_profile_image", ""),
         text=data.get("text", ""),
+        likes_count=data.get("likes_count", 0),
+        reply_count=data.get("reply_count", 0),
         is_deleted=data.get("is_deleted", False),
         created_at=data.get("created_at", _now()),
         updated_at=data.get("updated_at"),
@@ -109,14 +111,14 @@ def _serialize_firestore_user(doc_id: str, data: dict) -> FirestoreUserRead:
         postgres_id=data.get("id"),
         username=data.get("username", ""),
         user_profile_image=data.get("user_profile_image", ""),
-        is_banned=data.get("isBanned", False),
-        is_muted=data.get("isMuted", False),
-        is_post_restricted=data.get("isPostRestricted", False),
-        is_shadow_banned=data.get("isShadowBanned", False),
-        warning_count=data.get("warningCount", 0),
-        is_deleted=data.get("isDeleted", False),
-        created_at=data.get("createdAt"),
-        updated_at=data.get("updatedAt"),
+        is_banned=data.get("is_banned", False),
+        is_muted=data.get("is_muted", False),
+        is_post_restricted=data.get("is_post_restricted", False),
+        is_shadow_banned=data.get("is_shadow_banned", False),
+        warning_count=data.get("warning_count", 0),
+        is_deleted=data.get("is_deleted", False),
+        created_at=data.get("created_at"),
+        updated_at=data.get("updated_at"),
     )
 
 
@@ -802,7 +804,6 @@ class FirestoreService:
 
         try:
             _, ref = await post_ref.collection(_COMMENTS).add(payload)
-            await post_ref.update({"comments_count": firestore.Increment(1)})
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to create the comment.")
         except Exception as exc:
@@ -877,7 +878,6 @@ class FirestoreService:
 
         try:
             await ref.update({"is_deleted": True, "updated_at": _now()})
-            await post_ref.update({"comments_count": firestore.Increment(-1)})
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to delete the comment.")
         except Exception as exc:
@@ -911,7 +911,6 @@ class FirestoreService:
 
         try:
             await ref.delete()
-            await post_ref.update({"comments_count": firestore.Increment(-1)})
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to permanently delete the comment.")
         except Exception as exc:
@@ -944,9 +943,6 @@ class FirestoreService:
 
         try:
             await batch.commit()
-            await post_ref.update(
-                {"comments_count": firestore.Increment(-len(comment_ids))}
-            )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to bulk delete comments.")
         except Exception as exc:
@@ -1167,11 +1163,11 @@ class FirestoreService:
         query = db.collection(_USERS)
 
         if not include_deleted:
-            query = query.where(filter=FieldFilter("isDeleted", "==", False))
+            query = query.where(filter=FieldFilter("is_deleted", "==", False))
 
         query = (
             query
-            .order_by("createdAt", direction="DESCENDING")
+            .order_by("created_at", direction="DESCENDING")
             .offset(compute_offset(page, items_per_page))
             .limit(items_per_page + 1)
         )
@@ -1222,7 +1218,7 @@ class FirestoreService:
             raise NotFoundError("Firestore user not found.")
 
         updates = {k: v for k, v in user_input.model_dump().items() if v is not None}
-        updates["updatedAt"] = _now()
+        updates["updated_at"] = _now()
 
         try:
             await ref.update(updates)
@@ -1243,7 +1239,7 @@ class FirestoreService:
 
         try:
             await _client().collection(_USERS).document(uid).update(
-                {"isBanned": True, "updatedAt": _now()}
+                {"is_banned": True, "updated_at": _now()}
             )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to ban the user.")
@@ -1262,7 +1258,7 @@ class FirestoreService:
 
         try:
             await _client().collection(_USERS).document(uid).update(
-                {"isBanned": False, "updatedAt": _now()}
+                {"is_banned": False, "updated_at": _now()}
             )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to unban the user.")
@@ -1281,7 +1277,7 @@ class FirestoreService:
 
         try:
             await _client().collection(_USERS).document(uid).update(
-                {"isMuted": True, "updatedAt": _now()}
+                {"is_muted": True, "updated_at": _now()}
             )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to mute the user.")
@@ -1300,7 +1296,7 @@ class FirestoreService:
 
         try:
             await _client().collection(_USERS).document(uid).update(
-                {"isMuted": False, "updatedAt": _now()}
+                {"is_muted": False, "updated_at": _now()}
             )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to unmute the user.")
@@ -1319,7 +1315,7 @@ class FirestoreService:
 
         try:
             await _client().collection(_USERS).document(uid).update(
-                {"isPostRestricted": True, "updatedAt": _now()}
+                {"is_post_restricted": True, "updated_at": _now()}
             )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to restrict the user from posting.")
@@ -1338,7 +1334,7 @@ class FirestoreService:
 
         try:
             await _client().collection(_USERS).document(uid).update(
-                {"isPostRestricted": False, "updatedAt": _now()}
+                {"is_post_restricted": False, "updated_at": _now()}
             )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to unrestrict the user from posting.")
@@ -1357,7 +1353,7 @@ class FirestoreService:
 
         try:
             await _client().collection(_USERS).document(uid).update(
-                {"isShadowBanned": True, "updatedAt": _now()}
+                {"is_shadow_banned": True, "updated_at": _now()}
             )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to shadow ban the user.")
@@ -1376,7 +1372,7 @@ class FirestoreService:
 
         try:
             await _client().collection(_USERS).document(uid).update(
-                {"isShadowBanned": False, "updatedAt": _now()}
+                {"is_shadow_banned": False, "updated_at": _now()}
             )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to remove the shadow ban from the user.")
@@ -1397,8 +1393,8 @@ class FirestoreService:
             ref = _client().collection(_USERS).document(uid)
             await ref.update(
                 {
-                    "warningCount": firestore.Increment(1),
-                    "updatedAt": _now(),
+                    "warning_count": firestore.Increment(1),
+                    "updated_at": _now(),
                 }
             )
             doc = await ref.get()
@@ -1408,7 +1404,7 @@ class FirestoreService:
             LOGGER.exception("Unexpected error warning user '%s'", uid)
             raise RuntimeError(f"Unexpected error warning user '{uid}'.") from exc
 
-        return doc.to_dict().get("warningCount", 1)
+        return doc.to_dict().get("warning_count", 1)
 
     async def reset_warnings(
         self,
@@ -1421,7 +1417,7 @@ class FirestoreService:
 
         try:
             await _client().collection(_USERS).document(uid).update(
-                {"warningCount": 0, "updatedAt": _now()}
+                {"warning_count": 0, "updated_at": _now()}
             )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to reset the user's warnings.")
@@ -1440,7 +1436,7 @@ class FirestoreService:
 
         try:
             await _client().collection(_USERS).document(uid).update(
-                {"isDeleted": True, "updatedAt": _now()}
+                {"is_deleted": True, "updated_at": _now()}
             )
         except GoogleAPICallError as error:
             _map_firestore_error(error, "Failed to delete the user.")
