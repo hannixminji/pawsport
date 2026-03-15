@@ -290,20 +290,20 @@ jobs:
             --region="$REGION" \
             --to-revisions="${{ steps.new_revision.outputs.name }}=100"
 
-      - name: Prune old revisions (keep 5)
+      - name: Prune old revisions (keep current only)
         run: |
           mapfile -t OLD < <(gcloud run revisions list \
             --service="$SERVICE_NAME" \
             --region="$REGION" \
             --format=json \
-            | jq -r 'sort_by(.metadata.creationTimestamp) | reverse | .[5:] | .[].metadata.name')
+            | jq -r 'sort_by(.metadata.creationTimestamp) | reverse | .[1:] | .[].metadata.name')
 
           for rev in "${OLD[@]}"; do
             echo "  Deleting $rev"
             gcloud run revisions delete "$rev" --region="$REGION" --quiet
           done
 
-      - name: Prune old images from Artifact Registry (keep 5)
+      - name: Prune old images from Artifact Registry (keep current only)
         run: |
           REPO="asia-southeast1-docker.pkg.dev/${{ env.PROJECT_ID }}/pawsport"
 
@@ -313,7 +313,7 @@ jobs:
               --sort-by="~UPDATE_TIME" \
               --format="value(version)" \
               --project="$PROJECT_ID" 2>/dev/null \
-            | tail -n +6
+            | tail -n +2
           )
 
           for digest in "${OLD_DIGESTS[@]}"; do
