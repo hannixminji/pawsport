@@ -3,7 +3,7 @@ steps:
     args:
       - -m
       - cp
-      - gs://pawsport/ml-models/*.onnx
+      - gs://pawsport-thesis/ml-models/*.onnx
       - ./ai/models/
 
   - name: gcr.io/cloud-builders/docker
