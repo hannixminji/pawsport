@@ -91,3 +91,15 @@ Firestore → Create database → choose region asia-southeast1
 Then run the two deploy commands
   firebase deploy --only firestore:indexes --project=new-project-id
   firebase deploy --only firestore:rules --project=new-project-id
+
+
+
+
+
+
+APIs & Services → Credentials → Create Credentials → API Key
+Then restrict it:
+
+Click the key → Application restrictions → Android apps
+Add your app's package name and SHA-1 fingerprint
+Click Save
