@@ -217,7 +217,7 @@ class NotificationSettings(BaseSettings):
 
 
 class GCSSettings(BaseSettings):
-    GCS_BUCKET_NAME: str = "pawsport"
+    GCS_BUCKET_NAME: str = "pawsport-thesis"
     GCS_SIGNED_URL_VERSION: str = "v4"
     GCS_VIEW_SIGNED_URL_EXPIRATION_MINUTES: int = 60
     GCS_DOWNLOAD_SIGNED_URL_EXPIRATION_MINUTES: int = 60
