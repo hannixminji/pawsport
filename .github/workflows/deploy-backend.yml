@@ -184,7 +184,7 @@ jobs:
           if [[ "$ENVIRONMENT" == "production" ]]; then
             AUTHED_FLAG="--allow-unauthenticated"
             MIN_INST=1
-            MAX_INST=20
+            MAX_INST=10
             MEMORY="1Gi"
             CPU="2"
           else
