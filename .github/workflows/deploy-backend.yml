@@ -454,12 +454,12 @@ jobs:
             --no-allow-unauthenticated \
             --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
             --ingress=internal \
-            --min-instances=0 \
+            --min-instances=1 \
             --max-instances=3 \
             --cpu="${CPU}" \
             --memory="${MEMORY}" \
             --timeout=3600 \
-            --cpu-throttling \
+            --no-cpu-throttling \
             --command="python" \
             --args="-m,app.core.worker.entry" \
             --set-env-vars="ENVIRONMENT=${ENVIRONMENT},ML_BASE_URL=${{ steps.ml.outputs.url }},BREVO_SENDER_EMAIL=${{ vars.BREVO_SENDER_EMAIL }},BREVO_SENDER_NAME=${{ vars.BREVO_SENDER_NAME }},GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }}" \
