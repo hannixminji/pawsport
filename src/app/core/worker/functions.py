@@ -48,6 +48,7 @@ async def send_email_task(
                     "htmlContent": html,
                 },
             )
+            logging.info(f"Brevo status={response.status_code} body={response.text}")
             response.raise_for_status()
 
         logging.info(f"Email sent successfully to {to_email}")
