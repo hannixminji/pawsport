@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field, field_validator
 
-from ..core.enums import PetSex, PetSpecies
+from ..core.enums import MissingReportStatus, PetSex, PetSpecies
 from ..core.schemas import PersistentDeletion, TimestampSchema, UUIDSchema
 from .pet_allergy import PetAllergyRead
 from .pet_medical_condition import PetMedicalConditionRead
@@ -393,8 +393,21 @@ class PetReadByQR(BaseModel):
         return self._qr_show_allergies
 
 
+class MissingReportReadWithoutPet(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    last_seen_at: datetime
+    last_seen_location: dict[str, float] = Field(alias="last_seen_location_dict")
+    last_seen_address: str
+    report_status: MissingReportStatus
+    created_at: datetime
+    description: str | None
+
+
 class PetSearch(PetRead):
     score: float
+    missing_report: MissingReportReadWithoutPet | None = None
 
 
 class PetCreate(PetBase):

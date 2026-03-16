@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from ..core.enums import MissingReportStatus
 from ..core.schemas import GeoPoint, PersistentDeletion, TimestampSchema
-from .pet import PetReadWithPrimaryProfile
+from .pet import PetRead
 
 
 class MissingReportBase(BaseModel):
@@ -63,7 +63,7 @@ class MissingReportRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    pet: PetReadWithPrimaryProfile
+    pet: PetRead
     last_seen_at: datetime
     last_seen_location: dict[str, float] = Field(alias="last_seen_location_dict")
     last_seen_address: str

@@ -8,13 +8,13 @@ from uuid import UUID
 
 import httpx
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
-from sqlalchemy import delete, func, select, true, update
+from sqlalchemy import any_, delete, func, select, true, update
 from sqlalchemy.exc import IntegrityError, OperationalError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..core.config import settings
-from ..core.enums import ActorType
+from ..core.enums import ActorType, MissingReportStatus
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
 from ..core.exceptions.domain_exceptions import InvalidInputError, MLServiceError, NotFoundError
@@ -38,7 +38,15 @@ from ..models.pet_photo import PetPhoto
 from ..models.pet_qr_preference import PetQRPreference
 from ..models.pet_schedule import PetSchedule
 from ..models.pet_vaccination_record import PetVaccinationRecord
-from ..schemas.pet import OwnerQR, PetCreateWithPhotos, PetRead, PetReadByQR, PetSearch, PetUpdateWithPhotos
+from ..schemas.pet import (
+    MissingReportReadWithoutPet,
+    OwnerQR,
+    PetCreateWithPhotos,
+    PetRead,
+    PetReadByQR,
+    PetSearch,
+    PetUpdateWithPhotos,
+)
 from ..schemas.pet_allergy import PetAllergyRead
 from ..schemas.pet_medical_condition import PetMedicalConditionRead
 from ..schemas.pet_photo import PetPhotoCreate, PetPhotoRead, PetPhotoUpdate
@@ -538,10 +546,34 @@ class PetService:
             )
         ).scalars().all()
 
+        missing_report_by_pet_id: dict[int, MissingReport] = {}
+        if is_search_by_missing:
+            pet_ids = [pet.id for pet in db_pets]
+            if pet_ids:
+                missing_reports = (
+                    await self.db.execute(
+                        select(MissingReport)
+                        .where(
+                            MissingReport.pet_id == any_(pet_ids),
+                            MissingReport.report_status == MissingReportStatus.LOST,
+                            MissingReport.is_deleted.is_(False),
+                        )
+                    )
+                ).scalars().all()
+                missing_report_by_pet_id = {missing_report.pet_id: missing_report for missing_report in missing_reports}
+
         return sorted(
             (
                 PetSearch.model_validate(
-                    {**PetRead.model_validate(pet).model_dump(), "score": pet_scores.get(pet.uuid, 0)}
+                    {
+                        **PetRead.model_validate(pet).model_dump(),
+                        "score": pet_scores.get(pet.uuid, 0),
+                        "missing_report": (
+                            MissingReportReadWithoutPet.model_validate(missing_report_by_pet_id[pet.id]).model_dump()
+                            if is_search_by_missing and pet.id in missing_report_by_pet_id
+                            else None
+                        ),
+                    }
                 )
                 for pet in db_pets
             ),
