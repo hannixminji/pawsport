@@ -31,6 +31,7 @@ from ..core.search_engine.enums import FilterOp
 from ..core.search_engine.schemas import SearchRequest
 from ..core.security import (
     create_access_token,
+    create_firebase_custom_token,
     create_refresh_session,
     generate_refresh_token,
     get_password_hash,
@@ -47,6 +48,7 @@ from ..models.mobile_user import MobileUser
 from ..models.tier import Tier
 from ..models.user_linked_account import UserLinkedAccount
 from ..schemas.mobile_user import (
+    LinkedProvider,
     MobileUserAccountStatusUpdate,
     MobileUserCreate,
     MobileUserEmailChangeOtpVerifyRead,
@@ -73,6 +75,11 @@ _GUEST_ACCOUNT_STATUS_ERRORS: dict[MobileUserAccountStatus, str] = {
     MobileUserAccountStatus.SUSPENDED: "Your guest session has been suspended.",
     MobileUserAccountStatus.BANNED: "Your guest session has been banned.",
     MobileUserAccountStatus.DEACTIVATED: "Your guest session is no longer active.",
+}
+
+_PROVIDER_ORDER = {
+    AuthProvider.EMAIL: 0,
+    AuthProvider.GOOGLE: 1,
 }
 
 
@@ -298,6 +305,7 @@ class MobileUserService:
             refresh_token=opaque_token,
             token_type="bearer",
             user=MobileUserRead.model_validate(new_user),
+            firebase_token=create_firebase_custom_token(new_user.id),
         )
 
     async def login(
@@ -351,6 +359,7 @@ class MobileUserService:
             refresh_token=opaque_token,
             token_type="bearer",
             user=MobileUserRead.model_validate(linked_account.mobile_user),
+            firebase_token=create_firebase_custom_token(linked_account.mobile_user.id),
         )
 
     async def login_or_signup_google(
@@ -845,17 +854,27 @@ class MobileUserService:
         if actor.actor_type == ActorType.MOBILE_USER:
             user_id = actor.id
 
-        linked_providers = (
+        linked_accounts = (
             await self.db.execute(
-                select(UserLinkedAccount.provider)
+                select(UserLinkedAccount.provider, UserLinkedAccount.provider_email)
                 .where(
                     UserLinkedAccount.mobile_user_id == user_id,
                     UserLinkedAccount.is_deleted.is_(False),
                 )
             )
-        ).scalars().all()
+        ).all()
 
-        return MobileUserLinkedProvidersRead(auth_providers=list(linked_providers))
+        sorted_accounts = sorted(linked_accounts, key=lambda a: _PROVIDER_ORDER.get(a.provider, 99))
+
+        return MobileUserLinkedProvidersRead(
+            auth_providers=[
+                LinkedProvider(
+                    provider=account.provider,
+                    email=account.provider_email,
+                )
+                for account in sorted_accounts
+            ]
+        )
 
     async def add_email_password(
         self,

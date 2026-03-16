@@ -17,3 +17,4 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str
     user: MobileUserRead
+    firebase_token: str | None = None

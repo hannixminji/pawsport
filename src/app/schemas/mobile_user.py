@@ -163,8 +163,13 @@ class MobileUserRead(BaseModel):
         return v
 
 
+class LinkedProvider(BaseModel):
+    provider: AuthProvider
+    email: str | None = None
+
+
 class MobileUserLinkedProvidersRead(BaseModel):
-    auth_providers: list[AuthProvider]
+    auth_providers: list[LinkedProvider]
 
 
 class MobileActor(BaseModel):
@@ -233,6 +238,10 @@ class MobileUserVerifyEmail(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     token: Annotated[str, Field(min_length=43, max_length=43, examples=["abc123xyz..."])]
+
+
+class GoogleLinkAccountCreate(BaseModel):
+    firebase_token: str
 
 
 class MobileUserUpdate(BaseModel):

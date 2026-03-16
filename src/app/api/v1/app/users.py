@@ -2,16 +2,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import HTMLResponse
-from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import ip_rate_limit_dependency, rate_limiter_dependency
 from app.core.db.database import async_get_db
 from app.core.enums import AuthProvider
 from app.core.schemas import Actor
-from app.core.security import security
 from app.core.utils.cache import cache
 from app.schemas.mobile_user import (
+    GoogleLinkAccountCreate,
     MobileUserAddEmailPassword,
     MobileUserEmailChangeOtpVerify,
     MobileUserEmailChangeOtpVerifyRead,
@@ -173,14 +172,14 @@ async def add_email_password(
 @router.post("/me/providers/google", status_code=status.HTTP_204_NO_CONTENT)
 async def add_google(
     request: Request,
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    payload: GoogleLinkAccountCreate,
     actor: ActorDependency,
     service: MobileUserServiceDependency,
 ) -> None:
     await service.add_google(
         actor=actor,
         user_id=actor.id,
-        token=credentials.credentials,
+        token=payload.firebase_token,
     )
 
 

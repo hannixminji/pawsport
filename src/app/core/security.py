@@ -193,6 +193,8 @@ async def rotate_refresh_token(
     return new_access, new_opaque, user_id
 
 
+# ── firebase ──
+
 def verify_firebase_token(id_token: str) -> dict[str, Any]:
     try:
         return auth.verify_id_token(id_token)
@@ -207,6 +209,19 @@ def verify_firebase_token(id_token: str) -> dict[str, Any]:
         raise ValueError("Error fetching Firebase public keys.")
     except FirebaseError as firebase_error:
         raise ValueError(f"Firebase error: {firebase_error}")
+
+
+def create_firebase_custom_token(user_id: int | str) -> str | None:
+    """Mint a Firebase custom token for the given user ID.
+    Used to bridge custom JWT auth with Firestore security rules.
+    Returns None if Firebase is unavailable; caller should handle gracefully.
+    """
+    try:
+        token_bytes = auth.create_custom_token(str(user_id))
+        return token_bytes.decode("utf-8")
+    except FirebaseError as firebase_error:
+        LOGGER.error(f"Failed to create Firebase custom token for user {user_id}: {firebase_error}")
+        return None
 
 
 async def has_permission(
