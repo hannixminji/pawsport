@@ -111,7 +111,7 @@ async def get_pet_by_qr(
         "pet_qr.html",
         {
             "request": request,
-            "pet": pet.model_dump(mode="python"),
+            "pet": pet,
             "today": date.today(),
             "csp_nonce": csp_nonce,
         },

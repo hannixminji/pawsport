@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Request
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, conint, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, SecretStr, conint, field_validator
 from pydantic_extra_types.phone_numbers import PhoneNumber
 
 from ..core.enums import ActorType, AuthProvider, MobileUserAccountStatus
@@ -219,7 +219,7 @@ class MobileUserEmailPasswordLogin(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: Annotated[EmailStr, Field(examples=["user.userson@example.com"])]
-    password: Annotated[StrongPassword, Field(examples=["Str1ngst!"])]
+    password: Annotated[SecretStr, Field(min_length=1, max_length=128, examples=["userpassword123"])]
 
     @field_validator("email", mode="before")
     @classmethod
@@ -361,7 +361,7 @@ class MobileUserEmailChangeRequest(BaseModel):
 
     authorization_token: Annotated[str, Field(min_length=43, max_length=43)]
     new_email: Annotated[EmailStr, Field(examples=["user@example.com"])]
-    current_password: Annotated[StrongPassword | None, Field(default=None)]
+    current_password: Annotated[SecretStr | None, Field(min_length=1, max_length=128, default=None)]
 
     @field_validator("new_email", mode="before")
     @classmethod
@@ -388,7 +388,7 @@ class MobileUserAddEmailPassword(BaseModel):
 class MobileUserRemoveLinkedProvider(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    current_password: Annotated[StrongPassword | None, Field(default=None)]
+    current_password: Annotated[SecretStr | None, Field(min_length=1, max_length=128, default=None)]
 
 
 class MobileUserTierUpdate(BaseModel):
@@ -421,7 +421,7 @@ class MobileUserBulkTierUpdate(BaseModel):
 class MobileUserPasswordUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    current_password: Annotated[StrongPassword, Field(examples=["CurrentPass123!"])]
+    current_password: Annotated[SecretStr, Field(min_length=1, max_length=128, examples=["CurrentPass123!"])]
     new_password: Annotated[StrongPassword, Field(examples=["NewPass456@"])]
 
 

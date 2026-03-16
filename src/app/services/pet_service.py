@@ -179,11 +179,18 @@ class PetService:
         if missing_object_keys:
             raise InvalidInputError("Some image files might not have been uploaded. Please upload them and try again.")
 
-    async def _validate_photos_with_ml(self, species_value: str, object_keys: list[str]) -> None:
-        if not object_keys:
+    async def _validate_photos_with_ml(self, species_value: str, photos: list[PetPhotoCreate]) -> None:
+        if not photos:
             return
 
-        validation_payload = [{"id": str(i), "image_object_key": k} for i, k in enumerate(object_keys)]
+        validation_payload = [
+            {"id": str(photo.sort_order), "image_object_key": photo.object_key}
+            for photo in photos
+            if photo.object_key
+        ]
+        if not validation_payload:
+            return
+
         timeout = httpx.Timeout(connect=20.0, write=30.0, read=60.0, pool=None)
 
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -224,18 +231,52 @@ class PetService:
         reasons = {str(r.get("reason") or "") for r in invalid}
         bad_ids = [str(r.get("id")) for r in invalid if r.get("id") is not None]
         bad_ids_sorted = sorted(bad_ids, key=lambda x: int(x) if x.isdigit() else x)
-        bad_label = ", ".join(str(int(x) + 1) for x in bad_ids_sorted if x.isdigit())
+
+        if len(bad_ids_sorted) == 1:
+            photo_label = f"Photo {bad_ids_sorted[0]}"
+        elif len(bad_ids_sorted) == 2:
+            photo_label = f"Photos {bad_ids_sorted[0]} and {bad_ids_sorted[1]}"
+        else:
+            photo_label = f"Photos {', '.join(bad_ids_sorted[:-1])}, and {bad_ids_sorted[-1]}"
 
         if "wrong_species" in reasons:
-            base = f"One or more photos don't look like a {species_value}. Please upload clear {species_value} photos."
+            base = (
+                f"Hmm, {photo_label} don't seem to be a {species_value}. "
+                f"Please upload clear {species_value} photos and try again."
+                if bad_ids_sorted
+                else
+                f"Hmm, one or more photos don't seem to be a {species_value}. "
+                f"Please upload clear {species_value} photos and try again."
+            )
         elif "no_detection" in reasons:
-            base = f"We couldn't find a {species_value} in one or more photos. Please upload clearer photos."
+            base = (
+                f"We couldn't spot a {species_value} in {photo_label}. "
+                "Try uploading a clearer, well-lit photo of your pet."
+                if bad_ids_sorted
+                else
+                f"We couldn't spot a {species_value} in one or more photos. "
+                "Try uploading a clearer, well-lit photo of your pet."
+            )
         elif "multiple_found" in reasons:
-            base = "We detected more than one pet in one or more photos. Please upload photos with only one pet."
+            base = (
+                f"{photo_label} seem to have more than one pet in them. "
+                "Please upload photos with only one pet visible."
+                if bad_ids_sorted
+                else
+                "One or more photos seem to have more than one pet in them. "
+                "Please upload photos with only one pet visible."
+            )
         else:
-            base = "One or more photos can't be used. Please upload clearer photos."
+            base = (
+                f"We had trouble processing {photo_label}. "
+                "Please try uploading clearer photos."
+                if bad_ids_sorted
+                else
+                "We had trouble processing one or more photos. "
+                "Please try uploading clearer photos."
+            )
 
-        raise InvalidInputError(f"{base} (Problem photos: {bad_label})" if bad_label else base)
+        raise InvalidInputError(base)
 
     def _build_new_photo(self, pet_id: int, photo: PetPhotoCreate) -> PetPhoto:
         return PetPhoto(
@@ -369,7 +410,7 @@ class PetService:
         if species_value not in VALID_SPECIES:
             raise InvalidInputError("Invalid pet species. Must be 'cat' or 'dog'.")
 
-        await self._validate_photos_with_ml(species_value, object_keys)
+        await self._validate_photos_with_ml(species_value, photos)
 
         try:
             pet_model = Pet(
@@ -569,7 +610,7 @@ class PetService:
                         **PetRead.model_validate(pet).model_dump(),
                         "score": pet_scores.get(pet.uuid, 0),
                         "missing_report": (
-                            MissingReportReadWithoutPet.model_validate(missing_report_by_pet_id[pet.id]).model_dump()
+                            MissingReportReadWithoutPet.model_validate(missing_report_by_pet_id[pet.id]).model_dump(by_alias=True)
                             if is_search_by_missing and pet.id in missing_report_by_pet_id
                             else None
                         ),
@@ -792,11 +833,11 @@ class PetService:
         pet_species = self._normalize_species(db_pet.species)
 
         if pet_input.photos is not None:
-            new_photos = [p for p in pet_input.photos if getattr(p, "id", None) is None]
-            new_object_keys = [new_photo.object_key for new_photo in new_photos if new_photo.object_key]
+            new_photos = [photo for photo in pet_input.photos if getattr(photo, "id", None) is None]
+            new_object_keys = [photo.object_key for photo in new_photos if photo.object_key]
             if new_object_keys:
                 await self._validate_photo_object_keys_exist(new_object_keys)
-                await self._validate_photos_with_ml(pet_species, new_object_keys)
+                await self._validate_photos_with_ml(pet_species, new_photos)
 
         apply_partial_update(
             target=db_pet,

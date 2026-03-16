@@ -14,5 +14,9 @@ class UnauthorizedError(Exception):
     """Raised when an operation is attempted without valid authentication credentials."""
 
 
+class BadRequestError(Exception):
+    """Raised when a request is malformed or contains invalid parameters."""
+
+
 class MLServiceError(Exception):
     """Raised when the ML service is unavailable or returns an unexpected response."""

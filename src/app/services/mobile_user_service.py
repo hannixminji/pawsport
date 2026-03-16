@@ -18,7 +18,13 @@ from ..core.config import settings
 from ..core.enums import ActorType, AuthProvider, MobileUserAccountStatus, UserTokenType
 from ..core.exceptions.authorization_exceptions import ForbiddenError
 from ..core.exceptions.db_exceptions import NonTransientDatabaseError, TransientDatabaseError
-from ..core.exceptions.domain_exceptions import DuplicateValueError, InvalidInputError, NotFoundError, UnauthorizedError
+from ..core.exceptions.domain_exceptions import (
+    BadRequestError,
+    DuplicateValueError,
+    InvalidInputError,
+    NotFoundError,
+    UnauthorizedError,
+)
 from ..core.schemas import Actor, PaginatedResponse
 from ..core.search_engine.engine import SearchEngine
 from ..core.search_engine.enums import FilterOp
@@ -549,8 +555,7 @@ class MobileUserService:
                 )
             )
         ).scalar_one_or_none()
-
-        if db_user is None or not db_user.is_email_verified:
+        if db_user is None:
             return
 
         linked_account = (
@@ -563,8 +568,14 @@ class MobileUserService:
                 )
             )
         ).scalar_one_or_none()
+
         if linked_account is None:
             return
+
+        if not db_user.is_email_verified:
+            raise BadRequestError(
+                "Your email address has not been verified. Please verify your email before resetting your password."
+            )
 
         token_service = MobileUserTokenService(db=self.db)
         try:
