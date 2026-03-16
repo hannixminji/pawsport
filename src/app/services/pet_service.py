@@ -191,6 +191,14 @@ class PetService:
         if not validation_payload:
             return
 
+        all_sort_orders_sorted = sorted(
+            photo.sort_order for photo in photos if photo.object_key
+        )
+        position_by_sort_order = {
+            str(sort_order): idx + 1
+            for idx, sort_order in enumerate(all_sort_orders_sorted)
+        }
+
         timeout = httpx.Timeout(connect=20.0, write=30.0, read=60.0, pool=None)
 
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -231,19 +239,24 @@ class PetService:
         reasons = {str(r.get("reason") or "") for r in invalid}
         bad_ids = [str(r.get("id")) for r in invalid if r.get("id") is not None]
         bad_ids_sorted = sorted(bad_ids, key=lambda x: int(x) if x.isdigit() else x)
+        bad_ids_display = [
+            str(position_by_sort_order[x])
+            for x in bad_ids_sorted
+            if x in position_by_sort_order
+        ]
 
-        if len(bad_ids_sorted) == 1:
-            photo_label = f"Photo {bad_ids_sorted[0]}"
-        elif len(bad_ids_sorted) == 2:
-            photo_label = f"Photos {bad_ids_sorted[0]} and {bad_ids_sorted[1]}"
+        if len(bad_ids_display) == 1:
+            photo_label = f"Photo {bad_ids_display[0]}"
+        elif len(bad_ids_display) == 2:
+            photo_label = f"Photos {bad_ids_display[0]} and {bad_ids_display[1]}"
         else:
-            photo_label = f"Photos {', '.join(bad_ids_sorted[:-1])}, and {bad_ids_sorted[-1]}"
+            photo_label = f"Photos {', '.join(bad_ids_display[:-1])}, and {bad_ids_display[-1]}"
 
         if "wrong_species" in reasons:
             base = (
                 f"Hmm, {photo_label} don't seem to be a {species_value}. "
                 f"Please upload clear {species_value} photos and try again."
-                if bad_ids_sorted
+                if bad_ids_display
                 else
                 f"Hmm, one or more photos don't seem to be a {species_value}. "
                 f"Please upload clear {species_value} photos and try again."
@@ -252,7 +265,7 @@ class PetService:
             base = (
                 f"We couldn't spot a {species_value} in {photo_label}. "
                 "Try uploading a clearer, well-lit photo of your pet."
-                if bad_ids_sorted
+                if bad_ids_display
                 else
                 f"We couldn't spot a {species_value} in one or more photos. "
                 "Try uploading a clearer, well-lit photo of your pet."
@@ -261,7 +274,7 @@ class PetService:
             base = (
                 f"{photo_label} seem to have more than one pet in them. "
                 "Please upload photos with only one pet visible."
-                if bad_ids_sorted
+                if bad_ids_display
                 else
                 "One or more photos seem to have more than one pet in them. "
                 "Please upload photos with only one pet visible."
@@ -270,7 +283,7 @@ class PetService:
             base = (
                 f"We had trouble processing {photo_label}. "
                 "Please try uploading clearer photos."
-                if bad_ids_sorted
+                if bad_ids_display
                 else
                 "We had trouble processing one or more photos. "
                 "Please try uploading clearer photos."

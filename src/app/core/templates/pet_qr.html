@@ -1074,11 +1074,11 @@
                 <div class="section-content" id="allergiesContent">
                     <div class="medical-grid">
                         {% for allergy in pet.allergies %}
-                        <div class="medical-card severity-{{ (allergy.severity_level.name if allergy.severity_level.name is defined else allergy.severity_level)|lower }}">
+                        <div class="medical-card severity-{{ (allergy.severity.name if allergy.severity.name is defined else allergy.severity)|lower }}">
                             <div class="medical-card-header">
                                 <div class="medical-card-title">{{ allergy.allergen }}</div>
                                 <div class="badge-group">
-                                    <span class="severity-badge {{ (allergy.severity_level.name if allergy.severity_level.name is defined else allergy.severity_level)|lower }}">{{ (allergy.severity_level.name if allergy.severity_level.name is defined else allergy.severity_level)|lower }}</span>
+                                    <span class="severity-badge {{ (allergy.severity.name if allergy.severity.name is defined else allergy.severity)|lower }}">{{ (allergy.severity.name if allergy.severity.name is defined else allergy.severity)|lower }}</span>
                                     <span class="type-badge">{{ allergy.allergen_type|replace('_', ' ')|title }}</span>
                                 </div>
                             </div>
@@ -1117,11 +1117,11 @@
                 <div class="section-content" id="conditionsContent">
                     <div class="medical-grid">
                         {% for condition in pet.medical_conditions %}
-                        <div class="medical-card severity-{{ (condition.severity_level.name if condition.severity_level.name is defined else condition.severity_level)|lower }}">
+                        <div class="medical-card severity-{{ (condition.severity.name if condition.severity.name is defined else condition.severity)|lower }}">
                             <div class="medical-card-header">
                                 <div class="medical-card-title">{{ condition.condition_name }}</div>
                                 <div class="badge-group">
-                                    <span class="severity-badge {{ (condition.severity_level.name if condition.severity_level.name is defined else condition.severity_level)|lower }}">{{ (condition.severity_level.name if condition.severity_level.name is defined else condition.severity_level)|lower }}</span>
+                                    <span class="severity-badge {{ (condition.severity.name if condition.severity.name is defined else condition.severity)|lower }}">{{ (condition.severity.name if condition.severity.name is defined else condition.severity)|lower }}</span>
                                     <span class="status-badge-small {{ (condition.condition_status.name if condition.condition_status.name is defined else condition.condition_status)|lower }}">{{ (condition.condition_status.name if condition.condition_status.name is defined else condition.condition_status)|lower }}</span>
                                 </div>
                             </div>
