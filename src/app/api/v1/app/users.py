@@ -34,7 +34,7 @@ def _static_html_response(html_content: str) -> HTMLResponse:
         "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
         "font-src https://fonts.gstatic.com; "
         "script-src 'none'; "
-        "img-src 'self' data:; "
+        "img-src 'self' data: https://storage.googleapis.com; "
         "base-uri 'none'; "
         "form-action 'none'; "
         "frame-ancestors 'none';"
@@ -228,3 +228,11 @@ async def update_mobile_user_password(
         current_password=payload.current_password.get_secret_value(),
         new_password=payload.new_password.get_secret_value(),
     )
+
+@router.patch("/me/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def soft_delete_mobile_user(
+    request: Request,
+    actor: ActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.soft_delete(actor=actor, user_id=actor.id)

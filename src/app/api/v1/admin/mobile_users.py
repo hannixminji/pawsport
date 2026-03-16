@@ -6,16 +6,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.csrf_router import CSRFProtectedRouter, csrf_exempt
 from app.api.dependencies import get_current_superuser_actor, require_permission
 from app.core.db.database import async_get_db
+from app.core.enums import AuthProvider
 from app.core.schemas import Actor, PaginatedResponse
 from app.core.search_engine.schemas import SearchRequest
 from app.core.utils.cache import cache, invalidate_namespace
 from app.schemas.mobile_user import (
     MobileUserAccountStatusUpdate,
+    MobileUserAddEmailPassword,
     MobileUserCreate,
+    MobileUserEmailChangeRequest,
+    MobileUserEmailPasswordRegister,
+    MobileUserForgotPassword,
+    MobileUserLinkedProvidersRead,
     MobileUserPasswordUpdate,
     MobileUserRead,
+    MobileUserRemoveLinkedProvider,
     MobileUserUpdate,
 )
+from app.schemas.token import TokenResponse
 from app.services.mobile_user_service import MobileUserService
 
 router = CSRFProtectedRouter(prefix="/mobile-users", tags=["Mobile Users"])
@@ -44,7 +52,7 @@ async def search_mobile_users(
 async def send_verification_email(
     request: Request,
     user_id: int,
-    actor: Annotated[Actor, Depends(require_permission("mobile_user:send_verification_email"))],
+    actor: SuperuserActorDependency,
     service: MobileUserServiceDependency,
 ) -> None:
     await service.send_verification_email(actor=actor, user_id=user_id)
@@ -145,7 +153,7 @@ async def update_mobile_user_tier(
     await service.update_tier(actor=actor, user_id=user_id, tier_id=tier_id)
 
 
-@router.patch("/{user_id}/account-status", status_code=status.HTTP_204_NO_CONTENT)  # ← here
+@router.patch("/{user_id}/account-status", status_code=status.HTTP_204_NO_CONTENT)
 @cache(
     key_prefix="admin:mobile-users:detail",
     resource_id_name="user_id",
@@ -190,3 +198,94 @@ async def hard_delete_mobile_user(
     service: MobileUserServiceDependency,
 ) -> None:
     await service.hard_delete(actor=actor, user_id=user_id)
+
+
+@router.get("/{user_id}/providers", response_model=MobileUserLinkedProvidersRead, status_code=status.HTTP_200_OK)
+async def get_mobile_user_linked_providers(
+    request: Request,
+    user_id: int,
+    actor: SuperuserActorDependency,
+    service: MobileUserServiceDependency,
+) -> MobileUserLinkedProvidersRead:
+    return await service.get_linked_providers(actor=actor, user_id=user_id)
+
+
+@router.post("/{user_id}/email/change/request-otp", status_code=status.HTTP_204_NO_CONTENT)
+async def request_email_change_otp(
+    request: Request,
+    user_id: int,
+    actor: SuperuserActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.request_email_change_otp(actor=actor, user_id=user_id)
+
+
+@router.post("/{user_id}/email/change", status_code=status.HTTP_204_NO_CONTENT)
+async def request_email_change(
+    request: Request,
+    user_id: int,
+    payload: MobileUserEmailChangeRequest,
+    actor: SuperuserActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.request_email_change(
+        actor=actor,
+        user_id=user_id,
+        authorization_token=payload.authorization_token,
+        new_email=payload.new_email,
+        current_password=payload.current_password.get_secret_value() if payload.current_password else None,
+    )
+
+
+@router.post("/{user_id}/providers/email", status_code=status.HTTP_204_NO_CONTENT)
+async def add_email_password(
+    request: Request,
+    user_id: int,
+    payload: MobileUserAddEmailPassword,
+    actor: SuperuserActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.add_email_password(
+        actor=actor,
+        user_id=user_id,
+        email=payload.email,
+        password=payload.password.get_secret_value(),
+    )
+
+
+@router.post("/{user_id}/providers/{provider}/remove", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_linked_provider(
+    request: Request,
+    user_id: int,
+    provider: AuthProvider,
+    payload: MobileUserRemoveLinkedProvider,
+    actor: SuperuserActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.remove_linked_provider(
+        actor=actor,
+        user_id=user_id,
+        provider=provider,
+        current_password=payload.current_password.get_secret_value() if payload.current_password else None,
+    )
+
+
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def register(
+    request: Request,
+    payload: MobileUserEmailPasswordRegister,
+    actor: SuperuserActorDependency,
+    service: MobileUserServiceDependency,
+) -> TokenResponse:
+    return await service.register(payload=payload)
+
+
+@router.post("/{user_id}/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+async def forgot_password(
+    request: Request,
+    user_id: int,
+    payload: MobileUserForgotPassword,
+    actor: SuperuserActorDependency,
+    service: MobileUserServiceDependency,
+) -> None:
+    await service.forgot_password(email=payload.email)

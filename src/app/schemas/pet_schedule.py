@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from dateutil.rrule import rrulestr
@@ -351,7 +351,7 @@ class PetScheduleRead(BaseModel):
         if not self.is_recurring or not self.recurrence_rule:
             return None
 
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(UTC)
         rule = rrulestr(self.recurrence_rule, dtstart=self.scheduled_at)
         return rule.after(now)
 

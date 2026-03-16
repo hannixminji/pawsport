@@ -1,8 +1,9 @@
+# ruff: noqa: E501
 """initial
 
-Revision ID: 31e73d59feec
+Revision ID: 9669902249f5
 Revises:
-Create Date: 2026-03-05 11:07:39.735214
+Create Date: 2026-03-16 07:50:57.080853
 
 """
 from collections.abc import Sequence
@@ -14,7 +15,7 @@ from geoalchemy2 import Geography
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '31e73d59feec'
+revision: str = '9669902249f5'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -84,6 +85,36 @@ def upgrade() -> None:
     op.create_index('idx_article_category_active', 'article', ['category'], unique=False, postgresql_where=sa.text('is_deleted = false'))
     op.create_index('idx_article_tags_active', 'article', ['tags'], unique=False, postgresql_using='gin', postgresql_where=sa.text('is_deleted = false'))
     op.create_index('uq_article_title_active', 'article', ['title'], unique=True, postgresql_where=sa.text('is_deleted = false'))
+    op.create_table('system_action_log',
+    sa.Column('id', sa.BigInteger(), nullable=False),
+    sa.Column('actor_type', sa.String(), nullable=False),
+    sa.Column('action', sa.String(), nullable=False),
+    sa.Column('status', sa.Enum('SUCCESS', 'FAILURE', name='system_action_log_status_enum'), nullable=False),
+    sa.Column('is_superuser', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+    sa.Column('is_anonymous', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+    sa.Column('actor_id', sa.Integer(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('actor_email', sa.String(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('role_ids', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('resource_type', sa.String(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('resource_id', sa.Text(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('error_code', sa.String(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('error_message', sa.Text(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('request_id', sa.String(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('ip_address', sa.String(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('user_agent', sa.Text(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('before_state', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('after_state', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('extra_metadata', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('duration_ms', sa.Integer(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_system_action_log_action_created_at', 'system_action_log', ['action', 'created_at'], unique=False)
+    op.create_index('idx_system_action_log_actor_id_created_at', 'system_action_log', ['actor_id', 'created_at'], unique=False)
+    op.create_index('idx_system_action_log_failures', 'system_action_log', ['status', 'created_at'], unique=False, postgresql_where=sa.text("status = 'FAILURE'"))
+    op.create_index('idx_system_action_log_request_id', 'system_action_log', ['request_id'], unique=False)
+    op.create_index('idx_system_action_log_resource_type_resource_id_created_at', 'system_action_log', ['resource_type', 'resource_id', 'created_at'], unique=False)
+    op.create_index('idx_system_action_log_status_created_at', 'system_action_log', ['status', 'created_at'], unique=False)
     op.create_table('tier',
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
@@ -177,7 +208,7 @@ def upgrade() -> None:
     op.create_index('uq_device_push_token_provider_token', 'device_push_token', ['provider', 'token'], unique=True)
     op.create_table('mobile_user_token',
     sa.Column('mobile_user_id', sa.Integer(), nullable=False),
-    sa.Column('type', sa.Enum('email_verification', 'email_change', 'password_reset', name='mobile_user_token_type_enum'), nullable=False),
+    sa.Column('type', sa.Enum('email_verification', 'email_change_otp', 'email_change_authorization', 'email_change', 'password_reset', name='mobile_user_token_type_enum'), nullable=False),
     sa.Column('token_hash', sa.String(), nullable=False),
     sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('payload_json', postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text('NULL'), nullable=True),
@@ -253,6 +284,17 @@ def upgrade() -> None:
     sa.Column('show_email', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('show_phone_number', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('show_address', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+    sa.Column('show_pet_name', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_breed', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_age', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_sex', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_weight', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_color', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_markings', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_sterilized', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_medications', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+    sa.Column('show_vaccines', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+    sa.Column('show_allergies', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['owner_id'], ['mobile_user.id'], ondelete='CASCADE'),
@@ -277,7 +319,12 @@ def upgrade() -> None:
     sa.Column('sighting_location', Geography(geometry_type='POINT', srid=4326, dimension=2, spatial_index=False, from_text='ST_GeogFromText', name='geography', nullable=False), nullable=False),
     sa.Column('sighting_address', sa.String(), nullable=False),
     sa.Column('mobile_user_id', sa.Integer(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('report_status', sa.Enum('sighted', 'fostered', name='sighting_report_status_enum'), server_default=sa.text("'sighted'::sighting_report_status_enum"), nullable=False),
     sa.Column('description', sa.Text(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('reporter_name', sa.Text(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('reporter_email', sa.Text(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('reporter_phone_number', sa.Text(), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('uuid', sa.UUID(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -290,6 +337,7 @@ def upgrade() -> None:
     op.create_index('idx_sighting_report_pet_species_active', 'sighting_report', ['pet_species'], unique=False, postgresql_where=sa.text('is_deleted = false'))
     op.create_index('idx_sighting_report_sighted_at_active', 'sighting_report', ['sighted_at'], unique=False, postgresql_where=sa.text('is_deleted = false'))
     op.create_geospatial_index('idx_sighting_report_sighting_location_active', 'sighting_report', ['sighting_location'], unique=False, postgresql_using='gist', postgresql_where=sa.text('is_deleted = false'), postgresql_ops={})
+    op.create_index('idx_sighting_report_status_active', 'sighting_report', ['report_status'], unique=False, postgresql_where=sa.text('is_deleted = false'))
     op.create_table('user_linked_account',
     sa.Column('mobile_user_id', sa.Integer(), nullable=False),
     sa.Column('provider', sa.Enum('google.com', 'email', 'anonymous', name='user_linked_account_provider_enum'), nullable=False),
@@ -305,6 +353,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('idx_user_linked_account_mobile_user_id_active', 'user_linked_account', ['mobile_user_id'], unique=False, postgresql_where=sa.text('is_deleted = false'))
+    op.create_index('uq_user_linked_account_mobile_user_provider_active', 'user_linked_account', ['mobile_user_id', 'provider'], unique=True, postgresql_where=sa.text('is_deleted = false'))
     op.create_index('uq_user_linked_account_provider_provider_user_id_active', 'user_linked_account', ['provider', 'provider_user_id'], unique=True, postgresql_where=sa.text('is_deleted = false'))
     op.create_geospatial_table('missing_report',
     sa.Column('pet_id', sa.Integer(), nullable=False),
@@ -312,7 +361,7 @@ def upgrade() -> None:
     sa.Column('last_seen_location', Geography(geometry_type='POINT', srid=4326, dimension=2, spatial_index=False, from_text='ST_GeogFromText', name='geography', nullable=False), nullable=False),
     sa.Column('last_seen_address', sa.String(), nullable=False),
     sa.Column('description', sa.Text(), server_default=sa.text('NULL'), nullable=True),
-    sa.Column('report_status', sa.Enum('lost', 'found', 'returned', 'fostered', 'case_closed', name='missing_report_status_enum'), server_default=sa.text("'lost'::missing_report_status_enum"), nullable=False),
+    sa.Column('report_status', sa.Enum('lost', 'found', 'returned', 'case_closed', name='missing_report_status_enum'), server_default=sa.text("'lost'::missing_report_status_enum"), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -416,6 +465,17 @@ def upgrade() -> None:
     sa.Column('show_email', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('show_phone_number', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('show_address', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+    sa.Column('show_pet_name', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_breed', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_age', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_sex', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_weight', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_color', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_markings', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_pet_sterilized', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+    sa.Column('show_medications', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+    sa.Column('show_vaccines', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+    sa.Column('show_allergies', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('override_defaults', sa.Boolean(), server_default=sa.text('false'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -463,6 +523,7 @@ def upgrade() -> None:
     sa.Column('object_key', sa.String(), nullable=False),
     sa.Column('sort_order', sa.Integer(), nullable=False),
     sa.Column('mime_type', sa.Enum('image/jpeg', 'image/png', name='sighting_report_image_mime_type_enum'), server_default=sa.text('NULL'), nullable=True),
+    sa.Column('uuid', sa.UUID(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -527,8 +588,10 @@ def downgrade() -> None:
     op.drop_index('idx_missing_report_last_seen_at_active', table_name='missing_report', postgresql_where=sa.text('is_deleted = false'))
     op.drop_geospatial_table('missing_report')
     op.drop_index('uq_user_linked_account_provider_provider_user_id_active', table_name='user_linked_account', postgresql_where=sa.text('is_deleted = false'))
+    op.drop_index('uq_user_linked_account_mobile_user_provider_active', table_name='user_linked_account', postgresql_where=sa.text('is_deleted = false'))
     op.drop_index('idx_user_linked_account_mobile_user_id_active', table_name='user_linked_account', postgresql_where=sa.text('is_deleted = false'))
     op.drop_table('user_linked_account')
+    op.drop_index('idx_sighting_report_status_active', table_name='sighting_report', postgresql_where=sa.text('is_deleted = false'))
     op.drop_geospatial_index('idx_sighting_report_sighting_location_active', table_name='sighting_report', postgresql_using='gist', postgresql_where=sa.text('is_deleted = false'), column_name='sighting_location')
     op.drop_index('idx_sighting_report_sighted_at_active', table_name='sighting_report', postgresql_where=sa.text('is_deleted = false'))
     op.drop_index('idx_sighting_report_pet_species_active', table_name='sighting_report', postgresql_where=sa.text('is_deleted = false'))
@@ -574,6 +637,13 @@ def downgrade() -> None:
     op.drop_table('admin_role_permission')
     op.drop_index('uq_tier_name', table_name='tier')
     op.drop_table('tier')
+    op.drop_index('idx_system_action_log_status_created_at', table_name='system_action_log')
+    op.drop_index('idx_system_action_log_resource_type_resource_id_created_at', table_name='system_action_log')
+    op.drop_index('idx_system_action_log_request_id', table_name='system_action_log')
+    op.drop_index('idx_system_action_log_failures', table_name='system_action_log', postgresql_where=sa.text("status = 'FAILURE'"))
+    op.drop_index('idx_system_action_log_actor_id_created_at', table_name='system_action_log')
+    op.drop_index('idx_system_action_log_action_created_at', table_name='system_action_log')
+    op.drop_table('system_action_log')
     op.drop_index('uq_article_title_active', table_name='article', postgresql_where=sa.text('is_deleted = false'))
     op.drop_index('idx_article_tags_active', table_name='article', postgresql_using='gin', postgresql_where=sa.text('is_deleted = false'))
     op.drop_index('idx_article_category_active', table_name='article', postgresql_where=sa.text('is_deleted = false'))

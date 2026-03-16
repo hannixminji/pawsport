@@ -567,10 +567,14 @@ class MobileUserService:
             return
 
         token_service = MobileUserTokenService(db=self.db)
-        raw_token = await token_service.create_token(
-            mobile_user_id=db_user.id,
-            token_type=UserTokenType.PASSWORD_RESET,
-        )
+        try:
+            raw_token = await token_service.create_token(
+                mobile_user_id=db_user.id,
+                token_type=UserTokenType.PASSWORD_RESET,
+            )
+        except Exception as error:
+            LOGGER.exception(f"forgot_password failed during create_token for user_id={db_user.id}: {error}")
+            raise
 
         html = TEMPLATES.get_template("password_reset.html").render(
             reset_url=f"{settings.APP_URL}/api/v1/auth/reset-password?{urlencode({'token': raw_token})}",
@@ -589,10 +593,14 @@ class MobileUserService:
         raw_token: str,
     ) -> None:
         token_service = MobileUserTokenService(db=self.db)
-        await token_service.verify_token(
-            raw_token=raw_token,
-            token_type=UserTokenType.PASSWORD_RESET,
-        )
+        try:
+            await token_service.verify_token(
+                raw_token=raw_token,
+                token_type=UserTokenType.PASSWORD_RESET,
+            )
+        except Exception as error:
+            LOGGER.exception(f"validate_password_reset_token failed during verify_token: {error}")
+            raise
 
     async def reset_password(
         self,
@@ -601,10 +609,14 @@ class MobileUserService:
         new_password: str,
     ) -> None:
         token_service = MobileUserTokenService(db=self.db)
-        db_token = await token_service.verify_token(
-            raw_token=raw_token,
-            token_type=UserTokenType.PASSWORD_RESET,
-        )
+        try:
+            db_token = await token_service.verify_token(
+                raw_token=raw_token,
+                token_type=UserTokenType.PASSWORD_RESET,
+            )
+        except Exception as error:
+            LOGGER.exception(f"reset_password failed during verify_token: {error}")
+            raise
 
         user_id = db_token.mobile_user_id
 
@@ -1160,10 +1172,14 @@ class MobileUserService:
             raise InvalidInputError("No email address found for this user.")
 
         token_service = MobileUserTokenService(db=self.db)
-        raw_token = await token_service.create_token(
-            mobile_user_id=user_id,
-            token_type=UserTokenType.EMAIL_VERIFICATION,
-        )
+        try:
+            raw_token = await token_service.create_token(
+                mobile_user_id=user_id,
+                token_type=UserTokenType.EMAIL_VERIFICATION,
+            )
+        except Exception as error:
+            LOGGER.exception(f"send_verification_email failed during create_token for user_id={user_id}: {error}")
+            raise
 
         html = TEMPLATES.get_template("email_verification.html").render(
             verification_url=f"{settings.APP_URL}/api/v1/mobile-users/verify-email?{urlencode({'token': raw_token})}",
@@ -1182,10 +1198,14 @@ class MobileUserService:
         raw_token: str,
     ) -> None:
         token_service = MobileUserTokenService(db=self.db)
-        db_token = await token_service.verify_token(
-            raw_token=raw_token,
-            token_type=UserTokenType.EMAIL_VERIFICATION,
-        )
+        try:
+            db_token = await token_service.verify_token(
+                raw_token=raw_token,
+                token_type=UserTokenType.EMAIL_VERIFICATION,
+            )
+        except Exception as error:
+            LOGGER.exception(f"verify_email failed during verify_token: {error}")
+            raise
 
         user_id = db_token.mobile_user_id
 
@@ -1246,11 +1266,15 @@ class MobileUserService:
         otp_code = f"{secrets.randbelow(1_000_000):06d}"
 
         token_service = MobileUserTokenService(db=self.db)
-        await token_service.create_token(
-            mobile_user_id=user_id,
-            token_type=UserTokenType.EMAIL_CHANGE_OTP,
-            raw_token=otp_code,
-        )
+        try:
+            await token_service.create_token(
+                mobile_user_id=user_id,
+                token_type=UserTokenType.EMAIL_CHANGE_OTP,
+                raw_token=otp_code,
+            )
+        except Exception as error:
+            LOGGER.exception(f"request_email_change_otp failed during create_token for user_id={user_id}: {error}")
+            raise
 
         html = TEMPLATES.get_template("email_change_otp.html").render(
             otp_code=otp_code,
@@ -1281,19 +1305,28 @@ class MobileUserService:
             raise NotFoundError("User not found.")
 
         token_service = MobileUserTokenService(db=self.db)
-        db_token = await token_service.verify_token(
-            raw_token=otp,
-            token_type=UserTokenType.EMAIL_CHANGE_OTP,
-        )
+        try:
+            db_token = await token_service.verify_token(
+                raw_token=otp,
+                token_type=UserTokenType.EMAIL_CHANGE_OTP,
+            )
+        except Exception as error:
+            LOGGER.exception(f"verify_email_change_otp failed during verify_token for user_id={user_id}: {error}")
+            raise
+
         if db_token.mobile_user_id != user_id:
             raise InvalidInputError("Invalid or expired token.")
 
         await token_service.consume_token(token_id=db_token.id)
 
-        authorization_token = await token_service.create_token(
-            mobile_user_id=user_id,
-            token_type=UserTokenType.EMAIL_CHANGE_AUTHORIZATION,
-        )
+        try:
+            authorization_token = await token_service.create_token(
+                mobile_user_id=user_id,
+                token_type=UserTokenType.EMAIL_CHANGE_AUTHORIZATION,
+            )
+        except Exception as error:
+            LOGGER.exception(f"verify_email_change_otp failed during create_token for user_id={user_id}: {error}")
+            raise
 
         return MobileUserEmailChangeOtpVerifyRead(authorization_token=authorization_token)
 
@@ -1317,10 +1350,15 @@ class MobileUserService:
             raise NotFoundError("User not found.")
 
         token_service = MobileUserTokenService(db=self.db)
-        db_authorization_token = await token_service.verify_token(
-            raw_token=authorization_token,
-            token_type=UserTokenType.EMAIL_CHANGE_AUTHORIZATION,
-        )
+        try:
+            db_authorization_token = await token_service.verify_token(
+                raw_token=authorization_token,
+                token_type=UserTokenType.EMAIL_CHANGE_AUTHORIZATION,
+            )
+        except Exception as error:
+            LOGGER.exception(f"request_email_change failed during verify_token for user_id={user_id}: {error}")
+            raise
+
         if db_authorization_token.mobile_user_id != user_id:
             raise InvalidInputError("Invalid or expired token.")
 
@@ -1361,11 +1399,15 @@ class MobileUserService:
             if not is_valid:
                 raise InvalidInputError("Current password is incorrect.")
 
-        raw_verification_token = await token_service.create_token(
-            mobile_user_id=user_id,
-            token_type=UserTokenType.EMAIL_CHANGE,
-            payload={"new_email": new_email},
-        )
+        try:
+            raw_verification_token = await token_service.create_token(
+                mobile_user_id=user_id,
+                token_type=UserTokenType.EMAIL_CHANGE,
+                payload={"new_email": new_email},
+            )
+        except Exception as error:
+            LOGGER.exception(f"request_email_change failed during create_token for user_id={user_id}: {error}")
+            raise
 
         await self.db.commit()
 
@@ -1389,10 +1431,14 @@ class MobileUserService:
         raw_token: str,
     ) -> None:
         token_service = MobileUserTokenService(db=self.db)
-        db_token = await token_service.verify_token(
-            raw_token=raw_token,
-            token_type=UserTokenType.EMAIL_CHANGE,
-        )
+        try:
+            db_token = await token_service.verify_token(
+                raw_token=raw_token,
+                token_type=UserTokenType.EMAIL_CHANGE,
+            )
+        except Exception as error:
+            LOGGER.exception(f"verify_new_email failed during verify_token: {error}")
+            raise
 
         user_id = db_token.mobile_user_id
         new_email = db_token.payload_json["new_email"]

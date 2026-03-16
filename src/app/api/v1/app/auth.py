@@ -117,7 +117,23 @@ async def reset_password_page(
     service: MobileUserServiceDependency,
     _: Annotated[None, IpRateLimitDependency],
 ) -> HTMLResponse:
-    await service.validate_password_reset_token(raw_token=token)
+    try:
+        await service.validate_password_reset_token(raw_token=token)
+    except Exception:
+        content = service.render_template("invalid_or_expired.html")
+        response = HTMLResponse(content=content, status_code=status.HTTP_400_BAD_REQUEST)
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; "
+            "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
+            "font-src https://fonts.gstatic.com; "
+            "script-src 'none'; "
+            "img-src 'self' data: https://storage.googleapis.com; "
+            "base-uri 'none'; "
+            "form-action 'none'; "
+            "frame-ancestors 'none';"
+        )
+        return response
+
     csp_nonce = secrets.token_urlsafe(32)
     content = service.render_template("password_reset_form.html", token=token, csp_nonce=csp_nonce)
     response = HTMLResponse(content=content)
@@ -127,7 +143,7 @@ async def reset_password_page(
         "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
         "font-src https://fonts.gstatic.com; "
         "connect-src 'self'; "
-        "img-src 'self' data:; "
+        "img-src 'self' data: https://storage.googleapis.com; "
         "base-uri 'none'; "
         "form-action 'self'; "
         "frame-ancestors 'none';"
