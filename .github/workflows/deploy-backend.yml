@@ -99,8 +99,6 @@ jobs:
           BREVO_API_KEY:                 ${{ secrets.BREVO_API_KEY }}
           ADMIN_SESSION_SIGNING_SECRET:  ${{ secrets.ADMIN_SESSION_SIGNING_SECRET }}
           SECRET_KEY:                    ${{ secrets.SECRET_KEY }}
-          ADMIN_EMAIL:                   ${{ secrets.ADMIN_EMAIL }}
-          ADMIN_USERNAME:                ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD:                ${{ secrets.ADMIN_PASSWORD }}
         run: |
           sync_secret() {
@@ -151,8 +149,6 @@ jobs:
           sync_secret "BREVO_API_KEY"                "$BREVO_API_KEY"
           sync_secret "ADMIN_SESSION_SIGNING_SECRET" "$ADMIN_SESSION_SIGNING_SECRET"
           sync_secret "SECRET_KEY"                   "$SECRET_KEY"
-          sync_secret "ADMIN_EMAIL"                  "$ADMIN_EMAIL"
-          sync_secret "ADMIN_USERNAME"               "$ADMIN_USERNAME"
           sync_secret "ADMIN_PASSWORD"               "$ADMIN_PASSWORD"
 
       - name: Get current stable revision
@@ -442,7 +438,7 @@ jobs:
             --image="${{ env.IMAGE }}" \
             --region="$REGION" \
             --service-account="${{ secrets.GCP_SERVICE_ACCOUNT }}" \
-            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,ADMIN_EMAIL=ADMIN_EMAIL:latest,ADMIN_USERNAME=ADMIN_USERNAME:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest" \
             --command="python" \
             --args="-m,scripts.bootstrap" \
             --max-retries=1 \
@@ -451,7 +447,7 @@ jobs:
           gcloud run jobs update "$JOB_NAME" \
             --image="${{ env.IMAGE }}" \
             --region="$REGION" \
-            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,ADMIN_EMAIL=ADMIN_EMAIL:latest,ADMIN_USERNAME=ADMIN_USERNAME:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest" \
+            --set-secrets="POSTGRES_URL=POSTGRES_URL:latest,SECRET_KEY=SECRET_KEY:latest,ADMIN_SESSION_SIGNING_SECRET=ADMIN_SESSION_SIGNING_SECRET:latest,REDIS_CACHE_URL=REDIS_CACHE_URL:latest,QDRANT_CLOUD_URL=QDRANT_CLOUD_URL:latest,QDRANT_CLOUD_API_KEY=QDRANT_CLOUD_API_KEY:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest" \
             --command="python" \
             --args="-m,scripts.bootstrap" \
             --max-retries=1 \
