@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Confirm Email Change · PawsPort</title>
 
-    <!--
-      Security headers are also enforced at the HTTP layer in the FastAPI route.
-      These meta-equiv tags are a defence-in-depth fallback only.
-    -->
+    <meta name="color-scheme" content="light only" />
+    <meta name="supported-color-schemes" content="light" />
+
     <meta http-equiv="Content-Security-Policy" content="
             default-src   'none';
             style-src     'self' https://fonts.googleapis.com 'unsafe-inline';
@@ -27,11 +26,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <style>
+        :root { color-scheme: light only; }
+        [data-ogsc] .card      { background-color: #ffffff !important; }
+        [data-ogsc] .card-body { background-color: #ffffff !important; }
+        [data-ogsc] .card-footer { background-color: #FAFAFA !important; }
+        [data-ogsc] p, [data-ogsc] span { color: inherit !important; }
+    </style>
 </head>
 <body style="margin:0; padding:0; background:#0F172A; font-family:'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background:linear-gradient(135deg, #0F172A 0%, #1E293B 100%); min-height:100vh;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" bgcolor="#0F172A" style="background:linear-gradient(135deg, #0F172A 0%, #1E293B 100%); min-height:100vh;">
   <tr>
-    <td align="center" valign="middle" style="padding:1.5rem;">
+    <td align="center" valign="top" style="padding:3rem 1.5rem 1.5rem;">
 
 <div class="card" style="background:#fff; border-radius:24px; box-shadow:0 25px 60px -15px rgba(0,0,0,.4); overflow:hidden; width:100%; max-width:440px; margin:0 auto;">
 
@@ -44,16 +51,10 @@
         <p style="font-size:.92rem; opacity:.85; margin-top:4px; position:relative; z-index:1">Verify your new email address.</p>
     </div>
 
-    <div class="card-body" style="padding:2rem">
+    <div class="card-body" style="padding:2rem; background:#ffffff;">
         <p class="greeting" style="font-size:1rem; font-weight:700; color:#1E293B; margin-bottom:.5rem">Hi there!</p>
         <p class="message" style="font-size:.9rem; color:#64748B; line-height:1.7; margin-bottom:1.5rem">We received a request to change your PawsPort account's email address. Click the button below to confirm and apply the change.</p>
 
-        <!--
-          verification_url MUST be validated in the FastAPI route before rendering:
-            if not verification_url.startswith('https://your-domain.com'):
-                raise ValueError("Invalid verification URL")
-          This prevents open-redirect and javascript: injection attacks.
-        -->
         <a href="{{ verification_url }}" class="cta-btn" style="display:block; background:linear-gradient(135deg, #FF6B35 0%, #E85A28 100%); color:#fff; text-align:center; text-decoration:none; font-size:.975rem; font-weight:700; font-family:inherit; padding:.82rem; border-radius:10px; box-shadow:0 4px 14px rgba(255,107,53,.3); margin-bottom:1.5rem">✓ Confirm Email Change</a>
 
         <div class="notice notice-expiry" role="note" style="display:flex; align-items:flex-start; gap:.65rem; border-radius:10px; padding:.85rem 1rem; margin-bottom:1rem; font-size:.85rem; line-height:1.55; background:#FFF8F5; border:1.5px solid #FFD5BB; color:#C0541C">

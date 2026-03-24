@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Verify Your Email · PawsPort</title>
 
-    <!--
-      Security headers are also enforced at the HTTP layer in the FastAPI route.
-      These meta-equiv tags are a defence-in-depth fallback only.
-    -->
+    <meta name="color-scheme" content="light only" />
+    <meta name="supported-color-schemes" content="light" />
+
     <meta http-equiv="Content-Security-Policy" content="
             default-src   'none';
             style-src     'self' https://fonts.googleapis.com 'unsafe-inline';
@@ -27,11 +26,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <style>
+        :root { color-scheme: light only; }
+        [data-ogsc] .card      { background-color: #ffffff !important; }
+        [data-ogsc] .card-body { background-color: #ffffff !important; }
+        [data-ogsc] .card-footer { background-color: #FAFAFA !important; }
+        [data-ogsc] p, [data-ogsc] span { color: inherit !important; }
+    </style>
 </head>
 <body style="margin:0; padding:0; background:#0F172A; font-family:'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background:linear-gradient(135deg, #0F172A 0%, #1E293B 100%); min-height:100vh;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" bgcolor="#0F172A" style="background:linear-gradient(135deg, #0F172A 0%, #1E293B 100%); min-height:100vh;">
   <tr>
-    <td align="center" valign="middle" style="padding:1.5rem;">
+    <td align="center" valign="top" style="padding:3rem 1.5rem 1.5rem;">
 
 <div class="card" style="background:#fff; border-radius:24px; box-shadow:0 25px 60px -15px rgba(0,0,0,.4); overflow:hidden; width:100%; max-width:440px; margin:0 auto;">
 
@@ -44,7 +51,7 @@
         <p style="font-size:.92rem; opacity:.85; margin-top:4px; position:relative; z-index:1">One step to activate your account.</p>
     </div>
 
-    <div class="card-body" style="padding:2rem">
+    <div class="card-body" style="padding:2rem; background:#ffffff;">
         <p class="greeting" style="font-size:1rem; font-weight:700; color:#1E293B; margin-bottom:.5rem">Hi there!</p>
         <p class="message" style="font-size:.9rem; color:#64748B; line-height:1.7; margin-bottom:1.5rem">Thanks for signing up for PawsPort! To activate your account and start managing your pet's digital passport, please verify your email address.</p>
 

@@ -455,9 +455,9 @@ class DashboardService:
 
             by_status_rows = (
                 await db.execute(
-                    select(SightingReport.status, func.count().label("count"))
+                    select(SightingReport.report_status, func.count().label("count"))
                     .where(SightingReport.is_deleted.is_(False))
-                    .group_by(SightingReport.status)
+                    .group_by(SightingReport.report_status)
                 )
             ).all()
 
@@ -814,7 +814,6 @@ class DashboardService:
             articles,
             admin_users,
             tiers,
-            health,
         ) = await asyncio.gather(
             self.get_mobile_user_stats(),
             self.get_pet_stats(),

@@ -110,3 +110,9 @@ gcloud run services update pawsport-backend-worker --region=asia-southeast1 --mi
 
 # Turn off
 gcloud run services update pawsport-backend-worker --region=asia-southeast1 --min-instances=0 --cpu-throttling
+
+Scale to zero (request-based):
+gcloud run services update pawsport-backend-worker --min-instances=0 --no-cpu-throttling --region=asia-southeast1 --project=pawsport-thesis
+
+Always on (min 1 instance):
+gcloud run services update pawsport-backend-worker --min-instances=1 --no-cpu-throttling --region=asia-southeast1 --project=pawsport-thesis
