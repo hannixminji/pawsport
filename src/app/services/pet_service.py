@@ -77,7 +77,6 @@ class PetService:
         "deleted_at",
     })
     ADMIN_SEARCH_BLACKLIST_COLUMNS: ClassVar[frozenset[str]] = frozenset({
-        "id",
         "color",
         "markings",
         "weight_kg",
