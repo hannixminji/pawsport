@@ -1,102 +1,69 @@
 # 🐾 PawsPort
 
-PawsPort is a distributed backend platform for managing digital pet identities, social interactions, and AI-assisted pet recognition.
+PawsPort is a digital pet passport platform used to manage, verify, and connect pet identities across health records, social interactions, and AI-based recognition systems.
 
-It serves as a unified system for storing structured pet data, handling community activity, and performing image-based similarity search for pet identification workflows.
-
----
-
-# 🎯 What This System Is Used For
-
-PawsPort is designed to support:
-
-- Digital identity management for pets
-- Social graph features (posts, comments, engagement)
-- Missing pet reporting and sighting coordination
-- AI-powered pet image recognition and matching
-- Structured medical, vaccination, and care tracking
-- Real-time updates for user interactions and system events
+It acts as a unified identity layer for pets, combining structured data, real-world events, and image-based intelligence into a single persistent profile.
 
 ---
 
-# ⚙️ System Characteristics
+# 🎯 What PawsPort Is Used For
 
-This is a **distributed, event-driven backend system** with a hybrid data model combining:
+PawsPort is used to:
 
-- Relational storage for transactional data
-- Document-based storage for real-time social data
-- Vector database for AI similarity search
-- Cloud-native authentication and media storage
-
-The system is designed around **stateless services and externalized state management**.
+- Manage persistent digital identities for pets
+- Store and track medical, vaccination, and care history
+- Support social interaction between pet owners
+- Handle missing pet reports and sighting records
+- Enable AI-based pet identification using images
+- Maintain a unified history of pet-related events over time
 
 ---
 
-# 🔗 External Dependencies
+# 🐾 What PawsPort Is
 
-PawsPort depends on the following external systems:
+PawsPort is a **pet identity and verification system**.
 
-## 🔐 Identity & Authentication
+Each pet is treated as a long-lived digital entity that accumulates structured and unstructured data over time, including:
+
+- ownership and profile information
+- health and medical records
+- social activity (posts, comments, engagement)
+- location-based reports and sightings
+- visual embeddings for recognition and matching
+
+The system is designed around the idea that a pet’s identity should be **portable, verifiable, and continuously evolving**.
+
+---
+
+# 🔗 What PawsPort Depends On
+
+PawsPort integrates with several external systems to support its functionality:
+
+## 🔐 Authentication & Identity
 - Firebase Authentication for user identity and session validation
-- Firebase Admin SDK for server-side token verification
 
-## 📄 Document Database
-- Firestore for real-time social and application data
-- Firestore triggers for event-driven state updates
+## 📄 Real-time Data Layer
+- Firestore for social data, events, and real-time updates
 
-## 🗄 Relational Database
-- PostgreSQL (PostGIS enabled) for structured domain data and geospatial queries
+## 🗄 Structured Data Layer
+- PostgreSQL (PostGIS enabled) for relational and geospatial data
 
-## ⚡ Cache & Queue Layer
-- Redis for caching, rate limiting, and background job coordination
+## ⚡ Performance & Async Processing
+- Redis for caching, rate limiting, and background task coordination
 
-## 🧠 AI / Vector Search
-- Qdrant for storing embeddings and performing similarity search
+## 🧠 AI & Similarity Search
+- Qdrant for storing and querying image embeddings
 
-## 🧠 ML Inference
-- Dedicated ML service for image processing and feature extraction
+## 🧠 Machine Learning
+- ML inference service for image processing and feature extraction
 
-## ☁️ Storage Layer
-- Google Cloud Storage for media and image assets
+## ☁️ Media Storage
+- Google Cloud Storage for images and pet-related media
 
 ---
 
-# 🧩 Core Capabilities
+# 🧠 Key Idea
 
-## 🐾 Pet Identity System
-Manages persistent digital records for pets including ownership, medical history, and verification data.
+PawsPort combines identity, social interaction, and AI recognition into a single system where every pet has a continuously evolving digital presence.
 
-## 💬 Social Graph
-Supports user interactions such as posts, comments, replies, and engagement tracking.
-
-## 🧠 AI Recognition Engine
-Uses machine learning embeddings to match and identify pets from images.
-
-## 📍 Reporting System
-Handles missing pet reports and sighting submissions with location-aware data support.
-
-## 🔄 Event-Driven Updates
-Maintains system consistency through reactive updates for counters, media, and derived fields.
-
----
-
-# 🧱 Design Principles
-
-- Stateless backend services
-- Event-driven data consistency
-- Separation of relational, document, and vector data layers
-- Cloud-managed identity and storage
-- Horizontally scalable ML inference layer
-- Backend-authoritative state management
-
----
-
-# 🧾 Summary
-
-PawsPort is a backend system combining:
-
-- Social platform mechanics
-- Structured pet identity management
-- AI-powered recognition pipeline
-- Hybrid database architecture (SQL + NoSQL + Vector)
-- Cloud-native authentication and storage integration
+It is not just a database — it is a **living identity network for pets**.
