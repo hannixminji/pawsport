@@ -1,233 +1,102 @@
-# 🐾 PawsPort — System Description & Runtime Requirements
+# 🐾 PawsPort
 
-PawsPort is a smart digital pet passport platform combining:
-- social graph (posts, comments, chats)
-- AI-powered pet identification
-- vector-based similarity search
-- cloud-backed authentication and storage
+PawsPort is a distributed backend platform for managing digital pet identities, social interactions, and AI-assisted pet recognition.
 
-The system is designed to run consistently across local and cloud environments using identical runtime dependencies.
+It serves as a unified system for storing structured pet data, handling community activity, and performing image-based similarity search for pet identification workflows.
 
 ---
 
-# 🧠 Core Architecture
+# 🎯 What This System Is Used For
 
-PawsPort consists of the following services:
+PawsPort is designed to support:
 
-## 1. API Service (FastAPI)
-Main backend service responsible for:
-- REST API endpoints
-- authentication middleware (Firebase Admin SDK)
-- business logic
-- integration with ML service
-- integration with Firestore and Qdrant
-
----
-
-## 2. Worker Service
-Background processing system responsible for:
-- async tasks
-- queue-based processing
-- initialization scripts (bootstrap logic)
-- database seeding and system setup tasks
+- Digital identity management for pets
+- Social graph features (posts, comments, engagement)
+- Missing pet reporting and sighting coordination
+- AI-powered pet image recognition and matching
+- Structured medical, vaccination, and care tracking
+- Real-time updates for user interactions and system events
 
 ---
 
-## 3. ML Service
-AI inference engine responsible for:
-- pet image feature extraction
-- embedding generation
-- detection and classification tasks
+# ⚙️ System Characteristics
 
-Communicates with API service via HTTP.
+This is a **distributed, event-driven backend system** with a hybrid data model combining:
 
----
+- Relational storage for transactional data
+- Document-based storage for real-time social data
+- Vector database for AI similarity search
+- Cloud-native authentication and media storage
 
-## 4. Qdrant Vector Database
-Used for:
-- storing image embeddings
-- similarity search
-- pet identification matching
+The system is designed around **stateless services and externalized state management**.
 
 ---
 
-## 5. PostgreSQL (PostGIS enabled)
-Used for:
-- relational data storage
-- geospatial queries
-- transactional consistency
+# 🔗 External Dependencies
+
+PawsPort depends on the following external systems:
+
+## 🔐 Identity & Authentication
+- Firebase Authentication for user identity and session validation
+- Firebase Admin SDK for server-side token verification
+
+## 📄 Document Database
+- Firestore for real-time social and application data
+- Firestore triggers for event-driven state updates
+
+## 🗄 Relational Database
+- PostgreSQL (PostGIS enabled) for structured domain data and geospatial queries
+
+## ⚡ Cache & Queue Layer
+- Redis for caching, rate limiting, and background job coordination
+
+## 🧠 AI / Vector Search
+- Qdrant for storing embeddings and performing similarity search
+
+## 🧠 ML Inference
+- Dedicated ML service for image processing and feature extraction
+
+## ☁️ Storage Layer
+- Google Cloud Storage for media and image assets
 
 ---
 
-## 6. Redis
-Used for:
-- caching
-- job queues
-- session storage
-- rate limiting
+# 🧩 Core Capabilities
+
+## 🐾 Pet Identity System
+Manages persistent digital records for pets including ownership, medical history, and verification data.
+
+## 💬 Social Graph
+Supports user interactions such as posts, comments, replies, and engagement tracking.
+
+## 🧠 AI Recognition Engine
+Uses machine learning embeddings to match and identify pets from images.
+
+## 📍 Reporting System
+Handles missing pet reports and sighting submissions with location-aware data support.
+
+## 🔄 Event-Driven Updates
+Maintains system consistency through reactive updates for counters, media, and derived fields.
 
 ---
 
-## 7. Firebase Services
+# 🧱 Design Principles
 
-### Authentication
-Handles:
-- user identity
-- token validation
-- session security
-
-### Firestore
-Used as:
-- primary NoSQL document database
-- real-time sync store
-
-### Cloud Functions (Firestore triggers)
-Used for:
-- counter updates (likes, comments, replies)
-- image aggregation updates
-- reactive database consistency logic
+- Stateless backend services
+- Event-driven data consistency
+- Separation of relational, document, and vector data layers
+- Cloud-managed identity and storage
+- Horizontally scalable ML inference layer
+- Backend-authoritative state management
 
 ---
 
-## 8. Google Cloud Storage (GCS)
-Used for:
-- image uploads
-- thumbnails
-- media storage
+# 🧾 Summary
 
-Accessed through Google Service Account credentials.
+PawsPort is a backend system combining:
 
----
-
-# 🔐 Authentication & Identity Model
-
-Authentication is handled via Firebase Authentication.
-
-Backend services validate requests using Firebase Admin SDK with:
-
-- Service Account JSON credentials
-- Google Application Default Credentials (ADC style)
-
----
-
-# 🔑 Required External Credentials
-
-The system requires a service account JSON with permissions for:
-
-### Firestore access
-- read/write document operations
-
-### Storage access
-- upload/download objects in GCS
-
-### Authentication
-- verify Firebase ID tokens
-
-### Logging
-- write application logs
-
----
-
-# 🧾 Firestore Data Model (High Level)
-
-## users
-- user profile data
-- status flags (banned, muted, restrictions)
-
-## posts
-- social posts
-- counters (likes, comments)
-- media references
-
-## nested collections:
-- likes
-- comments
-- replies
-- media/images
-
----
-
-# 🔥 Firestore Security Model
-
-Security rules enforce:
-
-- authenticated access required for write operations
-- ownership-based updates for user-owned resources
-- restrictions for banned/muted users
-- immutable system counters (managed by backend/functions)
-
----
-
-# ⚡ Firebase Cloud Functions (Event System)
-
-Cloud Functions are used to maintain data consistency:
-
-## Post interactions
-- increment/decrement likes
-- update comment counters
-- maintain reply counts
-
-## Media system
-- recompute image counts
-- generate thumbnail references
-
-All triggers are event-driven using Firestore document changes.
-
----
-
-# 🧠 AI / ML Pipeline
-
-### Flow:
-1. Image uploaded to system
-2. ML service generates embedding
-3. Embedding stored in Qdrant
-4. API performs similarity search
-5. Matching results returned to client
-
----
-
-# 📦 Containerized Runtime Model
-
-The system is designed for containerized execution:
-
-- API service container
-- Worker service container
-- ML service container
-- PostgreSQL container
-- Redis container
-- Qdrant container
-
-All services communicate via internal network DNS.
-
----
-
-# 🌐 External Dependencies
-
-The system requires:
-
-- Firebase project (Auth + Firestore enabled)
-- Google Cloud project (Storage enabled)
-- Service Account credentials JSON
-- Network access to Qdrant (local or remote)
-- ML service runtime availability
-
----
-
-# 🧩 Design Principles
-
-- Event-driven consistency (Firestore triggers)
-- Stateless API layer
-- Externalized identity (Firebase Auth)
-- Vector-first AI matching (Qdrant)
-- Modular service separation (API / Worker / ML)
-- Cloud-agnostic container runtime
-
----
-
-# ⚠️ Operational Notes
-
-- Firestore counters are not client-authoritative
-- All counters must be updated via backend or Cloud Functions
-- ML inference is stateless and horizontally scalable
-- Service account must never be exposed to client applications
-- Qdrant is the source of truth for embeddings
+- Social platform mechanics
+- Structured pet identity management
+- AI-powered recognition pipeline
+- Hybrid database architecture (SQL + NoSQL + Vector)
+- Cloud-native authentication and storage integration
