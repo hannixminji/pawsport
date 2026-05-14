@@ -1,118 +1,233 @@
-# 🐾 PawsPort: QR-Coded and AI-Powered Pet Identification System
+# 🐾 PawsPort — System Description & Runtime Requirements
 
-> A mobile and AI-powered pet identification system designed to improve pet recovery, record management, and community-based reporting.
+PawsPort is a smart digital pet passport platform combining:
+- social graph (posts, comments, chats)
+- AI-powered pet identification
+- vector-based similarity search
+- cloud-backed authentication and storage
 
----
-
-## 📌 Overview
-
-PawsPort is a research-based system that integrates QR code technology, artificial intelligence, and cloud services to enhance pet identification and lost pet recovery.
-
-The system allows pet owners to create digital pet profiles, generate QR-coded smart tags, and use AI-powered image recognition to verify and match pets.
-
-A community feature supports reporting and tracking of lost and found pets in real time.
+The system is designed to run consistently across local and cloud environments using identical runtime dependencies.
 
 ---
 
-## ⚙️ Key Features
+# 🧠 Core Architecture
 
-- 📱 Mobile pet profile management (Flutter)
-- 🖥️ Admin dashboard (NestJS-based system)
-- 🔳 QR-coded smart identification tags
-- 🤖 AI-powered pet recognition system
-- 📍 Lost & Found reporting with map visualization
-- 💬 Community-driven pet network
-- ☁️ Cloud-based backend and real-time data sync
+PawsPort consists of the following services:
 
----
-
-## 🧠 AI System
-
-The AI pipeline performs multi-stage pet identification:
-
-- **YOLOv8s (Detection)**  
-  Detects and localizes pet faces in images
-
-- **YOLOv8s (Pose Validation)**  
-  Ensures proper facial orientation using key landmarks
-
-- **MegaDescriptor-L384 (Embedding Model)**  
-  Extracts feature embeddings for identity matching
-
-- **Vector Database Matching (Qdrant)**  
-  Performs similarity search using a **60% confidence threshold**
+## 1. API Service (FastAPI)
+Main backend service responsible for:
+- REST API endpoints
+- authentication middleware (Firebase Admin SDK)
+- business logic
+- integration with ML service
+- integration with Firestore and Qdrant
 
 ---
 
-## 🏗️ System Architecture
-
-- **Mobile Frontend:** Flutter
-- **Admin Panel:** NestJS
-- **Backend API:** FastAPI
-- **Authentication:** Firebase Authentication
-- **Databases:**
-  - PostgreSQL (Neon)
-  - Firestore (real-time features)
-  - Redis (caching)
-- **AI Models:** YOLOv8s + MegaDescriptor-L384
-- **Vector Search:** Qdrant
-- **Storage:** Google Cloud Storage
-- **Deployment:** Google Cloud Run / Firebase
+## 2. Worker Service
+Background processing system responsible for:
+- async tasks
+- queue-based processing
+- initialization scripts (bootstrap logic)
+- database seeding and system setup tasks
 
 ---
 
-## 📊 Dataset & Training
+## 3. ML Service
+AI inference engine responsible for:
+- pet image feature extraction
+- embedding generation
+- detection and classification tasks
 
-- PetFaceDetection dataset (Kaggle)
-- Animals10 dataset (background augmentation)
-- Over 25,000 images used for training and evaluation
-
-### Training Pipeline:
-- Two-stage YOLOv8s training process
-- Image preprocessing (resize, filtering, validation)
-- Background class inclusion for robustness
+Communicates with API service via HTTP.
 
 ---
 
-## 📱 Application Modules
-
-- Home: Pet profiles, QR scanning, AI identification
-- Lost & Found: Reports and map-based tracking
-- Community: Posts, discussions, and engagement
-- Profile: User settings and account management
-- Admin Panel: User moderation, system monitoring, and report management
+## 4. Qdrant Vector Database
+Used for:
+- storing image embeddings
+- similarity search
+- pet identification matching
 
 ---
 
-## 🎯 Objective
-
-The system aims to improve traditional pet identification methods by providing:
-
-- Faster and more accessible pet identification
-- Improved lost pet recovery success rate
-- Centralized digital pet records
-- Community-assisted reporting system
+## 5. PostgreSQL (PostGIS enabled)
+Used for:
+- relational data storage
+- geospatial queries
+- transactional consistency
 
 ---
 
-## ⚠️ Limitations
-
-- Currently supports only cats and dogs
-- Requires internet connectivity
-- AI performance depends on image quality
-- Not a replacement for official microchip systems
-- Android-only mobile implementation
-
----
-
-## 👨‍💻 Authors & Contributions
-
-- **Bargola, Yrvihn D.** – Frontend Development (Flutter mobile application) & Admin Dashboard (NestJS)
-- **Calvis, Edmar A.** – Research Documentation & AI Detection Model Training
-- **Dalida, Marc Lester S.** – Backend Development, API Design, and System Integration
+## 6. Redis
+Used for:
+- caching
+- job queues
+- session storage
+- rate limiting
 
 ---
 
-## 🧠 System Type
+## 7. Firebase Services
 
-Research-based AI-assisted pet identification and recovery platform integrating mobile, web admin, and cloud-based services.
+### Authentication
+Handles:
+- user identity
+- token validation
+- session security
+
+### Firestore
+Used as:
+- primary NoSQL document database
+- real-time sync store
+
+### Cloud Functions (Firestore triggers)
+Used for:
+- counter updates (likes, comments, replies)
+- image aggregation updates
+- reactive database consistency logic
+
+---
+
+## 8. Google Cloud Storage (GCS)
+Used for:
+- image uploads
+- thumbnails
+- media storage
+
+Accessed through Google Service Account credentials.
+
+---
+
+# 🔐 Authentication & Identity Model
+
+Authentication is handled via Firebase Authentication.
+
+Backend services validate requests using Firebase Admin SDK with:
+
+- Service Account JSON credentials
+- Google Application Default Credentials (ADC style)
+
+---
+
+# 🔑 Required External Credentials
+
+The system requires a service account JSON with permissions for:
+
+### Firestore access
+- read/write document operations
+
+### Storage access
+- upload/download objects in GCS
+
+### Authentication
+- verify Firebase ID tokens
+
+### Logging
+- write application logs
+
+---
+
+# 🧾 Firestore Data Model (High Level)
+
+## users
+- user profile data
+- status flags (banned, muted, restrictions)
+
+## posts
+- social posts
+- counters (likes, comments)
+- media references
+
+## nested collections:
+- likes
+- comments
+- replies
+- media/images
+
+---
+
+# 🔥 Firestore Security Model
+
+Security rules enforce:
+
+- authenticated access required for write operations
+- ownership-based updates for user-owned resources
+- restrictions for banned/muted users
+- immutable system counters (managed by backend/functions)
+
+---
+
+# ⚡ Firebase Cloud Functions (Event System)
+
+Cloud Functions are used to maintain data consistency:
+
+## Post interactions
+- increment/decrement likes
+- update comment counters
+- maintain reply counts
+
+## Media system
+- recompute image counts
+- generate thumbnail references
+
+All triggers are event-driven using Firestore document changes.
+
+---
+
+# 🧠 AI / ML Pipeline
+
+### Flow:
+1. Image uploaded to system
+2. ML service generates embedding
+3. Embedding stored in Qdrant
+4. API performs similarity search
+5. Matching results returned to client
+
+---
+
+# 📦 Containerized Runtime Model
+
+The system is designed for containerized execution:
+
+- API service container
+- Worker service container
+- ML service container
+- PostgreSQL container
+- Redis container
+- Qdrant container
+
+All services communicate via internal network DNS.
+
+---
+
+# 🌐 External Dependencies
+
+The system requires:
+
+- Firebase project (Auth + Firestore enabled)
+- Google Cloud project (Storage enabled)
+- Service Account credentials JSON
+- Network access to Qdrant (local or remote)
+- ML service runtime availability
+
+---
+
+# 🧩 Design Principles
+
+- Event-driven consistency (Firestore triggers)
+- Stateless API layer
+- Externalized identity (Firebase Auth)
+- Vector-first AI matching (Qdrant)
+- Modular service separation (API / Worker / ML)
+- Cloud-agnostic container runtime
+
+---
+
+# ⚠️ Operational Notes
+
+- Firestore counters are not client-authoritative
+- All counters must be updated via backend or Cloud Functions
+- ML inference is stateless and horizontally scalable
+- Service account must never be exposed to client applications
+- Qdrant is the source of truth for embeddings
